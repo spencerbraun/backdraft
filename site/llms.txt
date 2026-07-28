@@ -1,0 +1,69 @@
+# backdraft, provenance for factual claims (agent reference)
+
+Backdraft gates how you read source documents, so every span you can cite is a
+span you were shown, with a receipt. You write claims as markdown links whose
+hrefs are citation tokens; `bind` resolves them and records evidence; `render`
+emits one self-contained HTML artifact for humans.
+
+Full skill (the writing contract, load it if you can):
+https://github.com/spencerbraun/backdraft/blob/main/skills/backdraft/SKILL.md
+
+## Install
+
+uv tool install "backdraft[vlm]"
+backdraft skill install   # copies the writing skill into ~/.claude/skills/
+# [vlm] adds vision-model PDF extraction (needs poppler + BACKDRAFT_VLM_API_KEY).
+# Ambient provider keys (OPENAI_API_KEY etc.) are NEVER read; only BACKDRAFT_*.
+
+## The contract
+
+Read source documents ONLY through `backdraft read` / `backdraft search` /
+`backdraft cell`. Never Read/cat/grep a source file directly: text obtained
+outside the gate has no receipt and cannot be cited. Never construct or edit a
+token by hand; copy it from gate output.
+
+## Workflow
+
+backdraft init                              # once per project
+backdraft ingest report.pdf model.xlsx      # every source up front
+backdraft session start --id s-<name>       # enables not_shown detection
+export BACKDRAFT_SESSION=s-<name>
+
+backdraft read                              # list documents
+backdraft read <slug>                       # table of contents
+backdraft read <slug> p3                    # page/range/sheet; chunks arrive
+                                            # with tokens: [bd:slug:p3.c2:7f11]
+backdraft search "24850000"                 # hits are citable directly
+backdraft cell <slug> "sheet!D24"           # mint a specific cell's token
+
+Write claims as links; multiple tokens are ;-separated in one href:
+  [net operating income of $1,429,600](bd:t12:p1.c3:f10b)
+An italic line directly under the # title becomes the artifact subtitle.
+
+backdraft bind memo.md --check value-trace,overlap
+backdraft render memo.md --to html          # -> memo.backdraft.html
+
+## Exit codes (bind)
+
+0 every citation resolved · 1 usage/environment error · 2 something did not
+resolve, act on it. Statuses: unresolved (token names nothing: search, fix,
+re-bind, or state "not supported by the ingested sources"), not_shown (real
+anchor you were never shown: read it, re-bind), drifted (source changed:
+re-read, confirm), malformed (fix the href). NEVER fix exit 2 by deleting the
+token; a kept failure is the honest outcome. Show the user the bind report
+verbatim.
+
+## Files
+
+memo.md (authored, yours) · memo.backdraft.html (the deliverable, document +
+receipts + evidence, one file, no network) · the record lives at
+.backdraft/records/<doc>.backdraft.json. `backdraft clean` tidies strays.
+Verification (--check) is evidence, never a gate: a partial is not a problem
+to fix.
+
+## Format
+
+Token grammar: bd:<slug>:<locator>:<hash>, locators p8, p8.c3, sheet!B10.
+Artifact format string: backdraft/artifact-v1; the JSON island inside the HTML
+is self-describing ($legend). Specs:
+https://github.com/spencerbraun/backdraft/tree/main/spec

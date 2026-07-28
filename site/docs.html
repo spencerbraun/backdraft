@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backdraft, documentation</title>
+<meta name="description" content="Install, concepts, the full workflow, CLI reference, verification, the artifact format, and agent setup for Backdraft.">
+<link rel="icon" href='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"%3E%3Crect width="64" height="64" rx="13" fill="%23FBFAF6"/%3E%3Cg transform="translate(32 32) scale(0.82) translate(-32 -32)"%3E%3Cpath fill="%23282828" fill-rule="evenodd" d="M44 3 C38 8 30 10 26 16 C23.5 20 24.5 24 27 26.5 C20.5 28 14.5 33 14 41 C13.3 51.5 22 59.5 33 59.5 C44 59.5 51.5 51.5 51 41.5 C50.6 33.5 45 29 42.5 22.5 C40.8 18 42.5 9 44 3 Z M34 34 C38 38.5 39.5 43.5 37.5 47.5 C35 52 28.5 51.5 26.5 47 C25 43.5 27.5 40 30 38.5 C31.8 37.5 33.2 36 34 34 Z"/%3E%3C/g%3E%3C/svg%3E'>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  --paper:#FFFFFF; --ink:#232323; --muted:#676767; --faint:#A3A19A;
+  --hairline:#E8E5DD; --hairline-strong:#D6D2C6;
+  --notebook:#FBFAF6; --notebook-line:rgba(40,40,40,.05);
+  --sel:#1F7244; --sel-soft:#EAF3EE; --gold:#F5E6AE; --alarm:#A63A2E;
+  --serif:'Iowan Old Style','Iowan Old Style BT',Palatino,'Palatino Linotype',Georgia,serif;
+  --sans:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,sans-serif;
+  --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--notebook);color:var(--ink);
+  font-family:var(--serif);font-size:16.5px;line-height:1.62;
+  background-image:
+    repeating-linear-gradient(0deg,var(--notebook-line) 0 1px,transparent 1px 18px),
+    repeating-linear-gradient(90deg,var(--notebook-line) 0 1px,transparent 1px 18px)}
+a{color:inherit;text-decoration:underline;text-decoration-color:rgba(40,40,40,.28);
+  text-underline-offset:3px;text-decoration-thickness:1px}
+a:hover{text-decoration-color:var(--ink)}
+.wrap{max-width:72rem;margin:0 auto;padding:0 1.5rem}
+.bar{display:flex;align-items:center;justify-content:space-between;
+  padding:1.4rem 0;font-family:var(--sans);font-size:.82rem}
+.brand{display:flex;align-items:center;gap:.5rem;font-family:var(--serif);
+  font-weight:600;font-size:1.05rem;text-decoration:none}
+.bar nav a{margin-left:1.4rem;text-decoration:none;color:var(--muted);font-weight:500}
+.bar nav a:hover{color:var(--ink)}
+
+.layout{display:grid;grid-template-columns:13rem minmax(0,1fr);gap:3.5rem;
+  padding:2rem 0 6rem}
+.toc{position:sticky;top:2rem;align-self:start;font-family:var(--sans);
+  font-size:.78rem;line-height:2}
+.toc p{font-size:.64rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--faint);margin:0 0 .3rem}
+.toc a{display:block;text-decoration:none;color:var(--muted)}
+.toc a:hover{color:var(--ink)}
+main{max-width:44rem}
+main h1{font-size:2rem;font-weight:600;letter-spacing:-.01em;margin:.5rem 0 .6rem}
+.lede{color:var(--muted);margin:0 0 2.5rem;font-size:1rem}
+section{border-top:1px solid var(--hairline);padding:2.2rem 0 .8rem;margin-top:1.6rem}
+h2{font-size:1.35rem;font-weight:600;margin:0 0 .9rem;letter-spacing:-.005em}
+h3{font-size:1rem;font-weight:600;margin:1.6rem 0 .5rem}
+p{margin:0 0 .95rem}
+ul,ol{margin:0 0 .95rem;padding-left:1.3rem}
+li{margin:.25rem 0}
+pre{background:var(--paper);border:1px solid var(--hairline);border-radius:6px;
+  font-family:var(--mono);font-size:.73rem;line-height:1.65;padding:.9rem 1.05rem;
+  overflow-x:auto;margin:0 0 1rem}
+code{font-family:var(--mono);font-size:.85em;background:rgba(40,40,40,.05);
+  border-radius:3px;padding:.05em .3em}
+pre code{background:none;padding:0}
+.dim{color:var(--faint)} .tok{color:var(--sel);font-weight:600}
+table{border-collapse:collapse;font-family:var(--sans);font-size:.8rem;width:100%;
+  margin:0 0 1rem;background:var(--paper)}
+th,td{border:1px solid var(--hairline);padding:.45rem .7rem;text-align:left;
+  vertical-align:top}
+th{background:#F4F3EE;font-weight:600;font-size:.72rem;letter-spacing:.04em}
+td code{white-space:nowrap}
+.note{background:var(--sel-soft);border:1px solid #CFE3D6;border-radius:6px;
+  padding:.85rem 1.05rem;font-size:.88rem;margin:0 0 1rem}
+.warn{background:#F9F1E4;border:1px solid #E8D9BC;border-radius:6px;
+  padding:.85rem 1.05rem;font-size:.88rem;margin:0 0 1rem}
+footer{text-align:center;font-family:var(--sans);font-size:.74rem;color:var(--muted);
+  padding:0 0 3rem}
+@media (max-width:860px){.layout{display:block}.toc{position:static;margin-bottom:2rem;
+  columns:2}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="bar">
+  <a class="brand" href="index.html">
+    <svg width="22" height="22" viewBox="0 0 64 64" aria-hidden="true"><path fill="#232323" fill-rule="evenodd" d="M44 3 C38 8 30 10 26 16 C23.5 20 24.5 24 27 26.5 C20.5 28 14.5 33 14 41 C13.3 51.5 22 59.5 33 59.5 C44 59.5 51.5 51.5 51 41.5 C50.6 33.5 45 29 42.5 22.5 C40.8 18 42.5 9 44 3 Z M34 34 C38 38.5 39.5 43.5 37.5 47.5 C35 52 28.5 51.5 26.5 47 C25 43.5 27.5 40 30 38.5 C31.8 37.5 33.2 36 34 34 Z"/></svg>
+    backdraft
+  </a>
+  <nav>
+    <a href="demo.html">Demo</a>
+    <a href="llms.txt">llms.txt</a>
+    <a href="https://github.com/spencerbraun/backdraft">GitHub</a>
+  </nav>
+</div>
+
+<div class="layout">
+<aside class="toc">
+  <p>Docs</p>
+  <a href="#install">Install</a>
+  <a href="#concepts">Concepts</a>
+  <a href="#workflow">The workflow</a>
+  <a href="#cli">CLI reference</a>
+  <a href="#writing">Writing rules</a>
+  <a href="#verification">Verification</a>
+  <a href="#files">Files &amp; the artifact</a>
+  <a href="#agents">Agents</a>
+  <a href="#security">Security &amp; privacy</a>
+  <a href="#faq">FAQ</a>
+</aside>
+
+<main>
+<h1>Documentation</h1>
+<p class="lede">Backdraft is three things that ship together: a Python CLI
+(<code>pip install backdraft</code>) that ingests documents and checks
+citations, a one-page agent skill that makes your agent write through it, and
+a self-contained file format for the output. There is no server and no SDK to
+integrate, the CLI is the whole system. This page covers install, the
+concepts, every command, and what ends up on disk. The normative format specs
+live <a href="https://github.com/spencerbraun/backdraft/tree/main/spec">in the
+repo</a>, and agents should start from <a href="llms.txt">llms.txt</a>.</p>
+
+<section id="install">
+<h2>Install</h2>
+<pre>uv tool install "backdraft[vlm]"</pre>
+<p>Python 3.13+. The <code>[vlm]</code> extra adds the vision-model PDF
+extractor, the recommended path for real PDFs (glossy layouts, info boxes,
+scans), and needs <code>poppler</code> on your PATH
+(<code>brew install poppler</code>). Without it, PDFs fall back to the keyless
+embedded-text layer, and ingest says so.</p>
+<h3>Bring a model provider</h3>
+<p>The vision extractor needs a key you provide, and it runs only on explicit,
+backdraft-scoped consent: set <code>BACKDRAFT_VLM_API_KEY</code> in
+<code>.backdraft/env</code> (written by <code>backdraft init</code>) or the
+environment. Ambient <code>OPENAI_API_KEY</code>-style variables are
+deliberately never read.</p>
+<p>Under the hood the client is the OpenAI SDK with an injectable
+<code>base_url</code>, so any OpenAI-compatible provider works. The default is
+OpenRouter (<code>https://openrouter.ai/api/v1</code>) running
+<code>google/gemini-3.1-flash-lite-preview</code>, so the simplest setup is an
+OpenRouter key. To point elsewhere, set <code>BACKDRAFT_VLM_BASE_URL</code>
+and <code>BACKDRAFT_VLM_MODEL</code>, for example directly at OpenAI or at a
+local server. <code>[entail]</code> adds the optional model-judge
+verifier, keyed separately by <code>BACKDRAFT_ENTAIL_API_KEY</code>.</p>
+</section>
+
+<section id="concepts">
+<h2>Concepts</h2>
+<h3>The gate</h3>
+<p>Source documents reach the writer only through <code>read</code>,
+<code>search</code> and <code>cell</code>, which stamp a <b>token</b> on every
+span they show and record the showing in a session <b>ledger</b>. The set of
+citable things is exactly the set of things shown, so a citation to something
+the writer never saw is a distinguishable failure
+(<code>not_shown</code>), not an invisible one.</p>
+<h3>Tokens and receipts</h3>
+<p><code>bd:&lt;slug&gt;:&lt;locator&gt;:&lt;hash&gt;</code>: document,
+place, and a content-hash of the exact text cited. Locators are media-native:
+<code>p8</code> (a page), <code>p8.c3</code> (a paragraph-scale chunk),
+<code>rent-roll!B10</code> (a cell). An anchor is not a pointer: it carries the
+verbatim snippet and its sha256, so the finished artifact is defensible with
+the registry deleted and the sources gone.</p>
+<h3>Drift</h3>
+<p>Re-ingesting identical bytes yields identical tokens. When a source
+changes, citations into it resolve against the superseded snapshot and report
+<code>drifted</code>. The artifact shows what was cited and what stands now,
+as a word-diff.</p>
+</section>
+
+<section id="workflow">
+<h2>The workflow</h2>
+<pre><span class="dim"># once per project</span>
+backdraft init
+backdraft ingest report.pdf model.xlsx notes.md
+backdraft session start --id s-deal
+export BACKDRAFT_SESSION=s-deal
+
+<span class="dim"># read through the gate; every chunk arrives with a token</span>
+backdraft read                     <span class="dim"># list documents</span>
+backdraft read report              <span class="dim"># table of contents</span>
+backdraft read report p4-6         <span class="dim"># pages, ranges, sheet names</span>
+backdraft search "24850000"        <span class="dim"># hits are citable directly</span>
+backdraft cell model "rent-roll!B10"
+
+<span class="dim"># write claims as links, then bind and render</span>
+backdraft bind memo.md --check value-trace,overlap
+backdraft render memo.md --to html <span class="dim"># -&gt; memo.backdraft.html</span></pre>
+<div class="note">In practice the reading and writing steps are an agent's:
+you ask for a cited memo, the <a
+href="https://github.com/spencerbraun/backdraft/blob/main/skills/backdraft/SKILL.md">backdraft
+skill</a> imposes the gate, and you receive the artifact.</div>
+</section>
+
+<section id="cli">
+<h2>CLI reference</h2>
+<table>
+<tr><th>Command</th><th>Does</th></tr>
+<tr><td><code>init</code></td><td>Create <code>.backdraft/</code> (registry, credentials template) in the current directory.</td></tr>
+<tr><td><code>ingest &lt;files&gt;</code></td><td>Snapshot sources into the registry, minting every anchor. <code>--extractor auto|vlm|pdf-text|xlsx|text</code>, <code>--slug</code>, <code>--config k=v</code>.</td></tr>
+<tr><td><code>snapshot-pages &lt;slug&gt;</code></td><td>Backfill page images for an already-ingested PDF, locally, no model calls (<code>[vlm]</code> extra for rendering).</td></tr>
+<tr><td><code>ls</code></td><td>List ingested documents.</td></tr>
+<tr><td><code>read [slug] [selector]</code></td><td>The gate: document list, table of contents, or a token-marked page/range/sheet read. Mints what it shows.</td></tr>
+<tr><td><code>search &lt;query&gt;</code></td><td>Full-text search over every anchor; hits are citable. <code>--in slug</code>, <code>--limit</code>.</td></tr>
+<tr><td><code>cell &lt;slug&gt; &lt;sheet!REF&gt;…</code></td><td>Mint specific cells' tokens directly: token plus verbatim value.</td></tr>
+<tr><td><code>session start|show</code></td><td>Ledger sessions; export <code>BACKDRAFT_SESSION</code> to enable <code>not_shown</code> detection.</td></tr>
+<tr><td><code>bind &lt;doc.md&gt;</code></td><td>Resolve every citation, run <code>--check</code> verifiers, assemble evidence, write the record. <code>--session</code>, <code>--mode frontwalk|backfill</code>, <code>--lean</code> (skip page images), <code>--bound</code> (also write the markdown projection).</td></tr>
+<tr><td><code>render &lt;doc.md&gt;</code></td><td>The artifact. <code>--to html|footnotes|json</code>, <code>-o</code>.</td></tr>
+<tr><td><code>clean [dir]</code></td><td>Tidy a working directory: relocate stray records, remove leftover projections. Never touches authored files or artifacts.</td></tr>
+<tr><td><code>export</code></td><td>The whole registry as JSON.</td></tr>
+</table>
+<h3>Bind exit codes</h3>
+<table>
+<tr><th>Code</th><th>Means</th></tr>
+<tr><td><code>0</code></td><td>Every citation resolved.</td></tr>
+<tr><td><code>1</code></td><td>Usage or environment error.</td></tr>
+<tr><td><code>2</code></td><td>Bind completed and something did not resolve, the code a CI job or Stop-hook gates on. Verification verdicts never produce it.</td></tr>
+</table>
+</section>
+
+<section id="writing">
+<h2>Writing rules</h2>
+<p>Claims are markdown links whose href is the token, copied exactly from gate
+output; multiple citations are <code>;</code>-separated in one href:</p>
+<pre>[net operating income of $1,429,600](<span class="tok">bd:t12-summary:p1.c3:f10b</span>)
+[EGI of $2,684,400](<span class="tok">bd:t12:p1.c2:7f11;bd:model:rent-roll!B11:4b79</span>)</pre>
+<ul>
+<li><b>Bind the span, not the sentence.</b> The link text is the words the
+evidence supports.</li>
+<li><b>Cite only what you were shown.</b> Never construct or edit a token by
+hand.</li>
+<li><b>Uncited prose is fine</b> for recommendations and framing, cite facts,
+not opinions.</li>
+<li><b>Never fix a failure by deleting its token.</b> A kept failure is the
+honest outcome; the artifact will show it plainly.</li>
+<li>An <i>italic line</i> directly under the <code># title</code> becomes the
+artifact's subtitle.</li>
+</ul>
+</section>
+
+<section id="verification">
+<h2>Verification</h2>
+<p>Independent switches, off by default, recorded as graded evidence, never
+gates. <code>value-trace</code> finds every figure in a claim in its cited
+source, reading through thousands separators, currency, scale suffixes
+($1.4M ≡ 1,400,000), percent-vs-decimal (7.7% ≡ 0.077), accounting negatives
+and dates; a match that only works after rounding is <code>partial</code>,
+and a miss names the figure. <code>overlap</code> measures how much of a
+claim's wording appears in its source (and skips single-cell sources, where
+the question is meaningless). <code>entail</code> (extra) asks a model
+whether the source supports the claim. Verdicts appear in the artifact's
+Record layer in plain language.</p>
+</section>
+
+<section id="files">
+<h2>Files &amp; the artifact</h2>
+<table>
+<tr><th>File</th><th>Is</th></tr>
+<tr><td><code>memo.md</code></td><td>What the writer wrote, prose plus tokens. Yours; re-bindable.</td></tr>
+<tr><td><code>memo.backdraft.html</code></td><td>The deliverable: document, receipts and evidence in one self-contained file. No network (CSP-enforced), nothing to install, degrades to readable footnotes if scripts are stripped.</td></tr>
+<tr><td><code>.backdraft/</code></td><td>The machinery: registry, credentials, and the bind record (<code>records/memo.backdraft.json</code>, the machine-readable run, also embedded in the artifact as a JSON island with a self-describing legend).</td></tr>
+</table>
+<p>The artifact embeds only <em>cited</em> evidence, a memo citing ten pages
+of a gigabyte corpus is a ~2&nbsp;MB file. Recipients need the one
+<code>.html</code> file and nothing else.</p>
+</section>
+
+<section id="agents">
+<h2>Agents</h2>
+<pre>backdraft skill install          <span class="dim"># the writing skill, into ~/.claude/skills/</span>
+backdraft skill install --all    <span class="dim"># plus backfill and artifact-reading</span>
+backdraft skill install --project<span class="dim">  # into this repo's .claude/skills/</span></pre>
+<p>The skill's core instruction is a substitution: for source documents, use
+<code>backdraft read</code>/<code>search</code>, never raw file reads. The
+token-efficient reference for any agent is <a href="llms.txt">llms.txt</a>
+(~800 tokens).</p>
+</section>
+
+<section id="security">
+<h2>Security &amp; privacy</h2>
+<ul>
+<li><b>Ambient keys are never read.</b> Credentials reach backdraft only via
+<code>BACKDRAFT_*</code> variables, <code>.backdraft/env</code>, or
+<code>--config</code>. A generic <code>OPENAI_API_KEY</code> in your shell is
+not consent to send documents anywhere.</li>
+<li><b>Artifacts make no network requests</b>, enforced by a
+Content-Security-Policy the browser applies, no fonts, no analytics, no
+phone-home.</li>
+<li><b>Everything is local.</b> The only network calls in the system are the
+optional VLM/entail model calls you explicitly key.</li>
+<li><b>Gitignore <code>.backdraft/</code></b> for confidential corpora, the
+registry contains the full text of everything ingested.</li>
+</ul>
+</section>
+
+<section id="faq">
+<h2>FAQ</h2>
+<h3>Ingest says it fell back to the text layer, why?</h3>
+<p>The note names the condition: either the <code>[vlm]</code> extra isn't
+installed, or <code>BACKDRAFT_VLM_API_KEY</code> isn't set. Fix the named one.
+Text-layer receipts are fine for clean digital PDFs; glossy or scanned ones
+deserve the vision model.</p>
+<h3>My artifact has no page images.</h3>
+<p>Images are stored at ingest by the VLM path. For text-layer or older
+registries, run <code>backdraft snapshot-pages &lt;slug&gt;</code> (local,
+free), then re-bind.</p>
+<h3>What does <code>not_shown</code> actually catch?</h3>
+<p>A real token, valid in the registry, that the writing session was never
+shown, i.e. the writer cited something it didn't read. Only a session ledger
+makes this class of failure visible; that is why the skill starts one.</p>
+<h3>Can a reader trust an artifact without installing backdraft?</h3>
+<p>That's the design goal: the receipts, the evidence, and a machine-readable
+record with its own decoding legend are inside the file. The
+<a href="https://github.com/spencerbraun/backdraft/blob/main/spec/artifact.md">artifact
+spec</a> lists the checks a skeptic can run with nothing but the file.</p>
+<h3>Is this fact-checking?</h3>
+<p>No, provenance. Backdraft proves <i>where a claim came from</i> and shows
+you the source; the optional verifiers add deterministic evidence like "this
+figure appears in that cell." Judgment stays with the reader.</p>
+</section>
+
+</main>
+</div>
+
+<footer>
+  Backdraft · MIT · <a href="index.html">Home</a> · <a href="https://github.com/spencerbraun/backdraft">GitHub</a>
+</footer>
+</div>
+</body>
+</html>

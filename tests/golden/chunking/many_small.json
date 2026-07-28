@@ -1,0 +1,20 @@
+[
+  {
+    "ordinal": 1,
+    "start": 0,
+    "end": 238,
+    "text": "Unit 01 leases at $1,225 per month on a twelve month term.\n\nUnit 02 leases at $1,250 per month on a twelve month term.\n\nUnit 03 leases at $1,275 per month on a twelve month term.\n\nUnit 04 leases at $1,300 per month on a twelve month term."
+  },
+  {
+    "ordinal": 2,
+    "start": 240,
+    "end": 478,
+    "text": "Unit 05 leases at $1,325 per month on a twelve month term.\n\nUnit 06 leases at $1,350 per month on a twelve month term.\n\nUnit 07 leases at $1,375 per month on a twelve month term.\n\nUnit 08 leases at $1,400 per month on a twelve month term."
+  },
+  {
+    "ordinal": 3,
+    "start": 480,
+    "end": 718,
+    "text": "Unit 09 leases at $1,425 per month on a twelve month term.\n\nUnit 10 leases at $1,450 per month on a twelve month term.\n\nUnit 11 leases at $1,475 per month on a twelve month term.\n\nUnit 12 leases at $1,500 per month on a twelve month term."
+  }
+]

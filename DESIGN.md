@@ -1,0 +1,146 @@
+# Backdraft — Design
+
+Status: v0 design, 2026-07-27. Decisions below are made unless marked open.
+
+## The point
+
+Drop-in provenance for factual claims: one click from any claim to the evidence behind it. The working problem statement is **verification cost** — an analyst who can't show where a number came from either re-reads the document or doesn't use the output, and both outcomes destroy the value of extraction.
+
+Designed from first principles against the failure modes that kill citation systems in practice: random anchor ids, competing citation grammars, duplicated resolvers, silent failure, anchors that die on reprocessing.
+
+## Principles
+
+1. **Gate, don't verify.** The structure of how information reaches the model determines what it can cite. Reading happens through a tool that mints citation tokens; the set of citable things is exactly the set of things shown. Verification (below) is a separate, optional layer — not the correctness story.
+2. **Content-addressed everything.** Anchors derive their identity from document content + location, not from a run. Reprocessing the same bytes yields the same anchors; citations survive.
+3. **The receipt travels with the claim.** An anchor is not a pointer — it is a pointer plus captured evidence: verbatim snippet, content hash, location. Defensible without reopening the source.
+4. **Failures are data.** Unresolvable tokens, drifted sources, unmatched claims are first-class records in reports and artifacts — never warn-and-drop.
+5. **Coordinates live in-band.** Sub-page attribution works when markers like `[B10]` sit in the text the model reads. Human-readable location in the token; side-channel geometry rots (a bbox plumbed through six layers ends up read by nothing).
+6. **The format is the product.** Substrates (skill, CLI, SDK, viewer) are thin shells over one spec + one library. Artifacts are self-describing and outlive any substrate (subtext's `$format` + embedded legend pattern).
+
+## Architecture: three layers
+
+### 1. The spec
+- **Citation token grammar** — one grammar, typed, shared parser (Python + TS).
+- **Anchor schema** — pointer + receipt.
+- **Artifact format** — self-describing annotated document: versioned format string, embedded legend, claims with citation lists, sources map, provenance slot (filled — `author_type: human|agent`, model, run; the field subtext specified and left empty), verification records, unresolved list.
+
+### 2. The library / CLI (the system)
+Four verbs:
+- **`ingest`** — deterministically anchor source documents (PDF/xlsx/md/…) into the registry: extract, locate, snapshot snippets, hash.
+- **`read` / `search`** — the gate. Emit token-marked context for a model. Search results are themselves mintable evidence (search that returns nothing citable forces a page read purely to obtain an anchor).
+- **`bind`** — postprocess a written document: resolve tokens, run enabled verification switches, backfill surface forms (doc names, pages, quotes), emit sidecar claims file + binding report.
+- **`render`** — produce the clickable artifact.
+
+### 3. Substrates (sequenced)
+1. **Skill + CLI, together** (first release). The CLI is the system; the skill is ~a page instructing an agent to use it. Ships both the agent-native wedge and the zero-integration backfill demo.
+2. **SDK middleware** — wrap a model call: minted context in, bound citations out. The drop-in for application developers.
+3. **Viewer** — the artifact carries its own single-file viewer; a component version for embedding comes later.
+
+## The registry
+
+**SQLite**, in `.backdraft/` per project. JSON export command for portability and diffing.
+
+Tables (shape, not final DDL):
+- `documents` — path, display name, **slug**, content sha256, media type, ingest metadata.
+- `anchors` — token, document, locator, verbatim snippet, snippet sha256, created-by (ingest run).
+- `ledger` — session id, token, when shown. Records every token minted into context. Bind distinguishes "cited what you saw" from "cited a valid token you were never shown" — a caught hallucination class most systems cannot express.
+- `claims` (written at bind) — claim span text, source doc, citation tokens, verification records.
+
+FTS5 backs `search`. No server, no tenancy — single-analyst/single-project scope; multi-user is a substrate concern, not a registry concern.
+
+## Token grammar
+
+**`bd:<slug>:<locator>:<hash>`** — compound, human-readable location, content-hash suffix.
+
+- `slug` — short kebab doc identifier assigned at ingest, unique per registry (`t12-audit`, `rent-roll-2025`).
+- `locator` — media-native:
+  - PDF/text: `p8` (page), `p8.c3` (chunk ordinal within page; chunking is deterministic with an explicit within-page ordinal)
+  - Excel: `Rent!B10`, `Rent!B10:C12` (sheet + cell/range, spreadsheet-native)
+  - Prose files: heading-path or line-range forms (open detail)
+- `hash` — first 4+ hex of sha256 of the normalized snippet. Catches transcription typos, detects drift after re-ingest, and makes the token content-addressed. Registry extends length on collision.
+
+Examples: `[DSCR of 1.42x](bd:t12-audit:p8.c3:a7f3)` · `[NOI of $4.1M](bd:model:Rent!B10:9e2f)`
+
+Reserved extension — **declared derivations**: a claim whose value appears in no document carries its computation over multiple tokens (`bd:calc(model:Rent!B10 / t12-audit:p4.c1)` — sketch, grammar open). This is what makes "the numbers tie" a deterministic check instead of a slogan; only possible because we own the grammar.
+
+## The gate (context construction)
+
+The read tool's shape:
+- Unified dispatch: list docs → per-doc TOC of page/sheet summaries → page/range read → batch read. Short slugs everywhere.
+- Progressive disclosure with continuation, plus search hints.
+- **Excel**: sheet-per-page markdown table with `Row | A | B | …` headers and `[B10] value` cell prefixes — the representation that makes cell-level attribution work. Hardening: dimension caps, inflated-sheet placeholders, trimming.
+- Search mints citable snippet tokens; Excel long-context gets structural navigation (detected regions/ranges) rather than char-offset slicing (open design area).
+
+The skill's core instruction is a substitution: for source documents, use `backdraft read`/`search`, not raw Read/Grep.
+
+## Wire format
+
+The writer emits inline tokens on the claim span — `[claim text](bd:…)` — and nothing else: no doc names, no footnotes, no display text. Span binding (which words the anchor supports) is captured at write time because it can never be recovered later and can always be projected away. Footnotes, endnote lists, hover cards are all render-time projections.
+
+## Bind
+
+Runs after writing (in Claude Code: enforceable as a Stop/PostToolUse hook so unbound tokens can't ship).
+
+1. **Resolve** every token: parses → registry hit → ledger hit → snippet hash matches current source. Resolution is inherent to bind (an unresolvable token can't be backfilled) — it is not a switch.
+2. **Verify** per enabled switches (below).
+3. **Backfill** surface forms: tokens become readable citations (doc name, page/cell, quote) in the output doc.
+4. **Report**: sidecar claims file + binding report. Every failure is a line item: `unresolved`, `not-shown`, `drifted`, `unmatched` (backfill mode). Nothing drops silently.
+
+## Verification — switches, default off
+
+Independent checks per citation, recorded as graded evidence, never gating generation. The record says which methods ran and what each found; switches off ⇒ record says unchecked. Grade schema is stable regardless of which switches are on.
+
+| # | Switch | Method | Claim class |
+|---|---|---|---|
+| 1 | `value-trace` | Deterministic: normalized value (units/scale/format) occurs at the cited location | numbers, dates, names |
+| 2 | `overlap` | Heuristic span overlap / exact substring for quotes — report-only signal | quotes, paraphrase |
+| 3 | `entail` | Model judge: does snippet support claim — tiny closed question, batchable, async | qualitative |
+| 4 | `recompute` | Deterministic re-execution of declared derivations | derived values |
+
+Rationale for default-off: out of the box this is pure provenance (one click to the receipt); verification is opt-in per claim class. Rung-pass rates aggregated per run/model double as an eval substrate.
+
+## Modes
+
+- **Front-walk** — citations minted during generation; bind resolves against the session ledger. The high-quality integrated path.
+- **Backfill** — an existing document + ingested sources; for each claim: search → propose anchors → bind via the fuzzier strategies (overlap, value-trace, structured lookup). Unmatched claims land in an explicit unresolved list, not silent non-attribution. Zero integration required — the demo wedge.
+
+Same anchors, same bind, same artifact out.
+
+## The artifact
+
+Self-contained HTML (plus the machine-readable sidecar): **quotes + receipts + evidence embedded** — verbatim snippets, hashes, locations, verification grades, and the evidence itself: cited pages as images, cited cells in mini-grid windows. Bounded by what is cited, never the corpus; `--lean` drops images. Small and portable; defensible with sources absent. Designed in three disclosure layers (document → footnote → record) with success silent and failure loud — see the 2026-07-28 decision rows.
+
+## Decision log
+
+| Date | Decision |
+|---|---|
+| 2026-07-27 | Rewrite, not port; ideas only |
+| 2026-07-27 | Gate-over-verify: read path mints citable tokens; ledger records what was shown |
+| 2026-07-27 | Receipt (snippet + hash + location) is part of the anchor primitive |
+| 2026-07-27 | Registry: SQLite in `.backdraft/`, JSON export |
+| 2026-07-27 | Token grammar: compound `bd:slug:loc:hash` |
+| 2026-07-27 | Verification: independent switches, default off; resolution is inherent to bind, not a switch |
+| 2026-07-27 | First substrate: skill + CLI together; SDK middleware and viewer follow |
+| 2026-07-27 | Artifact: quotes + receipts embedded, no page images in v0 |
+| 2026-07-27 | VLM extraction is the recommended primary path for real PDFs (glossy layouts, info boxes — the snapshot is the receipt, and model reading beats scrambled text-layer order). Text-layer is the keyless floor and CI path, not "the default." `ingest --extractor auto` picks VLM when an API key is configured, else text-layer with a printed nudge. Known tradeoff, accepted: re-extraction under a non-deterministic extractor drifts all citations; generations + drift reporting carry that honestly. |
+| 2026-07-27 | Kernel API is module paths (`backdraft.kernel.tokens.parse`); no flat re-export surface. Package `__init__`s export exactly what outside consumers import. |
+| 2026-07-27 | CLI unified on the gate's patterns: shared `cli_context` (constants, discovery, sessions, one error guard mapping `BackdraftError` → exit 1), `Annotated` params, relative imports. Test fakes renamed so the real and fake registries cannot be confused. |
+| 2026-07-27 | File naming is part of the artifact format, owned by `kernel/artifact.py`: `<stem>.bound.md`, `<stem>.backdraft.json`, `<stem>.backdraft.html`, `<stem>.footnotes.md`. |
+| 2026-07-27 | `bind --check entail` without the extra records `skip` verdicts carrying the reason — verifiers never gate, including at the CLI layer. |
+| 2026-07-27 | **Supersedes "VLM when key present":** credentials are explicit. Ambient provider keys (`OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`) are never read; a credential reaches backdraft only via `--config`, a `BACKDRAFT_*` variable, or `.backdraft/env` (`init` writes a template). `vlm_ready` — the `auto` gate — is therefore equivalent to consent. Decided after a real unapproved-spend incident during the first field trial: presence of a generic key in the environment is not consent to spend it or send documents to its provider. |
+| 2026-07-28 | **Reader doctrine (supersedes "no script"):** the artifact is designed for two readers — the writer verifying the AI's work, and a normal person the document is sent to — in three disclosure layers: the document (editorial typography, quiet marks), the footnote (click a claim → the source's own words, named and paged — no tokens, no hashes, no jargon), and the record (one deliberate step to the full machine-readable layer). **Success is silent; only failure speaks**: a fully-resolved artifact looks like a well-made document, while unresolved citations announce themselves before the reader invests belief. The load-bearing constraint is *no network, single file* — enforced by a CSP `meta` tag (`default-src 'none'`) — not *no script*: inline JS is allowed as progressive enhancement over a CSS-only baseline that survives script-stripping. Decided after field use: the v1 artifact rendered success and failure at equal volume and read as machinery, not a document. |
+| 2026-07-28 | **Evidence embeds in the artifact (supersedes "no page images in v0"):** the footnote layer carries the evidence itself, not just the quote — the cited page as an image, the cited cell in a mini-grid window (neighbors, row labels, column headers). Bounded by *what is cited*, never the corpus, so a memo citing ten pages costs ~2–3 MB; `--lean` skips images. Evidence is assembled at **bind** (the step that has the registry) and travels in the sidecar; render stays registry-blind and the artifact stays reproducible from the two files a reader was handed. For the VLM path, the page image the model was shown is stored at **ingest** — for a non-deterministic extractor the input pixels are the only reproducible snapshot, so the image completes the receipt chain (claim → quote → page). Reference shapes: WebP quality 85 for pages; sheet windows as compact JSON with typed cell values and column-letter headers. |
+| 2026-07-28 | **Exhibits: the evidence-first inversion.** The artifact carries a second reading mode: every source document with the data points cited from it, each with its evidence context and backlinks to the claims that lean on it — "this memo rests on N data points across M documents." Ranking is deterministic in v1 (an anchor cited by three claims outranks one cited once); model-judged importance is a later switch. This is the skeptical reader's entry point and the writer's spot-check checklist. |
+
+## Open
+
+Queued work lives in ROADMAP.md (exhibits, region maps, formats, `bd:calc`,
+substrates); this list is questions still awaiting a decision:
+
+- Re-bind/orphan pass on re-ingest of changed docs (chunk ordinal drift)
+- Prose-file locator forms; slug assignment/collision rules (the trailing-hyphen
+  truncation from the first field trial lives here)
+- Distribution: published to PyPI as `backdraft` 0.2.0 (2026-07-28); domain
+  backdraft.dev acquired; still open: skill registration, deploying site/
+- First external user (design-partner validation layer vs eval substrate vs
+  open release feedback)

@@ -1,0 +1,23 @@
+Unit 01 leases at $1,225 per month on a twelve month term.
+
+Unit 02 leases at $1,250 per month on a twelve month term.
+
+Unit 03 leases at $1,275 per month on a twelve month term.
+
+Unit 04 leases at $1,300 per month on a twelve month term.
+
+Unit 05 leases at $1,325 per month on a twelve month term.
+
+Unit 06 leases at $1,350 per month on a twelve month term.
+
+Unit 07 leases at $1,375 per month on a twelve month term.
+
+Unit 08 leases at $1,400 per month on a twelve month term.
+
+Unit 09 leases at $1,425 per month on a twelve month term.
+
+Unit 10 leases at $1,450 per month on a twelve month term.
+
+Unit 11 leases at $1,475 per month on a twelve month term.
+
+Unit 12 leases at $1,500 per month on a twelve month term.
