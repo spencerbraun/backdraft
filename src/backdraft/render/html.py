@@ -38,7 +38,14 @@ import urllib.parse
 from typing import Any
 
 from ..kernel.artifact import FORMAT, sidecar
-from ..kernel.model import BindReport, Citation, CitationStatus, Claim, Verdict
+from ..kernel.model import (
+    SHEET_MEDIA_TYPES,
+    BindReport,
+    Citation,
+    CitationStatus,
+    Claim,
+    Verdict,
+)
 from . import markdown
 from .placement import Placement, locate
 
@@ -227,7 +234,7 @@ def location(anchor, docs: dict) -> str:
     if match := CELL_RE.match(locator):
         return f"{_esc(humanize_sheet(match['sheet']))} &middot; {match['ref']}"
     if match := PAGE_RE.match(locator):
-        if docs.get(anchor.slug, {}).get("media_type") in ("xlsx", "csv"):
+        if docs.get(anchor.slug, {}).get("media_type") in SHEET_MEDIA_TYPES:
             return "sheet"
         return f"Page {match['page']}"
     return _esc(locator)
@@ -241,7 +248,7 @@ def short_loc(anchor, docs: dict) -> str:
     if match := CELL_RE.match(locator):
         return match["ref"]
     if match := PAGE_RE.match(locator):
-        if docs.get(anchor.slug, {}).get("media_type") in ("xlsx", "csv"):
+        if docs.get(anchor.slug, {}).get("media_type") in SHEET_MEDIA_TYPES:
             return "Sheet"
         return f"Page {match['page']}"
     return locator
@@ -597,7 +604,7 @@ def _citation(
 
     cell = CELL_RE.match(locator)
     page_m = PAGE_RE.match(locator)
-    is_sheet_doc = docs.get(anchor.slug, {}).get("media_type") in ("xlsx", "csv")
+    is_sheet_doc = docs.get(anchor.slug, {}).get("media_type") in SHEET_MEDIA_TYPES
     raw = f'<pre class="rawtext">{_esc(anchor.receipt.snippet[:4000])}</pre>'
     if cell:
         window = evidence.get("windows", {}).get(f"{anchor.slug}:{locator}")

@@ -22,6 +22,7 @@ from .tokens import Locator, format_locator
 
 __all__ = [
     "MediaType",
+    "SHEET_MEDIA_TYPES",
     "PageKind",
     "AnchorKind",
     "BindMode",
@@ -41,6 +42,12 @@ __all__ = [
 ]
 
 type MediaType = Literal["pdf", "xlsx", "csv", "image", "text"]
+
+SHEET_MEDIA_TYPES: frozenset[str] = frozenset({"xlsx", "csv"})
+"""The media types whose pages are sheets: cell anchors, sheet windows, the
+artifact's sheet view. The one place that decides what "sheet-typed" means;
+bind's evidence assembly and the renderers consult it rather than keeping
+their own tuples."""
 type PageKind = Literal["page", "sheet"]
 type AnchorKind = Literal["page", "chunk", "cell", "range"]
 type BindMode = Literal["frontwalk", "backfill"]

@@ -19,7 +19,7 @@ import base64
 import re
 from typing import Any, Iterable
 
-from ..kernel.model import Claim
+from ..kernel.model import SHEET_MEDIA_TYPES, Claim
 
 __all__ = ["assemble", "window_styles", "WINDOW_ROWS", "WINDOW_COLS"]
 
@@ -116,7 +116,7 @@ def assemble(registry, claims: Iterable[Claim], *, lean: bool = False) -> dict[s
                 cited_cells.append((anchor.slug, m["sheet"], m["col"], int(m["row"])))
             elif m := _PAGE_RE.match(locator):
                 number = int(m["page"])
-                if document.media_type in ("xlsx", "csv"):
+                if document.media_type in SHEET_MEDIA_TYPES:
                     sheet_pages.append((anchor.slug, number))
                 else:
                     cited_pages.setdefault(anchor.slug, set()).add(number)
