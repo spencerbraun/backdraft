@@ -24,10 +24,10 @@ from PIL import Image
 from .base import ExtractedPage, Extractor, ExtractionError, PageImage, register
 from .vlm import _transcribe
 from .vlm_settings import (
-    MAX_IMAGE_HEIGHT,
-    SNAPSHOT_QUALITY,
     client_settings,
     retries,
+    snapshot_max_height,
+    snapshot_quality,
     timeout_seconds,
     with_retries,
 )
@@ -63,12 +63,13 @@ class ImageExtractor:
             raise ExtractionError(f"could not open {path} as an image: {error}") from error
         if image.mode not in ("RGB", "L"):
             image = image.convert("RGB")
-        if image.height > MAX_IMAGE_HEIGHT:
-            scale = MAX_IMAGE_HEIGHT / image.height
-            image = image.resize((max(1, round(image.width * scale)), MAX_IMAGE_HEIGHT))
+        max_height = snapshot_max_height(config)
+        if image.height > max_height:
+            scale = max_height / image.height
+            image = image.resize((max(1, round(image.width * scale)), max_height))
 
         buffer = io.BytesIO()
-        image.save(buffer, format="WEBP", quality=SNAPSHOT_QUALITY)
+        image.save(buffer, format="WEBP", quality=snapshot_quality(config))
         snapshot = PageImage(
             data=buffer.getvalue(), format="webp",
             width=image.width, height=image.height,

@@ -15,7 +15,8 @@ A setting is looked up in three places, most explicit first:
    living inside the state directory that is already gitignored.
 
 Names in use: `BACKDRAFT_VLM_API_KEY`, `BACKDRAFT_VLM_MODEL`,
-`BACKDRAFT_VLM_BASE_URL`, `BACKDRAFT_ENTAIL_API_KEY`, `BACKDRAFT_ENTAIL_MODEL`.
+`BACKDRAFT_VLM_BASE_URL`, `BACKDRAFT_ENTAIL_API_KEY`, `BACKDRAFT_ENTAIL_MODEL`,
+`BACKDRAFT_SNAPSHOT_QUALITY`, `BACKDRAFT_SNAPSHOT_MAX_HEIGHT`.
 The same names are used verbatim in the env file.
 
 Stdlib only, no imports from the package: this module sits beside the kernel so

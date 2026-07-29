@@ -43,6 +43,8 @@ from .vlm_settings import (  # noqa: F401  (re-exported)
     concurrency,
     retries,
     run_ordered,
+    snapshot_max_height,
+    snapshot_quality,
     timeout_seconds,
     with_retries,
 )
@@ -92,6 +94,8 @@ class VlmExtractor:
         client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout_seconds(config))
         dpi = int(config.get("dpi") or DEFAULT_DPI)
         attempts = retries(config)
+        max_height = snapshot_max_height(config)
+        quality = snapshot_quality(config)
 
         with tempfile.TemporaryDirectory() as workdir:
             try:
@@ -101,16 +105,16 @@ class VlmExtractor:
             image_paths: list[Path] = []
             snapshots: list[PageImage] = []
             for number, image in enumerate(images, start=1):
-                if image.height > MAX_IMAGE_HEIGHT:
-                    scale = MAX_IMAGE_HEIGHT / image.height
+                if image.height > max_height:
+                    scale = max_height / image.height
                     image = image.resize(
-                        (max(1, round(image.width * scale)), MAX_IMAGE_HEIGHT)
+                        (max(1, round(image.width * scale)), max_height)
                     )
                 image_path = Path(workdir) / f"page_{number:04d}.png"
                 image.save(image_path, format="PNG")
                 image_paths.append(image_path)
                 buffer = io.BytesIO()
-                image.save(buffer, format="WEBP", quality=SNAPSHOT_QUALITY)
+                image.save(buffer, format="WEBP", quality=quality)
                 snapshots.append(PageImage(
                     data=buffer.getvalue(), format="webp",
                     width=image.width, height=image.height,
