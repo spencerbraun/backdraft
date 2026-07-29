@@ -13,6 +13,9 @@ fact you obtained any other way has no receipt and cannot be cited.
 
 ## Workflow
 
+If `backdraft` is not on PATH (fresh sandbox, new machine), install it first:
+`pip install backdraft` — self-contained, from PyPI.
+
 ```bash
 backdraft init                                    # once per project
 backdraft ingest report.pdf model.xlsx notes.md   # every source, up front
