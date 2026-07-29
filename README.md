@@ -207,13 +207,7 @@ uv run pytest
 
 ## Skills
 
-Three agent skills ship inside the package, and the CLI installs them:
-
-```bash
-backdraft skill install          # the writing skill, into ~/.claude/skills/
-backdraft skill install --all    # plus backfill and artifact-reading
-backdraft skill install --project  # into this repo's .claude/skills/
-```
+Three agent skills ship inside the package and in this repo:
 
 | Skill | For |
 |---|---|
@@ -222,7 +216,51 @@ backdraft skill install --project  # into this repo's .claude/skills/
 | [`backdraft-artifact`](skills/backdraft-artifact/SKILL.md) | reading someone else's artifact cold |
 
 The CLI is the system; a skill is one page telling an agent to use it. Nothing in
-the skills is required to use backdraft by hand.
+the skills is required to use backdraft by hand. How the skills reach your agent
+depends on the harness:
+
+**Claude Code.** The repo is its own plugin marketplace, so the plugin route
+tracks releases:
+
+```text
+/plugin marketplace add spencerbraun/backdraft
+/plugin install backdraft@backdraft
+```
+
+Or have the CLI copy the skills into your skills directory:
+
+```bash
+backdraft skill install          # the writing skill, into ~/.claude/skills/
+backdraft skill install --all    # plus backfill and artifact-reading
+backdraft skill install --project  # into this repo's .claude/skills/
+```
+
+**Claude Cowork.** Once the plugin is listed in Anthropic's community
+directory, it installs from Cowork's built-in skills directory. Until then,
+zip a skill folder from `skills/` and upload it under Customize > Skills.
+Inside a Cowork session the CLI itself runs per-command as
+`uvx backdraft ...`, since installs do not persist between sessions.
+
+**Codex, Cursor, Copilot.** Agents in this family read skills from
+`~/.agents/skills`:
+
+```bash
+backdraft skill install --agent codex   # into ~/.agents/skills/
+```
+
+or commit the skill folders to your repo under `.agents/skills/` so every
+checkout carries them.
+
+**Standing context, any harness.** Paste this into your repo's AGENTS.md:
+
+```markdown
+## backdraft (cited writing)
+When a document must cite its sources, write it through the backdraft CLI:
+it shows source text with a citation token over every span, and only shown
+spans are citable. In a sandboxed session run every command as
+`uvx backdraft ...` (no install, no PATH edits). Start from
+`uvx backdraft --help`; ground truth is https://backdraft.dev/llms.txt.
+```
 
 ## Documentation
 

@@ -109,7 +109,7 @@ footer{text-align:center;font-family:var(--sans);font-size:.74rem;color:var(--mu
   <a href="#writing">Writing rules</a>
   <a href="#verification">Verification</a>
   <a href="#files">Files &amp; the artifact</a>
-  <a href="#agents">Agents</a>
+  <a href="#agents">Agents &amp; harnesses</a>
   <a href="#security">Security &amp; privacy</a>
   <a href="#faq">FAQ</a>
 </aside>
@@ -277,14 +277,41 @@ of a gigabyte corpus is a ~2&nbsp;MB file. Recipients need the one
 </section>
 
 <section id="agents">
-<h2>Agents</h2>
-<pre>backdraft skill install          <span class="dim"># the writing skill, into ~/.claude/skills/</span>
-backdraft skill install --all    <span class="dim"># plus backfill and artifact-reading</span>
-backdraft skill install --project<span class="dim">  # into this repo's .claude/skills/</span></pre>
+<h2>Agents and harnesses</h2>
 <p>The skill's core instruction is a substitution: for source documents, use
 <code>backdraft read</code>/<code>search</code>, never raw file reads. The
 token-efficient reference for any agent is <a href="llms.txt">llms.txt</a>
-(~800 tokens).</p>
+(~800 tokens). How the skill reaches your agent depends on the harness.</p>
+<h3>Claude Code</h3>
+<p>The repo is its own plugin marketplace, so the plugin route tracks
+releases:</p>
+<pre>/plugin marketplace add spencerbraun/backdraft
+/plugin install backdraft@backdraft</pre>
+<p>Or have the CLI copy the skills into your skills directory:</p>
+<pre>backdraft skill install          <span class="dim"># the writing skill, into ~/.claude/skills/</span>
+backdraft skill install --all    <span class="dim"># plus backfill and artifact-reading</span>
+backdraft skill install --project<span class="dim">  # into this repo's .claude/skills/</span></pre>
+<h3>Claude Cowork</h3>
+<p>Once the plugin is listed in Anthropic's community directory, it installs
+from Cowork's built-in skills directory; until then, zip a skill folder from
+the repo's <code>skills/</code> and upload it under Customize &gt; Skills.
+Inside a session, run the CLI per-command as <code>uvx backdraft ...</code>,
+since installs do not persist between sessions.</p>
+<h3>Codex, Cursor, Copilot</h3>
+<p>Agents in this family read skills from <code>~/.agents/skills</code>:</p>
+<pre>backdraft skill install --agent codex   <span class="dim"># into ~/.agents/skills/</span></pre>
+<p>Or commit the skill folders to your repo under <code>.agents/skills/</code>
+so every checkout carries them. For Codex cloud environments, add
+<code>pip install backdraft</code> to the setup script, which runs while the
+network is still on.</p>
+<h3>Standing context</h3>
+<p>For any harness that reads AGENTS.md, paste this into your repo's file:</p>
+<pre>## backdraft (cited writing)
+When a document must cite its sources, write it through the backdraft CLI:
+it shows source text with a citation token over every span, and only shown
+spans are citable. In a sandboxed session run every command as
+`uvx backdraft ...` (no install, no PATH edits). Start from
+`uvx backdraft --help`; ground truth is https://backdraft.dev/llms.txt.</pre>
 </section>
 
 <section id="security">

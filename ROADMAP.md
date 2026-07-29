@@ -46,8 +46,12 @@ the objection rather than rediscovering it.
 - **HTML pages and email (.eml)** — both arrive in diligence folders, both
   have messy identity questions (what is "the source" of a web page?) that
   deserve a decision row before code.
-- **Distribution** — published on PyPI; still queued: a skills-registry
-  listing when one becomes the standard channel.
+- **Distribution** — published on PyPI; the repo now ships
+  `.claude-plugin/plugin.json` and `marketplace.json`, so it installs as a
+  Claude Code plugin and self-hosts its marketplace, and the AGENTS.md
+  snippet is published in the README and site docs. Still queued: the
+  community-directory listing (submission form is a maintainer action,
+  pending), which is also what surfaces the skills in Cowork's directory.
 
 ## Someday
 

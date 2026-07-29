@@ -1,0 +1,14 @@
+{
+  "name": "backdraft",
+  "displayName": "Backdraft",
+  "version": "0.4.0",
+  "description": "Drop-in provenance for factual claims: one click from any claim to the evidence behind it. Ships the backdraft writing, backfill, and artifact-reading skills; the CLI installs separately (uv tool install backdraft).",
+  "author": {
+    "name": "Spencer Braun",
+    "url": "https://github.com/spencerbraun"
+  },
+  "homepage": "https://backdraft.dev",
+  "repository": "https://github.com/spencerbraun/backdraft",
+  "license": "MIT",
+  "keywords": ["citations", "provenance", "sources", "evidence", "documents", "pdf", "xlsx", "writing"]
+}

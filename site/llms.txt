@@ -10,8 +10,15 @@ https://github.com/spencerbraun/backdraft/blob/main/skills/backdraft/SKILL.md
 
 ## Install
 
-uv tool install backdraft
-backdraft skill install   # copies the writing skill into ~/.claude/skills/
+# Sandboxed session (Cowork, Codex cloud, CI): do NOT install. Run every
+# command through uvx instead: `uvx backdraft init`, `uvx backdraft read` …
+# No PATH edits, never run `backdraft skill install`, never modify agent
+# config from inside a session.
+# Owned machine:
+uv tool install backdraft   # pip install backdraft where uv is absent
+# Human-run setup step (not for sessions): `backdraft skill install` copies
+# the writing skill into ~/.claude/skills/ (Claude Code); add
+# `--agent codex` to target ~/.agents/skills for the Codex family.
 # Vision-model extraction for PDFs and images ships by default (needs poppler
 # for PDFs + BACKDRAFT_VLM_API_KEY). Ambient provider keys (OPENAI_API_KEY
 # etc.) are NEVER read; only BACKDRAFT_*.
