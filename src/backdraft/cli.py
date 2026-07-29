@@ -114,6 +114,7 @@ def ingest(
 ) -> None:
     """Snapshot files into the registry, minting their anchors."""
     nudge_vlm = False
+    note_pptx = False
     with guard():
         if slug is not None and len(files) > 1:
             raise UsageError("--slug names one document; pass one file")
@@ -133,10 +134,19 @@ def ingest(
                     and document.media_type == "pdf"
                     and not vlm_ready(settings)
                 )
+                note_pptx = note_pptx or document.media_type == "pptx"
     if nudge_vlm:
         # One line, once per invocation: `auto` fell back to the text layer,
         # and the note names the condition that failed.
         typer.echo(f"note: extracted with pdf-text (the embedded text layer). {_vlm_gap()}")
+    if note_pptx:
+        # Same shape as the pdf-text note: the honest gap, and the path that
+        # closes it — relayed by a calling agent when the deck is visual-heavy.
+        typer.echo(
+            "note: extracted slide text only. Charts and images on slides are "
+            "not captured; exporting the deck to PDF and ingesting it through "
+            "the vision extractor captures them."
+        )
 
 
 SKILLS = ("backdraft", "backdraft-backfill", "backdraft-artifact")

@@ -229,28 +229,40 @@ def worst_status(claim: Claim) -> CitationStatus:
     return max(statuses, key=_STATUS_RANK.__getitem__)
 
 
+def _page_word(media: str | None) -> str:
+    """What a `pN` locator names for this media type: slides for decks,
+    heading sections for Word documents, pages for everything else."""
+    if media == "pptx":
+        return "Slide"
+    if media == "docx":
+        return "Sec."
+    return "Page"
+
+
 def location(anchor, docs: dict) -> str:
     locator = str(anchor.locator)
     if match := CELL_RE.match(locator):
         return f"{_esc(humanize_sheet(match['sheet']))} &middot; {match['ref']}"
     if match := PAGE_RE.match(locator):
-        if docs.get(anchor.slug, {}).get("media_type") in SHEET_MEDIA_TYPES:
+        media = docs.get(anchor.slug, {}).get("media_type")
+        if media in SHEET_MEDIA_TYPES:
             return "sheet"
-        return f"Page {match['page']}"
+        return f"{_page_word(media)} {match['page']}"
     return _esc(locator)
 
 
 def short_loc(anchor, docs: dict) -> str:
-    """Compact label for the source selector: `Page 6`, `D24`, `Sheet`."""
+    """Compact label for the source selector: `Page 6`, `Slide 3`, `D24`, `Sheet`."""
     if anchor is None:
         return "untraced"
     locator = str(anchor.locator)
     if match := CELL_RE.match(locator):
         return match["ref"]
     if match := PAGE_RE.match(locator):
-        if docs.get(anchor.slug, {}).get("media_type") in SHEET_MEDIA_TYPES:
+        media = docs.get(anchor.slug, {}).get("media_type")
+        if media in SHEET_MEDIA_TYPES:
             return "Sheet"
-        return f"Page {match['page']}"
+        return f"{_page_word(media)} {match['page']}"
     return locator
 
 
@@ -641,7 +653,16 @@ def _citation(
     return "".join(parts)
 
 
-_TYPE_LABEL = {"xlsx": "Excel", "csv": "CSV", "pdf": "PDF", "image": "Image", "text": "Text"}
+_TYPE_LABEL = {
+    "xlsx": "Excel",
+    "xls": "Excel",
+    "csv": "CSV",
+    "pdf": "PDF",
+    "docx": "Word",
+    "pptx": "Slides",
+    "image": "Image",
+    "text": "Text",
+}
 
 
 def _card(placement: Placement, docs: dict, evidence: dict, store: dict[str, dict]) -> str:
@@ -660,7 +681,10 @@ def _card(placement: Placement, docs: dict, evidence: dict, store: dict[str, dic
                 if citation.anchor
                 else ""
             )
-            kind = {"xlsx": "excel", "csv": "excel", "pdf": "pdf", "image": "pdf"}.get(media, "")
+            kind = {
+                "xlsx": "excel", "xls": "excel", "csv": "excel",
+                "pdf": "pdf", "image": "pdf", "docx": "pdf", "pptx": "pdf",
+            }.get(media, "")
             buttons.append(
                 f'<button class="{"on " if index == 0 else ""}{kind}" '
                 f'data-cite="{index}">{label}</button>'

@@ -106,7 +106,7 @@ class Extractor(Protocol):
 EXTRACTORS: dict[str, Extractor] = {}
 """Name -> extractor. Populated as modules are imported."""
 
-AUTO_ORDER = ("xlsx", "csv", "pdf-text", "image", "text")
+AUTO_ORDER = ("xlsx", "xls", "csv", "docx", "pptx", "pdf-text", "image", "text")
 """The built-in fallback order for `--extractor auto`. `vlm` is preferred
 for PDFs when ready — see `select` — and otherwise only chosen by name."""
 
@@ -114,7 +114,10 @@ for PDFs when ready — see `select` — and otherwise only chosen by name."""
 # because it keeps the import of an extractor's dependencies lazy.
 _MODULES = {
     "xlsx": "xlsx",
+    "xls": "xls",
     "csv": "csv",
+    "docx": "docx",
+    "pptx": "pptx",
     "pdf-text": "pdf_text",
     "image": "image",
     "text": "text",

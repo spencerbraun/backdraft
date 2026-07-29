@@ -41,9 +41,9 @@ __all__ = [
     "BindReport",
 ]
 
-type MediaType = Literal["pdf", "xlsx", "csv", "image", "text"]
+type MediaType = Literal["pdf", "xlsx", "xls", "csv", "docx", "pptx", "image", "text"]
 
-SHEET_MEDIA_TYPES: frozenset[str] = frozenset({"xlsx", "csv"})
+SHEET_MEDIA_TYPES: frozenset[str] = frozenset({"xlsx", "xls", "csv"})
 """The media types whose pages are sheets: cell anchors, sheet windows, the
 artifact's sheet view. The one place that decides what "sheet-typed" means;
 bind's evidence assembly and the renderers consult it rather than keeping

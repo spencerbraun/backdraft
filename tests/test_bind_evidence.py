@@ -174,3 +174,10 @@ def test_csv_documents_get_the_sheet_treatment() -> None:
     registry.docs["uw"] = _doc("uw", "csv")
     evidence = assemble(registry, [_claim("bd:uw:p1:0000", "uw", "p1")])
     assert "uw:model" in evidence["sheets"]
+
+
+def test_xls_documents_get_the_sheet_treatment() -> None:
+    registry = _registry()
+    registry.docs["uw"] = _doc("uw", "xls")
+    evidence = assemble(registry, [_claim("bd:uw:p1:0000", "uw", "p1")])
+    assert "uw:model" in evidence["sheets"]

@@ -24,6 +24,8 @@ from backdraft.extract.xlsx import MAX_COLS, MAX_ROWS
         ("notes.txt", "text", "text"),
         ("report.pdf", "pdf", "pdf-text"),
         ("model.xlsx", "xlsx", "xlsx"),
+        ("memo.docx", "docx", "docx"),
+        ("deck.pptx", "pptx", "pptx"),
     ],
 )
 def test_auto_picks_the_first_extractor_that_can_handle_the_file(
@@ -738,6 +740,315 @@ def test_csv_reports_partial_view_when_capped(tmp_path: Path) -> None:
     path.write_text("\n".join(f"r{i},v{i}" for i in range(MAX_ROWS + 5)), encoding="utf-8")
     page = list(base.get("csv").extract(path, {}))[0]
     assert "showing" in page.text.splitlines()[0]
+
+
+CSV_GOLDEN = """\
+## Sheet: rent-roll - Values View with cell references
+
+| Row | A | B |
+|---|---|---|
+| 1 | [A1] Unit | [B1] Rent |
+| 2 | [A2] 101 | [B2] 2400 |
+| 3 | [A3] 102 | [B3] 2450 |"""
+
+
+def test_csv_renders_the_shared_sheet_representation(tmp_path: Path) -> None:
+    """Pinned like the xlsx golden: the rendering now lives in the shared
+    sheet module, and moving it must never change a byte of the snapshot."""
+    path = tmp_path / "rent-roll.csv"
+    path.write_text("Unit,Rent\n101,2400\n102,2450\n", encoding="utf-8")
+    assert list(base.get("csv").extract(path, {}))[0].text == CSV_GOLDEN
+
+
+# ---- docx -------------------------------------------------------------------
+
+
+def test_office_suffixes_map_to_their_media_types() -> None:
+    from backdraft.registry.store import media_type_for
+
+    assert media_type_for(Path("memo.docx")) == "docx"
+    assert media_type_for(Path("deck.pptx")) == "pptx"
+    assert media_type_for(Path("legacy.xls")) == "xls"
+
+
+def _make_docx(path: Path, build) -> Path:
+    """A .docx assembled in-test so the fixture's structure is readable here."""
+    import docx as docx_lib
+
+    document = docx_lib.Document()
+    build(document)
+    document.save(str(path))
+    return path
+
+
+@pytest.fixture
+def memo(tmp_path: Path) -> Path:
+    def build(d) -> None:
+        d.add_paragraph("Preamble before any heading.")
+        d.add_heading("Alpha Section", level=1)
+        d.add_paragraph("Body one.")
+        d.add_paragraph("")
+        d.add_paragraph("")
+        d.add_paragraph("Body two.")
+        table = d.add_table(rows=2, cols=2)
+        table.cell(0, 0).text = "Metric"
+        table.cell(0, 1).text = "Value"
+        table.cell(1, 0).text = "Cap rate"
+        table.cell(1, 1).text = "0.0575"
+        d.add_heading("Beta Section", level=1)
+        d.add_heading("Sub under beta", level=2)
+        d.add_paragraph("Beta body.")
+
+    return _make_docx(tmp_path / "credit-memo.docx", build)
+
+
+def test_docx_splits_on_the_smallest_heading_level(memo: Path) -> None:
+    pages = list(base.get("docx").extract(memo, {}))
+    assert [(page.number, page.kind, page.name) for page in pages] == [
+        (1, "page", "credit-memo"),
+        (2, "page", "Alpha Section"),
+        (3, "page", "Beta Section"),
+    ]
+
+
+def test_docx_heading_is_the_first_line_of_its_section(memo: Path) -> None:
+    pages = list(base.get("docx").extract(memo, {}))
+    assert pages[1].text.startswith("Alpha Section\n\n")
+    # the level-2 heading does not split; it is body text of its section
+    assert "Sub under beta" in pages[2].text
+
+
+def test_docx_collapses_consecutive_empty_paragraphs(memo: Path) -> None:
+    text = list(base.get("docx").extract(memo, {}))[1].text
+    assert "Body one.\n\nBody two." in text
+    assert "\n\n\n" not in text
+
+
+def test_docx_tables_render_as_pipe_tables_in_place(memo: Path) -> None:
+    text = list(base.get("docx").extract(memo, {}))[1].text
+    assert "| Metric | Value |\n|---|---|\n| Cap rate | 0.0575 |" in text
+    # in place: after the paragraphs, inside Alpha's section
+    assert text.index("Body two.") < text.index("| Metric |")
+
+
+def test_docx_splits_on_heading_2_when_no_heading_1_exists(tmp_path: Path) -> None:
+    def build(d) -> None:
+        d.add_heading("First", level=2)
+        d.add_paragraph("One.")
+        d.add_heading("Second", level=2)
+        d.add_paragraph("Two.")
+
+    path = _make_docx(tmp_path / "h2-only.docx", build)
+    pages = list(base.get("docx").extract(path, {}))
+    assert [page.name for page in pages] == ["First", "Second"]
+
+
+def test_docx_without_headings_is_a_single_section(tmp_path: Path) -> None:
+    def build(d) -> None:
+        d.add_paragraph("Just prose.")
+        d.add_paragraph("More prose.")
+
+    path = _make_docx(tmp_path / "plain-notes.docx", build)
+    pages = list(base.get("docx").extract(path, {}))
+    assert len(pages) == 1
+    assert pages[0].name == "plain-notes"
+    assert pages[0].text == "Just prose.\n\nMore prose."
+    assert pages[0].kind == "page"
+
+
+def test_docx_truncates_a_long_heading_title(tmp_path: Path) -> None:
+    def build(d) -> None:
+        d.add_heading("H " * 100, level=1)
+
+    path = _make_docx(tmp_path / "long.docx", build)
+    page = list(base.get("docx").extract(path, {}))[0]
+    assert len(page.name) == 80
+
+
+def test_docx_extraction_is_deterministic(memo: Path) -> None:
+    def snapshot() -> list[tuple]:
+        return [
+            (p.number, p.kind, p.name, p.text)
+            for p in base.get("docx").extract(memo, {})
+        ]
+
+    assert snapshot() == snapshot()
+
+
+def test_a_corrupt_docx_is_an_extraction_error(tmp_path: Path) -> None:
+    path = tmp_path / "not-really.docx"
+    path.write_bytes(b"this is not a zip archive")
+    with pytest.raises(ExtractionError, match="could not open"):
+        list(base.get("docx").extract(path, {}))
+
+
+# ---- pptx -------------------------------------------------------------------
+
+
+@pytest.fixture
+def deck(tmp_path: Path) -> Path:
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    deck = Presentation()
+    first = deck.slides.add_slide(deck.slide_layouts[1])  # title and content
+    first.shapes.title.text = "Q3 Overview"
+    body = first.placeholders[1].text_frame
+    body.text = "Point one"
+    body.add_paragraph().text = "Point two"
+    first.notes_slide.notes_text_frame.text = "Remember the caveat."
+    second = deck.slides.add_slide(deck.slide_layouts[6])  # blank
+    table = second.shapes.add_table(
+        2, 2, Inches(1), Inches(1), Inches(4), Inches(2)
+    ).table
+    table.cell(0, 0).text = "Region"
+    table.cell(0, 1).text = "Sales"
+    table.cell(1, 0).text = "West"
+    table.cell(1, 1).text = "42"
+    path = tmp_path / "q3-deck.pptx"
+    deck.save(str(path))
+    return path
+
+
+def test_pptx_is_one_page_per_slide(deck: Path) -> None:
+    pages = list(base.get("pptx").extract(deck, {}))
+    assert [(page.number, page.kind) for page in pages] == [(1, "page"), (2, "page")]
+
+
+def test_pptx_titles_come_from_the_title_placeholder(deck: Path) -> None:
+    pages = list(base.get("pptx").extract(deck, {}))
+    assert pages[0].name == "Q3 Overview"
+    assert pages[1].name == "slide 2"  # no title placeholder on a blank layout
+
+
+def test_pptx_text_frames_become_blocks(deck: Path) -> None:
+    text = list(base.get("pptx").extract(deck, {}))[0].text
+    assert text.startswith("Q3 Overview\n\n")
+    assert "Point one\nPoint two" in text
+
+
+def test_pptx_notes_are_a_final_prefixed_block(deck: Path) -> None:
+    pages = list(base.get("pptx").extract(deck, {}))
+    assert pages[0].text.endswith("Notes: Remember the caveat.")
+    assert "Notes:" not in pages[1].text
+
+
+def test_pptx_tables_render_as_pipe_tables(deck: Path) -> None:
+    text = list(base.get("pptx").extract(deck, {}))[1].text
+    assert "| Region | Sales |\n|---|---|\n| West | 42 |" in text
+
+
+def test_pptx_extraction_is_deterministic(deck: Path) -> None:
+    def snapshot() -> list[tuple]:
+        return [
+            (p.number, p.kind, p.name, p.text)
+            for p in base.get("pptx").extract(deck, {})
+        ]
+
+    assert snapshot() == snapshot()
+
+
+def test_a_corrupt_pptx_is_an_extraction_error(tmp_path: Path) -> None:
+    path = tmp_path / "not-really.pptx"
+    path.write_bytes(b"this is not a zip archive")
+    with pytest.raises(ExtractionError, match="could not open"):
+        list(base.get("pptx").extract(path, {}))
+
+
+# ---- xls --------------------------------------------------------------------
+
+
+def _xls_extractor():  # noqa: ANN202
+    pytest.importorskip("python_calamine", reason="[xls] extra not installed")
+    return base.get("xls")
+
+
+@pytest.fixture
+def legacy_book(tmp_path: Path) -> Path:
+    import xlwt
+
+    book = xlwt.Workbook()
+    sheet = book.add_sheet("rent-roll")
+    sheet.write(0, 0, "Unit")
+    sheet.write(0, 1, "Rent")
+    sheet.write(1, 0, 101)
+    sheet.write(1, 1, 2400.0)
+    sheet.write(2, 0, 102)
+    sheet.write(2, 1, 1875.5)
+    path = tmp_path / "legacy.xls"
+    book.save(str(path))
+    return path
+
+
+def test_xls_renders_the_shared_sheet_representation(legacy_book: Path) -> None:
+    """The same values in a legacy workbook produce the same table shape as
+    xlsx — integers unadorned, no trailing '.0', in-band refs."""
+    page = list(_xls_extractor().extract(legacy_book, {}))[0]
+    assert page.kind == "sheet"
+    assert page.name == "rent-roll"
+    assert page.text == (
+        "## Sheet: rent-roll - Values View with cell references\n"
+        "\n"
+        "| Row | A | B |\n"
+        "|---|---|---|\n"
+        "| 1 | [A1] Unit | [B1] Rent |\n"
+        "| 2 | [A2] 101 | [B2] 2400 |\n"
+        "| 3 | [A3] 102 | [B3] 1875.5 |"
+    )
+
+
+def test_xls_populates_cells_like_xlsx_does(legacy_book: Path) -> None:
+    page = list(_xls_extractor().extract(legacy_book, {}))[0]
+    assert [(cell.ref, cell.value) for cell in page.cells] == [
+        ("A1", "Unit"),
+        ("B1", "Rent"),
+        ("A2", "101"),
+        ("B2", "2400"),
+        ("A3", "102"),
+        ("B3", "1875.5"),
+    ]
+
+
+def test_xls_extraction_is_deterministic(legacy_book: Path) -> None:
+    def snapshot() -> list[tuple]:
+        return [
+            (p.number, p.kind, p.name, p.text, tuple(p.cells or ()))
+            for p in _xls_extractor().extract(legacy_book, {})
+        ]
+
+    assert snapshot() == snapshot()
+
+
+def test_xls_media_type_and_auto_selection(legacy_book: Path) -> None:
+    from backdraft.registry.store import media_type_for
+
+    assert media_type_for(Path("legacy.xls")) == "xls"
+    assert base.select(legacy_book, "xls").name == "xls"
+
+
+def test_xls_is_sheet_typed(legacy_book: Path) -> None:
+    from backdraft.kernel.model import SHEET_MEDIA_TYPES
+
+    assert "xls" in SHEET_MEDIA_TYPES
+
+
+def test_a_corrupt_xls_is_an_extraction_error(tmp_path: Path) -> None:
+    extractor = _xls_extractor()
+    path = tmp_path / "not-really.xls"
+    path.write_bytes(b"this is not a compound document")
+    with pytest.raises(ExtractionError, match="could not open"):
+        list(extractor.extract(path, {}))
+
+
+def test_asking_for_xls_without_the_extra_names_the_install() -> None:
+    """Mirrors the vlm test: the error is about the extra, not a typo."""
+    try:
+        import python_calamine  # noqa: F401
+    except ImportError:
+        with pytest.raises(ExtractionError, match=r"backdraft\[xls\]"):
+            base.get("xls")
+    else:  # pragma: no cover - only when the [xls] extra is installed
+        assert base.get("xls").deterministic is True
 
 
 # ---- image ------------------------------------------------------------------

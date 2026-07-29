@@ -130,6 +130,30 @@ def test_ingest_reports_an_extractor_failure(project: Path, tmp_path: Path) -> N
     assert "broken.pdf" in result.stderr
 
 
+def test_ingesting_a_deck_notes_the_text_only_gap(project: Path, tmp_path: Path) -> None:
+    """The note a calling agent relays when the deck is visual-heavy."""
+    from pptx import Presentation
+
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[1])
+    slide.shapes.title.text = "Q3"
+    path = tmp_path / "q3-deck.pptx"
+    deck.save(str(path))
+    result = runner.invoke(cli.app, ["ingest", str(path)])
+    assert result.exit_code == 0
+    assert "q3-deck" in result.stdout
+    assert (
+        "note: extracted slide text only. Charts and images on slides are "
+        "not captured; exporting the deck to PDF and ingesting it through "
+        "the vision extractor captures them." in result.stdout
+    )
+
+
+def test_ingesting_a_text_file_carries_no_slide_note(project: Path, note: Path) -> None:
+    result = runner.invoke(cli.app, ["ingest", str(note)])
+    assert "slide text" not in result.stdout
+
+
 def test_ingest_rejects_a_malformed_config_pair(project: Path, note: Path) -> None:
     result = runner.invoke(cli.app, ["ingest", str(note), "--config", "nonsense"])
     assert result.exit_code == cli.EXIT_USAGE

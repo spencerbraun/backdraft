@@ -8,12 +8,15 @@ license = { text = "MIT" }
 license-files = ["LICENSE"]
 # The kernel is pure: stdlib only. These are the runtime dependencies of the
 # layers above it — the CLI (typer) and the built-in extractors (pdfplumber for
-# the PDF text layer, openpyxl for workbooks). The registry needs nothing beyond
-# the standard library's `sqlite3`.
+# the PDF text layer, openpyxl for workbooks, python-docx and python-pptx for
+# Office documents). The registry needs nothing beyond the standard library's
+# `sqlite3`.
 dependencies = [
     "typer>=0.12",
     "pdfplumber>=0.11",
     "openpyxl>=3.1",
+    "python-docx>=1.1",
+    "python-pptx>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -22,12 +25,15 @@ dependencies = [
 vlm = ["openai>=1.0", "pdf2image>=1.17"]
 # The entailment verifier (bind --check entail).
 entail = ["anthropic>=0.40"]
+# Legacy .xls workbooks, read by calamine (values only).
+xls = ["python-calamine>=0.3"]
 
 [project.scripts]
 backdraft = "backdraft.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8.0", "reportlab>=4.0"]
+# xlwt writes the legacy .xls fixtures the xls extractor's tests read.
+dev = ["pytest>=8.0", "reportlab>=4.0", "xlwt>=1.3"]
 
 [project.urls]
 Homepage = "https://backdraft.dev"
