@@ -37,7 +37,14 @@ small.
 
 from __future__ import annotations
 
-from .assets import FLAME_PATH, SCRIPT, STYLESHEET, _favicon
+from .assets import (
+    FLAME_PATH,
+    SCRIPT,
+    SCRIPT_MIN,
+    STYLESHEET,
+    STYLESHEET_MIN,
+    _favicon,
+)
 from .components import (
     _TYPE_LABEL,
     _card,

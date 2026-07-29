@@ -66,6 +66,9 @@ _ENV_TEMPLATE = """\
 # Ambient provider keys (OPENAI_API_KEY, ...) are never read.
 BACKDRAFT_VLM_API_KEY=
 BACKDRAFT_ENTAIL_API_KEY=
+# Page-snapshot budget, display only (defaults shown):
+# BACKDRAFT_SNAPSHOT_QUALITY=85
+# BACKDRAFT_SNAPSHOT_MAX_HEIGHT=1056
 """
 
 # ---- commands ---------------------------------------------------------------
@@ -206,7 +209,10 @@ def snapshot_pages(
     Ingesting through the VLM extractor stores each page's image automatically;
     this command adds them to registries created before that, or to text-layer
     ingests, so `bind` can embed the cited pages into the artifact. Requires the
-    `[vlm]` extra for PDF rendering.
+    `[vlm]` extra for PDF rendering. The encoding budget is backdraft-scoped
+    settings: `BACKDRAFT_SNAPSHOT_QUALITY` (WebP quality, 85) and
+    `BACKDRAFT_SNAPSHOT_MAX_HEIGHT` (pixels, 1056), env or `.backdraft/env` —
+    display knobs only, citation tokens never derive from pixels.
     """
     with guard():
         try:
@@ -219,7 +225,10 @@ def snapshot_pages(
                 "snapshot-pages needs the [vlm] extra for PDF rendering: "
                 f"pip install 'backdraft[vlm]' ({error})"
             ) from error
-        from .extract.vlm_settings import MAX_IMAGE_HEIGHT, SNAPSHOT_QUALITY
+        from .extract.vlm_settings import snapshot_max_height, snapshot_quality
+
+        max_height = snapshot_max_height()
+        quality = snapshot_quality()
 
         with opened_registry() as registry:
             document = registry.document(slug)
@@ -242,13 +251,13 @@ def snapshot_pages(
                     first_page=page.number, last_page=page.number,
                 )
                 image = images[0]
-                if image.height > MAX_IMAGE_HEIGHT:
-                    scale = MAX_IMAGE_HEIGHT / image.height
+                if image.height > max_height:
+                    scale = max_height / image.height
                     image = image.resize(
-                        (max(1, round(image.width * scale)), MAX_IMAGE_HEIGHT)
+                        (max(1, round(image.width * scale)), max_height)
                     )
                 buffer = io.BytesIO()
-                image.save(buffer, format="WEBP", quality=SNAPSHOT_QUALITY)
+                image.save(buffer, format="WEBP", quality=quality)
                 registry.save_page_image(
                     extraction_id, page.number,
                     data=buffer.getvalue(), format="webp",

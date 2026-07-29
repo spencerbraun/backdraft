@@ -16,6 +16,7 @@ __all__ = [
     "DEFAULT_RETRIES",
     "DEFAULT_TIMEOUT_SECONDS",
     "MAX_IMAGE_HEIGHT",
+    "SNAPSHOT_QUALITY",
     "DEFAULT_MODEL",
     "OPENROUTER_BASE_URL",
     "client_settings",
@@ -23,6 +24,8 @@ __all__ = [
     "is_retryable",
     "retries",
     "run_ordered",
+    "snapshot_max_height",
+    "snapshot_quality",
     "timeout_seconds",
     "with_retries",
 ]
@@ -80,12 +83,14 @@ DEFAULT_RETRIES = 4
 
 MAX_IMAGE_HEIGHT = 1056
 """Rendered page images are downscaled to this height — token-cost control
-(dpi buys legibility, height caps what a page costs)."""
+(dpi buys legibility, height caps what a page costs). Overridden with
+`BACKDRAFT_SNAPSHOT_MAX_HEIGHT` via `snapshot_max_height`."""
 
 SNAPSHOT_QUALITY = 85
 """WebP quality for stored page snapshots, a production-tested setting. Lives
 here rather than vlm.py so `snapshot-pages` can import it without pulling in
-the openai client."""
+the openai client. Overridden with `BACKDRAFT_SNAPSHOT_QUALITY` via
+`snapshot_quality`."""
 
 
 def _int_setting(name: str, config: dict, config_key: str, default: int) -> int:
@@ -109,6 +114,31 @@ def timeout_seconds(config: dict) -> int:
 def retries(config: dict) -> int:
     """`--config retries=` → `BACKDRAFT_VLM_RETRIES` → 4."""
     return _int_setting("BACKDRAFT_VLM_RETRIES", config, "retries", DEFAULT_RETRIES)
+
+
+def snapshot_quality(config: dict | None = None) -> int:
+    """`--config snapshot_quality=` → `BACKDRAFT_SNAPSHOT_QUALITY` → 85.
+
+    A size/fidelity budget knob for the artifact. Display only, like the
+    snapshot itself: snippets, hashes and tokens are computed from extracted
+    text and cell values, never from pixels, so turning this changes artifact
+    weight and nothing else.
+    """
+    return _int_setting(
+        "BACKDRAFT_SNAPSHOT_QUALITY", config or {}, "snapshot_quality", SNAPSHOT_QUALITY
+    )
+
+
+def snapshot_max_height(config: dict | None = None) -> int:
+    """`--config snapshot_max_height=` → `BACKDRAFT_SNAPSHOT_MAX_HEIGHT` → 1056.
+
+    Same budget-knob rule as `snapshot_quality`. In the vision paths the cap
+    also bounds the image the model reads (that is what the default exists
+    for); citation identity still never derives from the pixels.
+    """
+    return _int_setting(
+        "BACKDRAFT_SNAPSHOT_MAX_HEIGHT", config or {}, "snapshot_max_height", MAX_IMAGE_HEIGHT
+    )
 
 
 def run_ordered(items, fn, *, workers, progress=None):

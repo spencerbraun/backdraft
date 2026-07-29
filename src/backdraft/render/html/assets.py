@@ -4,11 +4,52 @@ The strings are the artifact's entire presentation layer, inlined at render —
 the CSP (`default-src 'none'`) forbids fetching them, so they can have no
 other home. The script's `fmtCell` mirrors `fmt.fmt_cell` deliberately; the
 parity tests hold the pair together.
+
+`STYLESHEET` and `SCRIPT` are the authored sources; the artifact ships
+`STYLESHEET_MIN` and `SCRIPT_MIN`, the same bytes through `_minify` — a
+whitespace-and-comments pass only. Lines are never joined (the script relies
+on newlines for statement ends) and nothing is renamed: the minified script
+must still be readable in view-source, greppable by the parity tests, and
+byte-deterministic across runs.
 """
 
 from __future__ import annotations
 
 import urllib.parse
+
+
+def _minify(source: str) -> str:
+    """Strip comments, per-line indentation, and blank lines. Nothing else.
+
+    Deliberately line-based and lexically timid: a `/*` opens a comment only
+    at the start of a line (nothing in either asset embeds one mid-line, and
+    a string or regex containing the pair would defeat a cleverer scanner),
+    and newlines all survive, so JS semicolon insertion is undisturbed.
+    """
+    out: list[str] = []
+    in_comment = False
+    for line in source.splitlines():
+        text = line.strip()
+        while True:
+            if in_comment:
+                end = text.find("*/")
+                if end == -1:
+                    text = ""
+                    break
+                text = text[end + 2:].lstrip()
+                in_comment = False
+            elif text.startswith("/*"):
+                end = text.find("*/", 2)
+                if end == -1:
+                    in_comment = True
+                    text = ""
+                    break
+                text = text[end + 2:].lstrip()
+            else:
+                break
+        if text:
+            out.append(text)
+    return "\n".join(out)
 
 FLAME_PATH = (
     "M44 3 C38 8 30 10 26 16 C23.5 20 24.5 24 27 26.5 "
@@ -584,3 +625,9 @@ SCRIPT = """
   }
 })();
 """
+
+STYLESHEET_MIN = _minify(STYLESHEET)
+"""What the artifact ships: `STYLESHEET` minus comments and indentation."""
+
+SCRIPT_MIN = _minify(SCRIPT)
+"""What the artifact ships: `SCRIPT` minus comments and indentation."""
