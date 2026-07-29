@@ -28,8 +28,9 @@ cd demo
 ```
 
 **Ingest** the sources. Every anchor is minted here, chunks for PDF pages,
-cells for spreadsheet sheets. Formats: PDF, XLSX/XLSM, CSV/TSV, images
-(png, jpeg, tiff, through the vision model), plain text and Markdown.
+cells for spreadsheet sheets. Formats: PDF, XLSX/XLSM, XLS, CSV/TSV, DOCX,
+PPTX, images (png, jpeg, tiff, through the vision model), plain text and
+Markdown.
 
 ```console
 $ backdraft init
@@ -173,12 +174,13 @@ uv add backdraft                   # as a dependency
 pip install backdraft              # or plain pip
 ```
 
-Python 3.13+. Two extras:
+Python 3.13+. Three extras:
 
 | Extra | Adds | For |
 |---|---|---|
 | `[vlm]` | `openai`, `pdf2image` | the VLM extractor, the recommended path for real PDFs (glossy layouts, info boxes, scans): a vision model reads each page and its clean representation becomes the receipt. `--extractor auto` prefers it only on explicit, backdraft-scoped consent: `BACKDRAFT_VLM_API_KEY` (env or `.backdraft/env`, `backdraft init` writes a template). Ambient `OPENAI_API_KEY`/`OPENROUTER_API_KEY` are deliberately never read; a generic key in the environment is not consent to send documents to its provider. The default provider is OpenRouter running Gemini 3.1 Flash Lite; direct OpenAI is base_url + model, set explicitly. Without a scoped key, `auto` falls back to the keyless text layer and says so. Needs poppler installed separately |
 | `[entail]` | `anthropic` | `bind --check entail`, the model-judge verifier |
+| `[xls]` | `python-calamine` | legacy `.xls` workbooks, values only, rendered the same shape as xlsx |
 
 ```bash
 pip install "backdraft[vlm,entail]"

@@ -15,7 +15,9 @@ backdraft skill install   # copies the writing skill into ~/.claude/skills/
 # [vlm] adds vision-model extraction for PDFs and images (needs poppler for
 # PDFs + BACKDRAFT_VLM_API_KEY). Ambient provider keys (OPENAI_API_KEY etc.)
 # are NEVER read; only BACKDRAFT_*.
-# Formats: pdf, xlsx/xlsm, csv/tsv, png/jpeg/tiff, txt/md.
+# Formats: pdf, xlsx/xlsm, xls (via [xls]), csv/tsv, docx, pptx,
+# png/jpeg/tiff, txt/md. pptx is slide text only; export visual-heavy
+# decks to PDF and ingest via the vision extractor.
 
 ## The contract
 
