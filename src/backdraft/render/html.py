@@ -936,8 +936,8 @@ th.citedcol{background:var(--sel-soft);color:var(--sel);font-weight:600}
 .overlay > img{max-width:100%;max-height:100%;border-radius:2px;cursor:zoom-out;
   background:#fff}
 .sheetbox{background:var(--paper);border-radius:4px;
-  width:min(78rem,100%);height:min(48rem,100%);display:flex;flex-direction:column;
-  overflow:hidden}
+  width:min(78rem,100%);height:auto;max-height:min(48rem,100%);
+  display:flex;flex-direction:column;overflow:hidden}
 .sheetbox header{display:flex;align-items:center;justify-content:space-between;
   font-family:var(--sans);font-size:.78rem;font-weight:600;
   padding:.7rem 1rem;border-bottom:1px solid var(--hairline)}
@@ -960,6 +960,7 @@ th.citedcol{background:var(--sel-soft);color:var(--sel);font-weight:600}
     width:min(30rem,calc(100vw - 2rem));max-height:72vh;overflow-y:auto;resize:none}
   @keyframes rise{from{opacity:0;transform:translate(-50%,.5rem)}
     to{opacity:1;transform:translate(-50%,0)}}
+  .overlay{padding:.6rem}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 @media print{

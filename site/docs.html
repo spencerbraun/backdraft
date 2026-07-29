@@ -27,11 +27,12 @@ a{color:inherit;text-decoration:underline;text-decoration-color:rgba(40,40,40,.2
   text-underline-offset:3px;text-decoration-thickness:1px}
 a:hover{text-decoration-color:var(--ink)}
 .wrap{max-width:72rem;margin:0 auto;padding:0 1.5rem}
-.bar{display:flex;align-items:center;justify-content:space-between;
+.bar{display:flex;align-items:center;justify-content:space-between;gap:1rem;
   padding:1.4rem 0;font-family:var(--sans);font-size:.82rem}
 .brand{display:flex;align-items:center;gap:.5rem;font-family:var(--serif);
   font-weight:600;font-size:1.05rem;text-decoration:none}
-.bar nav a{margin-left:1.4rem;text-decoration:none;color:var(--muted);font-weight:500}
+.bar nav{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:.35rem 1.3rem}
+.bar nav a{text-decoration:none;color:var(--muted);font-weight:500;padding:.2rem 0}
 .bar nav a:hover{color:var(--ink)}
 
 .layout{display:grid;grid-template-columns:13rem minmax(0,1fr);gap:3.5rem;
@@ -72,6 +73,15 @@ footer{text-align:center;font-family:var(--sans);font-size:.74rem;color:var(--mu
   padding:0 0 3rem}
 @media (max-width:860px){.layout{display:block}.toc{position:static;margin-bottom:2rem;
   columns:2}}
+@media (max-width:640px){
+  .wrap{padding:0 1.1rem}
+  .bar{flex-direction:column;align-items:flex-start;gap:.5rem;padding:1.1rem 0}
+  .bar nav{justify-content:flex-start;gap:.35rem 1.1rem}
+  .layout{padding:1.2rem 0 4rem}
+  main h1{font-size:1.7rem}
+  /* wide tables scroll inside themselves instead of stretching the page */
+  table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+}
 </style>
 </head>
 <body>
