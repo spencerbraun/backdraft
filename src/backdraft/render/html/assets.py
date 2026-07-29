@@ -414,10 +414,10 @@ SCRIPT = """
     var v = Number(raw);
     if (!format || isNaN(v)) return fmt(raw);
     if (format.indexOf('%') >= 0) {
-      var pm = format.match(/0\.(0+)%/);
+      var pm = format.match(/0\\.(0+)%/);
       return fixed(v * 100, pm ? pm[1].length : 0, false) + '%';
     }
-    var dm = format.match(/0\.(0+)/);
+    var dm = format.match(/0\\.(0+)/);
     var decimals = dm ? dm[1].length : 0;
     var grouped = format.indexOf(',') >= 0;
     var text = fixed(v, decimals, grouped);

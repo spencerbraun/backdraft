@@ -2,7 +2,7 @@
 
 This extractor reads the text the PDF already carries; it does not look at the
 pixels. A scan has no text layer, so it produces nothing to anchor — that is an
-error naming the `[vlm]` extra rather than an empty registry entry, because a
+error naming the vision extractor rather than an empty registry entry, because a
 document that silently ingests as blank is worse than one that refuses.
 
 **Paragraph reconstruction.** `page.extract_text()` joins every line with a
@@ -46,8 +46,8 @@ leading reads as one block, over half reads as a break.
 
 _NO_TEXT_LAYER = (
     "{path} has no text layer on any page — it is probably a scan. "
-    "Install the VLM extractor and pass it explicitly: "
-    "`pip install 'backdraft[vlm]'` then `backdraft ingest {path} --extractor vlm`."
+    "Use the vision extractor: set BACKDRAFT_VLM_API_KEY (env or "
+    ".backdraft/env), then `backdraft ingest {path} --extractor vlm`."
 )
 
 

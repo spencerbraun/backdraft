@@ -1,7 +1,7 @@
 """Extractors: files in, ordered pages out.
 
 The protocol and the registry live in `base`; the built-ins (`text`, `pdf-text`,
-`xlsx`) and the `[vlm]` extra are imported on demand by `base.get`, so importing
+`xlsx`) and the VLM extractor are imported on demand by `base.get`, so importing
 this package costs nothing but the protocol.
 
 Export style (shared by every package above the kernel): **names**, never

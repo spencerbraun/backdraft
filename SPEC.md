@@ -44,10 +44,16 @@ backdraft/
     extract/
       base.py               # Extractor protocol + registry of extractors
       pdf_text.py           # pdfplumber text-layer; paragraph breaks rebuilt from line geometry
-      xlsx.py               # openpyxl → markdown table with [B10] refs
+      sheet.py              # the shared tabular representation: bounds caps, [B10] row rendering
+      xlsx.py               # openpyxl → sheet representation + styling meta
+      xls.py                # [xls] extra: calamine → sheet representation, values only
+      csv.py                # sniffed-dialect csv/tsv → sheet representation
+      docx.py               # python-docx; heading sections become pages
+      pptx.py               # python-pptx; one page per slide, text floor
       text.py               # md/txt passthrough
-      vlm.py                # [vlm] extra: pdf→images→VLM per page
-      vlm_settings.py       # provider/model/base-url resolution; stdlib-only, imports without the extra
+      image.py              # an image is a one-page document; VLM transcription
+      vlm.py                # pdf→images→VLM per page (deps ship by default; key gates use)
+      vlm_settings.py       # provider/model/base-url resolution; stdlib-only
     gate/
       reader.py             # ls / toc / read page-range → token-marked context; records ledger
       searcher.py           # FTS5 → minted snippet results; records ledger
@@ -59,7 +65,9 @@ backdraft/
         base.py             # Verifier protocol
         value_trace.py  overlap.py  recompute.py  entail.py   # entail behind [entail]
     render/
-      html.py               # single-file artifact, embedded viewer + legend
+      html/                 # single-file artifact, embedded viewer + legend
+                            #   fmt.py text.py components.py assets.py page.py
+                            #   fmt_vectors.py: one vector table drives fmt_cell (py) and fmtCell (js)
       markdown.py           # the authored document's markdown → HTML, stdlib only
       placement.py          # locating each claim's span in the document render was handed
       footnotes.py          # markdown projection
@@ -126,7 +134,7 @@ CREATE TABLE documents (
   sha256 TEXT NOT NULL UNIQUE,
   path TEXT NOT NULL,            -- as given at ingest; informational
   filename TEXT NOT NULL,
-  media_type TEXT NOT NULL,      -- 'pdf' | 'xlsx' | 'text'
+  media_type TEXT NOT NULL,      -- 'pdf' | 'xlsx' | 'xls' | 'csv' | 'docx' | 'pptx' | 'image' | 'text'
   created_at TEXT NOT NULL       -- ISO-8601 UTC, everywhere
 );
 
@@ -218,7 +226,7 @@ class Extractor(Protocol):
     def extract(self, path: Path, config: dict) -> Iterator[ExtractedPage]: ...
 ```
 
-Registered in a plain dict; `ingest --extractor auto` picks the first `can_handle`, built-ins ordered `xlsx, pdf-text, text`. `vlm` (extra) is pdf→images→VLM per page, OpenAI-compatible client, model configurable. **For PDFs, `auto` prefers `vlm` when it is installed and an API key is configured** (glossy layouts and info boxes extract badly from the text layer, and the snapshot is the receipt); otherwise it falls back to `pdf-text` and prints a one-line nudge naming the VLM option. An explicit `--extractor` always wins. xlsx's representation: `Row | A | B...` header, `[B10] value` prefixes, dimension caps, inflated-sheet placeholder pages; cell values are never rounded, since the snapshot is the receipt a claim is traced against. `pdf-text` reconstructs paragraph breaks from line geometry before handing the page over, so the chunker's blank-line rule has something to fire on.
+Registered in a plain dict; `ingest --extractor auto` picks the first `can_handle`, built-ins ordered `xlsx, xls, csv, docx, pptx, pdf-text, image, text` (an extractor whose optional extra is missing is skipped, not fatal). `vlm` is pdf→images→VLM per page, OpenAI-compatible client, model configurable; its deps ship by default and the backdraft-scoped key gates use. **For PDFs, `auto` prefers `vlm` when it is ready (importable, key configured)** (glossy layouts and info boxes extract badly from the text layer, and the snapshot is the receipt); otherwise it falls back to `pdf-text` and prints a one-line nudge naming the VLM option. An explicit `--extractor` always wins. The sheet representation (shared by xlsx, xls, csv): `Row | A | B...` header, `[B10] value` prefixes, dimension caps, inflated-sheet placeholder pages; cell values are never rounded, since the snapshot is the receipt a claim is traced against. `docx` synthesizes pages from heading sections (the document's smallest present outline level among Heading 1–2 splits; no headings → one page), so locators stay `pN.cM`. `pptx` is one page per slide, text floor only; ingest notes that slide visuals need the PDF-export path. `pdf-text` reconstructs paragraph breaks from line geometry before handing the page over, so the chunker's blank-line rule has something to fire on.
 
 ## Gate (gate/)
 

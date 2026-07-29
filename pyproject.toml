@@ -1,28 +1,33 @@
 [project]
 name = "backdraft"
-version = "0.3.0"
+version = "0.4.0"
 description = "Drop-in provenance for factual claims: one click from any claim to the evidence behind it."
 readme = "README.md"
 requires-python = ">=3.13"
 license = { text = "MIT" }
 license-files = ["LICENSE"]
 # The kernel is pure: stdlib only. These are the runtime dependencies of the
-# layers above it — the CLI (typer) and the built-in extractors (pdfplumber for
+# layers above it — the CLI (typer), the built-in extractors (pdfplumber for
 # the PDF text layer, openpyxl for workbooks, python-docx and python-pptx for
-# Office documents). The registry needs nothing beyond the standard library's
-# `sqlite3`.
+# Office documents), and the VLM extractor (openai + pdf2image; pdf2image
+# shells out to poppler, installed separately, behind a runtime capability
+# check). The vision model ships by default because it is the recommended PDF
+# path; consent to use it is the BACKDRAFT_VLM_API_KEY, never the install.
+# The registry needs nothing beyond the standard library's `sqlite3`.
 dependencies = [
     "typer>=0.12",
     "pdfplumber>=0.11",
     "openpyxl>=3.1",
     "python-docx>=1.1",
     "python-pptx>=1.0",
+    "openai>=1.0",
+    "pdf2image>=1.17",
 ]
 
 [project.optional-dependencies]
-# The VLM extractor: pdf -> page images -> an OpenAI-compatible vision model.
-# `pdf2image` shells out to poppler, which is installed separately.
-vlm = ["openai>=1.0", "pdf2image>=1.17"]
+# Kept as an empty compat alias: the vision deps moved into core in 0.4.0,
+# and `backdraft[vlm]` is written in older docs and scripts.
+vlm = []
 # The entailment verifier (bind --check entail).
 entail = ["anthropic>=0.40"]
 # Legacy .xls workbooks, read by calamine (values only).

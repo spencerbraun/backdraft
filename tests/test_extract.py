@@ -309,9 +309,9 @@ def test_pdf_text_is_one_page_per_page(report: Path) -> None:
     assert "4.1 million" in pages[1].text
 
 
-def test_an_image_only_pdf_names_the_vlm_extra(tmp_path: Path) -> None:
+def test_an_image_only_pdf_names_the_vision_extractor(tmp_path: Path) -> None:
     blank = _make_pdf(tmp_path / "scan.pdf", [[], []])
-    with pytest.raises(ExtractionError, match=r"backdraft\[vlm\]"):
+    with pytest.raises(ExtractionError, match=r"BACKDRAFT_VLM_API_KEY"):
         list(base.get("pdf-text").extract(blank, {}))
 
 

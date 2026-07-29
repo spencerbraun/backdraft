@@ -1,4 +1,4 @@
-"""Images (`[vlm]` extra): a photographed or scanned page is a one-page document.
+"""Images (VLM extractor): a photographed or scanned page is a one-page document.
 
 This is the VLM pipeline minus pdf2image — the file already is the page. The
 image itself is stored as the page's snapshot (re-encoded WebP, same as PDF

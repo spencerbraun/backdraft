@@ -127,12 +127,13 @@ repo</a>, and agents should start from <a href="llms.txt">llms.txt</a>.</p>
 
 <section id="install">
 <h2>Install</h2>
-<pre>uv tool install "backdraft[vlm]"</pre>
-<p>Python 3.13+. The <code>[vlm]</code> extra adds the vision-model
-extractor for PDFs and images, the recommended path for real PDFs (glossy
-layouts, info boxes, scans) and the only path for scanned images; PDFs need
-<code>poppler</code> on your PATH (<code>brew install poppler</code>). Without
-it, PDFs fall back to the keyless embedded-text layer, and ingest says so.
+<pre>uv tool install backdraft</pre>
+<p>Python 3.13+. The vision-model extractor ships by default, the recommended
+path for real PDFs (glossy layouts, info boxes, scans) and the only path for
+scanned images; it activates only when <code>BACKDRAFT_VLM_API_KEY</code> is
+set, and PDFs need <code>poppler</code> on your PATH
+(<code>brew install poppler</code>). Without a key, PDFs fall back to the
+keyless embedded-text layer, and ingest says so.
 Spreadsheets (xlsx, xlsm), CSV, Word (docx), PowerPoint (pptx), text and
 Markdown are keyless and built in, and sheet evidence carries the workbook's
 own styling: bold, fills, number formats, column widths. Legacy xls
@@ -208,7 +209,7 @@ skill</a> imposes the gate, and you receive the artifact.</div>
 <tr><th>Command</th><th>Does</th></tr>
 <tr><td><code>init</code></td><td>Create <code>.backdraft/</code> (registry, credentials template) in the current directory.</td></tr>
 <tr><td><code>ingest &lt;files&gt;</code></td><td>Snapshot sources into the registry, minting every anchor. Formats: PDF, XLSX/XLSM, XLS, CSV/TSV, DOCX, PPTX, images (png, jpeg, tiff), text and Markdown. <code>--extractor auto|vlm|image|pdf-text|xlsx|xls|csv|docx|pptx|text</code>, <code>--slug</code>, <code>--config k=v</code>.</td></tr>
-<tr><td><code>snapshot-pages &lt;slug&gt;</code></td><td>Backfill page images for an already-ingested PDF, locally, no model calls (<code>[vlm]</code> extra for rendering).</td></tr>
+<tr><td><code>snapshot-pages &lt;slug&gt;</code></td><td>Backfill page images for an already-ingested PDF, locally, no model calls (needs <code>poppler</code> for rendering).</td></tr>
 <tr><td><code>ls</code></td><td>List ingested documents.</td></tr>
 <tr><td><code>read [slug] [selector]</code></td><td>The gate: document list, table of contents, or a token-marked page/range/sheet read. Mints what it shows.</td></tr>
 <tr><td><code>search &lt;query&gt;</code></td><td>Full-text search over every anchor; hits are citable. <code>--in slug</code>, <code>--limit</code>.</td></tr>
@@ -306,8 +307,8 @@ registry contains the full text of everything ingested.</li>
 <section id="faq">
 <h2>FAQ</h2>
 <h3>Ingest says it fell back to the text layer, why?</h3>
-<p>The note names the condition: either the <code>[vlm]</code> extra isn't
-installed, or <code>BACKDRAFT_VLM_API_KEY</code> isn't set. Fix the named one.
+<p>The note names the condition, usually that
+<code>BACKDRAFT_VLM_API_KEY</code> isn't set. Fix the named one.
 Text-layer receipts are fine for clean digital PDFs; glossy or scanned ones
 deserve the vision model.</p>
 <h3>My artifact has no page images.</h3>

@@ -40,7 +40,7 @@ backdraft ingest sources/t12-summary.pdf sources/underwriting-model.xlsx
 ```
 t12-summary  t12-summary.pdf  pdf  3 pages
 underwriting-model  underwriting-model.xlsx  xlsx  2 pages
-note: extracted with pdf-text (the embedded text layer). Glossy or scanned PDFs extract better through a vision model: install backdraft[vlm] and set BACKDRAFT_VLM_API_KEY in .backdraft/env.
+note: extracted with pdf-text (the embedded text layer). Glossy or scanned PDFs extract better through a vision model: set BACKDRAFT_VLM_API_KEY in .backdraft/env.
 ```
 
 The keyless text layer is fine for these clean generated sources. For the
@@ -59,8 +59,8 @@ The note is real: this walkthrough deliberately uses the keyless text-layer
 path so it reproduces anywhere, and our source PDF is born-digital, where that
 path is fine. For real documents — glossy offering memos, info boxes, scans —
 the VLM extractor is the recommended path: `auto` picks it when
-`backdraft[vlm]` is installed and `BACKDRAFT_VLM_API_KEY` is set (env or
-`.backdraft/env` — never an ambient provider key), and the snapshot it
+`BACKDRAFT_VLM_API_KEY` is set (env or `.backdraft/env` — never an ambient
+provider key), and the snapshot it
 produces (the model's clean reading of the page) becomes the receipt.
 
 ## 3. Start a session

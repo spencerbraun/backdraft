@@ -23,7 +23,7 @@ Docs live at [backdraft.dev](https://backdraft.dev), one page for people, and
 ## 60 seconds
 
 ```bash
-uv tool install "backdraft[vlm]"
+uv tool install backdraft
 cd demo
 ```
 
@@ -40,7 +40,7 @@ documents: 0
 $ backdraft ingest sources/t12-summary.pdf sources/underwriting-model.xlsx
 t12-summary  t12-summary.pdf  pdf  3 pages
 underwriting-model  underwriting-model.xlsx  xlsx  2 pages
-note: extracted with pdf-text (the embedded text layer). Glossy or scanned PDFs extract better through a vision model: install backdraft[vlm] and set BACKDRAFT_VLM_API_KEY in .backdraft/env.
+note: extracted with pdf-text (the embedded text layer). Glossy or scanned PDFs extract better through a vision model: set BACKDRAFT_VLM_API_KEY in .backdraft/env.
 ```
 
 **Read.** The page arrives with a citable name over each chunk. This is the whole
@@ -169,22 +169,33 @@ confidential corpora**.
 ## Install
 
 ```bash
-uv tool install "backdraft[vlm]"   # CLI, recommended form
-uv add backdraft                   # as a dependency
-pip install backdraft              # or plain pip
+uv tool install backdraft   # CLI, recommended form
+uv add backdraft            # as a dependency
+pip install backdraft       # or plain pip
 ```
 
-Python 3.13+. Three extras:
+Python 3.13+. The vision extractor ships by default, and it is the
+recommended path for real PDFs (glossy layouts, info boxes, scans): a vision
+model reads each page and its clean representation becomes the receipt.
+Installing it is not consent to use it. `--extractor auto` prefers it only on
+explicit, backdraft-scoped consent: `BACKDRAFT_VLM_API_KEY` (env or
+`.backdraft/env`, `backdraft init` writes a template). Ambient
+`OPENAI_API_KEY`/`OPENROUTER_API_KEY` are deliberately never read; a generic
+key in the environment is not consent to send documents to its provider. The
+default provider is OpenRouter running Gemini 3.1 Flash Lite; direct OpenAI is
+base_url + model, set explicitly. Without a scoped key, `auto` falls back to
+the keyless text layer and says so. PDF page rendering needs poppler,
+installed separately.
+
+Two extras:
 
 | Extra | Adds | For |
 |---|---|---|
-| `[vlm]` | `openai`, `pdf2image` | the VLM extractor, the recommended path for real PDFs (glossy layouts, info boxes, scans): a vision model reads each page and its clean representation becomes the receipt. `--extractor auto` prefers it only on explicit, backdraft-scoped consent: `BACKDRAFT_VLM_API_KEY` (env or `.backdraft/env`, `backdraft init` writes a template). Ambient `OPENAI_API_KEY`/`OPENROUTER_API_KEY` are deliberately never read; a generic key in the environment is not consent to send documents to its provider. The default provider is OpenRouter running Gemini 3.1 Flash Lite; direct OpenAI is base_url + model, set explicitly. Without a scoped key, `auto` falls back to the keyless text layer and says so. Needs poppler installed separately |
 | `[entail]` | `anthropic` | `bind --check entail`, the model-judge verifier |
 | `[xls]` | `python-calamine` | legacy `.xls` workbooks, values only, rendered the same shape as xlsx |
 
-```bash
-pip install "backdraft[vlm,entail]"
-```
+`backdraft[vlm]` still installs: it is an empty compat alias from when the
+vision deps were an extra.
 
 From a checkout:
 
@@ -230,8 +241,7 @@ implementation reads them and nothing else.
 ## Status
 
 v1. The registry format, the token grammar and the artifact format are pinned
-by prose specs and golden-file tests. What is deliberately queued, exhibits,
-Excel region maps, more formats, `bd:calc` derivations, is written down in
-[ROADMAP.md](ROADMAP.md).
+by prose specs and golden-file tests. What is queued, and what is deliberately
+parked with the objection written down, lives in [ROADMAP.md](ROADMAP.md).
 
 MIT licensed.

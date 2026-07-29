@@ -6,48 +6,11 @@ losing it. Items graduate by getting built and deleted.
 
 ## Now
 
-Formats and structural cleanup: make what exists better before adding views.
-Each format is one Extractor implementing the existing protocol — pages out,
-receipts quotable, nothing downstream changes. Each cleanup item is
-behavior-preserving and guarded by the golden-file tests.
-
-- **DOCX** — deterministic extraction from the XML via python-docx:
-  paragraphs and tables (rendered as markdown) in document order. A DOCX has
-  no pages, so heading sections become pages: a paragraph at the document's
-  smallest present outline level (Heading 1, else Heading 2) starts a new
-  section; content before the first heading is section 1; a document with no
-  headings is one section. Locators stay `pN.cM` — no grammar change. No
-  rendering dependency, ever: converting to PDF needs a layout engine
-  (LibreOffice), and pagination would then depend on the converter's fonts
-  and version, which breaks content-addressed locator stability.
-- **PPTX** — deterministic slide text via python-pptx: one page per slide,
-  title, body text, tables as markdown, speaker notes. The ingest note tells
-  the calling agent that charts and images on slides are not captured, and
-  that a PDF export of the deck ingested through the vision extractor
-  captures them — the agent passes that along when it matters. No LibreOffice
-  here either; the person with the deck has the real renderer.
-- **XLS** — legacy workbooks via python-calamine behind an `[xls]` extra;
-  rides the shared sheet helpers. Values only, no styling meta.
-- **Decompose the HTML renderer** — `render/html.py` is 1,300 lines holding
-  four different things: the Python component functions, the stylesheet
-  string, the script string, and the page template. Split into a
-  `render/html/` package so each is findable and diffable. While in there,
-  pin the deliberate duplication: `fmt_cell` (Python, server-rendered
-  windows) and `fmtCell` (JS, overlay) must format identically, so drive
-  both from one shared table of test vectors instead of trusting parallel
-  edits.
-- **A shared sheet-extraction module** — the CSV extractor imports `_bounds`,
-  `_render`, `_title` privately from the XLSX extractor. Hoist the common
-  tabular helpers into one module with public names; XLS is the third
-  consumer, DOCX tables the fourth.
-- **Artifact weight** — the demo artifact is 523 KB: 68% embedded page
-  images, and of the 170 KB of markup about 45 KB is indentation whitespace
-  plus unminified CSS/JS. Only cited pages are embedded and `--lean` already
-  drops images entirely, so the remaining levers are: (1) emit minified
-  markup and assets, cheap and behavior-free; (2) tune the page-image
-  snapshot budget (WebP quality and max height) at ingest. The constraint:
-  the artifact stays self-describing, so the `$legend` and the sidecar
-  payload stay readable in view-source even after minification.
+Empty, deliberately. The 0.4.0 wave graduated the whole section: DOCX, PPTX,
+and XLS extractors, the shared sheet-extraction module, the renderer
+decomposition with pinned Python/JS format parity, minified artifact
+emission, and the snapshot budget knobs. The next item gets promoted out of
+Parked or Later on purpose, not by momentum.
 
 ## Parked
 

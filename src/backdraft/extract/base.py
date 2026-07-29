@@ -14,7 +14,7 @@ glossy layouts extract badly from the text layer.
 
 Extractors are registered in a plain dict keyed by name. Modules register
 themselves on import and `get` imports the module that owns a name on demand, so
-neither pdfplumber nor openpyxl — nor the `[vlm]` extra — is imported until an
+neither pdfplumber nor openpyxl — nor the openai SDK — is imported until an
 extractor that needs it is asked for.
 """
 
@@ -139,7 +139,7 @@ def get(name: str) -> Extractor:
     """The extractor called `name`, importing its module on first use.
 
     Raises `ExtractionError` for an unknown name, or when the module cannot be
-    imported — the `[vlm]` extra not being installed is the case that matters.
+    imported — the `[xls]` extra not being installed is the case that matters.
     """
     if name in EXTRACTORS:
         return EXTRACTORS[name]
@@ -172,21 +172,21 @@ def select(path: Path, media_type: str, config: dict | None = None) -> Extractor
         try:
             extractor = get(name)
         except ExtractionError:
-            # An optional extractor whose extra is not installed (the image
-            # extractor without `[vlm]`) must not break auto for other files.
+            # An optional extractor whose extra is not installed (the xls
+            # extractor without `[xls]`) must not break auto for other files.
             continue
         if extractor.can_handle(path, media_type):
             return extractor
     if media_type == "image":
         raise ExtractionError(
-            f"images need the vision extractor: install 'backdraft[vlm]' and set "
-            f"BACKDRAFT_VLM_API_KEY to ingest {path.name!r}"
+            f"images need the vision extractor: set BACKDRAFT_VLM_API_KEY "
+            f"(env or .backdraft/env) to ingest {path.name!r}"
         )
     raise ExtractionError(f"no extractor handles {media_type!r} file {path.name!r}")
 
 
 def vlm_ready(config: dict | None = None) -> bool:
-    """True when the `[vlm]` extra is importable and a backdraft-scoped key exists.
+    """True when the vlm extractor is importable and a backdraft-scoped key exists.
 
     Equivalent to consent: `auto` may only choose the paid, off-machine path
     when the user deliberately configured backdraft to use it. Ambient

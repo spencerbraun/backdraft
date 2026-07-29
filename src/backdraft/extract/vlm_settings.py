@@ -1,8 +1,8 @@
-"""Provider resolution for the VLM extractor — importable without the extra.
+"""Provider resolution for the VLM extractor — importable on its own.
 
 The client is always the `openai` SDK; a router is injected through `base_url`,
 never through a second SDK. This module is stdlib-only so `client_settings` can
-be imported (and tested) without `backdraft[vlm]` installed; `vlm.py` re-exports
+be imported (and tested) without the openai SDK; `vlm.py` re-exports
 it next to the extractor that uses it.
 """
 

@@ -218,8 +218,8 @@ def snapshot_pages(
 
     Ingesting through the VLM extractor stores each page's image automatically;
     this command adds them to registries created before that, or to text-layer
-    ingests, so `bind` can embed the cited pages into the artifact. Requires the
-    `[vlm]` extra for PDF rendering. The encoding budget is backdraft-scoped
+    ingests, so `bind` can embed the cited pages into the artifact. Requires
+    poppler on the machine for PDF rendering. The encoding budget is backdraft-scoped
     settings: `BACKDRAFT_SNAPSHOT_QUALITY` (WebP quality, 85) and
     `BACKDRAFT_SNAPSHOT_MAX_HEIGHT` (pixels, 1056), env or `.backdraft/env` —
     display knobs only, citation tokens never derive from pixels.
@@ -232,8 +232,8 @@ def snapshot_pages(
             from pdf2image import convert_from_path
         except ImportError as error:
             raise UsageError(
-                "snapshot-pages needs the [vlm] extra for PDF rendering: "
-                f"pip install 'backdraft[vlm]' ({error})"
+                "snapshot-pages could not import its PDF rendering deps — "
+                f"reinstall backdraft to restore them ({error})"
             ) from error
         from .extract.vlm_settings import snapshot_max_height, snapshot_quality
 
@@ -344,30 +344,29 @@ def export(
 
 
 def _vlm_gap() -> str:
-    """Which condition keeps `auto` off the vision model — key, extra, or both."""
+    """Which condition keeps `auto` off the vision model. The deps ship by
+    default, so the usual gap is the backdraft-scoped key; a broken or partial
+    install (no importable vlm extractor) is still named honestly."""
     from .credentials import setting
     from .extract.base import ExtractionError, get
 
     has_key = bool(setting("BACKDRAFT_VLM_API_KEY"))
     try:
         get("vlm")
-        has_extra = True
+        importable = True
     except ExtractionError:
-        has_extra = False
-    if not has_key and not has_extra:
+        importable = False
+    if not importable:
         return (
-            "Glossy or scanned PDFs extract better through a vision model: "
-            "install backdraft[vlm] and set BACKDRAFT_VLM_API_KEY in .backdraft/env."
+            "The vision extractor could not be imported — reinstall backdraft "
+            "to restore it."
         )
     if not has_key:
         return (
-            "The [vlm] extra is installed but BACKDRAFT_VLM_API_KEY is not set — "
-            "add it to .backdraft/env to use the vision model."
+            "Glossy or scanned PDFs extract better through a vision model: "
+            "set BACKDRAFT_VLM_API_KEY in .backdraft/env."
         )
-    return (
-        "BACKDRAFT_VLM_API_KEY is set but the [vlm] extra is not installed — "
-        "install backdraft[vlm] to use the vision model."
-    )
+    return "set BACKDRAFT_VLM_API_KEY in .backdraft/env to use the vision model."
 
 
 def _parse_config(pairs: Iterable[str]) -> dict:

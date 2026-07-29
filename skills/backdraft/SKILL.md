@@ -21,8 +21,7 @@ export BACKDRAFT_SESSION=s-<short-name>
 ```
 
 For real PDFs (glossy layouts, info boxes, scans) the VLM extractor produces the
-best receipts; `auto` prefers it when `backdraft[vlm]` is installed and
-`BACKDRAFT_VLM_API_KEY` is set (env or `.backdraft/env`; ambient provider keys
+best receipts; `auto` prefers it when `BACKDRAFT_VLM_API_KEY` is set (env or `.backdraft/env`; ambient provider keys
 are never read) — the default model is Gemini 3.1 Flash Lite through OpenRouter. If ingest prints a note about falling back to the text
 layer, surface that note to the user — it affects receipt quality.
 

@@ -1,4 +1,4 @@
-"""The `[vlm]` extra: pdf -> page images -> a vision model, one page at a time.
+"""The VLM extractor: pdf -> page images -> a vision model, one page at a time.
 
 The shape is simple and kept thin: render each page, ask an OpenAI-compatible
 vision model for markdown, use the answer as the page. This is the recommended
@@ -17,8 +17,7 @@ transcription is not a snapshot anyone can reproduce.
 
 `--extractor auto` prefers this extractor for PDFs when it is ready (installed,
 key configured); otherwise `auto` falls back to the text layer and the CLI says
-so. Importing this module requires the extra (`pip install 'backdraft[vlm]'`)
-and `pdf2image` requires poppler on the PATH.
+so. The deps ship with backdraft; `pdf2image` requires poppler on the PATH.
 """
 
 from __future__ import annotations
