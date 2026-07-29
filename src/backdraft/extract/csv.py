@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Iterator
 
 from .base import ExtractedPage, Extractor, ExtractionError, register
-from .xlsx import MAX_COLS, MAX_ROWS, _bounds, _render, _title
+from .sheet import MAX_COLS, MAX_ROWS, bounds, partial_title, render_rows
 
 __all__ = ["CsvExtractor", "EXTRACTOR"]
 
@@ -52,16 +52,16 @@ class CsvExtractor:
                 grid.append([cell for cell in row[:MAX_COLS]])
 
         name = path.stem
-        rows, cols = _bounds(grid)
+        rows, cols = bounds(grid)
         if not rows or not cols:
             yield ExtractedPage(
                 number=1, kind="sheet", name=name,
-                text=_title(name, rows, cols, reported_rows, reported_cols),
+                text=partial_title(name, rows, cols, reported_rows, reported_cols),
                 cells=[],
             )
             return
-        table, cells = _render(grid, rows, cols)
-        title = _title(
+        table, cells = render_rows(grid, rows, cols)
+        title = partial_title(
             name, rows, cols, max(reported_rows, rows), max(reported_cols, cols)
         )
         yield ExtractedPage(
