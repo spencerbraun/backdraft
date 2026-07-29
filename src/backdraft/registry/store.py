@@ -74,6 +74,14 @@ _MEDIA_SUFFIXES: dict[str, MediaType] = {
     ".xlsm": "xlsx",
     ".xltx": "xlsx",
     ".xltm": "xlsx",
+    ".csv": "csv",
+    ".tsv": "csv",
+    ".png": "image",
+    ".jpg": "image",
+    ".jpeg": "image",
+    ".tif": "image",
+    ".tiff": "image",
+    ".webp": "image",
 }
 
 
@@ -272,8 +280,9 @@ class Registry:
         if extraction_id is None:
             return []
         cells = self._cells_by_page(extraction_id)
+        meta = self._meta_by_page(extraction_id)
         return [
-            _page(row, cells.get(row["number"], ()))
+            _page(row, cells.get(row["number"], ()), meta.get(row["number"]))
             for row in self._connection.execute(
                 "SELECT * FROM pages WHERE extraction_id = ? ORDER BY number",
                 (extraction_id,),
@@ -291,7 +300,11 @@ class Registry:
         ).fetchone()
         if row is None:
             return None
-        return _page(row, self._cells_by_page(extraction_id).get(number, ()))
+        return _page(
+            row,
+            self._cells_by_page(extraction_id).get(number, ()),
+            self._meta_by_page(extraction_id).get(number),
+        )
 
     def page_image(self, slug: str, number: int) -> extract_base.PageImage | None:
         """The stored visual snapshot of one current-extraction page, or None.
@@ -724,6 +737,12 @@ class Registry:
                         page.image.width, page.image.height, page.image.data,
                     ),
                 )
+            if page.meta:
+                self._connection.execute(
+                    "INSERT OR REPLACE INTO page_meta (extraction_id, number, meta) "
+                    "VALUES (?, ?, ?)",
+                    (extraction_id, page.number, json.dumps(page.meta, separators=(",", ":"))),
+                )
             for locator, snippet, offsets in _locations(page, name):
                 self._insert_anchor(
                     document=document,
@@ -814,6 +833,16 @@ class Registry:
             )
         return {number: tuple(values) for number, values in cells.items()}
 
+    def _meta_by_page(self, extraction_id: int) -> dict[int, dict]:
+        """Presentation metadata per page, absent for pages that have none."""
+        return {
+            row["number"]: json.loads(row["meta"])
+            for row in self._connection.execute(
+                "SELECT number, meta FROM page_meta WHERE extraction_id = ?",
+                (extraction_id,),
+            )
+        }
+
 
 # ---- module helpers ---------------------------------------------------------
 
@@ -888,7 +917,9 @@ def _document(row: sqlite3.Row) -> Document:
     )
 
 
-def _page(row: sqlite3.Row, cells: tuple[CellValue, ...]) -> Page:
+def _page(
+    row: sqlite3.Row, cells: tuple[CellValue, ...], meta: dict | None = None
+) -> Page:
     return Page(
         number=row["number"],
         kind=row["kind"],
@@ -896,6 +927,7 @@ def _page(row: sqlite3.Row, cells: tuple[CellValue, ...]) -> Page:
         name=row["name"],
         summary=row["summary"],
         cells=cells,
+        meta=meta,
         extraction_id=row["extraction_id"],
         id=row["id"],
     )

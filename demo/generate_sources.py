@@ -17,7 +17,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font
+from openpyxl.styles import Alignment, Font, PatternFill
 from reportlab.lib.enums import TA_JUSTIFY
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -306,13 +306,42 @@ def build_xlsx(path: Path) -> None:
     for row in ASSUMPTIONS:
         assumptions.append(list(row))
 
+    # Styling, the way a sponsor's model actually looks: a dark header band,
+    # inputs in modeling blue, currency and percent number formats, a frozen
+    # header row. Values are untouched — the snapshot text and every token
+    # are identical with or without this block.
+    header_fill = PatternFill("solid", fgColor="FF1F4E79")
     for sheet in (rent, assumptions):
         for cell in sheet[1]:
-            cell.font = Font(bold=True)
+            cell.font = Font(bold=True, color="FFFFFFFF")
+            cell.fill = header_fill
             cell.alignment = Alignment(horizontal="left")
         widths = {"A": 30, "B": 14, "C": 14, "D": 16, "E": 16, "F": 28}
         for column, width in widths.items():
             sheet.column_dimensions[column].width = width
+        sheet.freeze_panes = "A2"
+
+    for row in range(2, 6):  # unit-mix money and occupancy columns
+        for column, fmt in (("C", "#,##0"), ("D", '"$"#,##0'), ("E", '"$"#,##0')):
+            rent[f"{column}{row}"].number_format = fmt
+        rent[f"F{row}"].number_format = "0.0%"
+    for cell in rent[7]:
+        cell.font = Font(bold=True)
+    rent["F7"].number_format = "0.0%"
+    rent["B9"].number_format = '"$"#,##0'
+    rent["B10"].number_format = "0.0%"
+    rent["B11"].number_format = '"$"#,##0'
+
+    input_font = Font(color="FF0000CC")  # modeling convention: inputs in blue
+    percent_rows = (2, 3, 5, 6, 7, 8, 12, 16)
+    money_rows = (9, 10, 11, 14)
+    for row in range(2, 17):
+        cell = assumptions[f"B{row}"]
+        cell.font = input_font
+        if row in percent_rows:
+            cell.number_format = "0.00%"
+        elif row in money_rows:
+            cell.number_format = '"$"#,##0'
 
     book.save(path)
 

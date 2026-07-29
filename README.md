@@ -28,7 +28,8 @@ cd demo
 ```
 
 **Ingest** the sources. Every anchor is minted here, chunks for PDF pages,
-cells for spreadsheet sheets.
+cells for spreadsheet sheets. Formats: PDF, XLSX/XLSM, CSV/TSV, images
+(png, jpeg, tiff, through the vision model), plain text and Markdown.
 
 ```console
 $ backdraft init

@@ -57,11 +57,16 @@ def test_asking_for_vlm_without_the_extra_says_it_is_unavailable() -> None:
 
 
 def test_every_built_in_reports_itself() -> None:
+    # `image` is the one non-deterministic auto extractor: it is the only
+    # handler for its media type, and there is no keyless floor to prefer.
     for name in base.AUTO_ORDER:
-        extractor = base.get(name)
+        try:
+            extractor = base.get(name)
+        except base.ExtractionError:
+            continue  # optional extra not installed in this environment
         assert extractor.name == name
         assert extractor.version
-        assert extractor.deterministic is True
+        assert extractor.deterministic is (name != "image")
 
 
 # ---- text -------------------------------------------------------------------
@@ -625,3 +630,157 @@ def test_with_retries_returns_on_late_success() -> None:
 
     assert with_retries(eventually, attempts=4, sleep=lambda s: None) == "page text"
     assert calls["n"] == 3
+
+
+# ---- xlsx styling meta ------------------------------------------------------
+
+
+def test_xlsx_captures_styling_meta(tmp_path: Path) -> None:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "Model"
+    sheet["A1"] = "Purchase price"
+    sheet["B1"] = 24850000
+    sheet["A1"].font = Font(b=True)
+    sheet["B1"].number_format = '"$"#,##0'
+    sheet["B2"] = 0.0765
+    sheet["B2"].number_format = "0.00%"
+    sheet["B2"].fill = PatternFill("solid", fgColor="FFF5E6AE")
+    sheet.column_dimensions["A"].width = 30
+    sheet.freeze_panes = "A2"
+    book.save(tmp_path / "styled.xlsx")
+
+    page = list(base.get("xlsx").extract(tmp_path / "styled.xlsx", {}))[0]
+    meta = page.meta
+    assert meta is not None
+    styles = {ref: meta["palette"][i] for ref, i in meta["cells"].items()}
+    assert styles["A1"] == {"b": 1}
+    assert styles["B1"]["fmt"] == '"$"#,##0'
+    assert styles["B2"]["fmt"] == "0.00%"
+    assert styles["B2"]["bg"] == "F5E6AE"
+    assert meta["widths"]["A"] == 30.0
+    assert meta["frozen"] == "A2"
+
+
+def test_xlsx_meta_never_changes_the_snapshot(tmp_path: Path) -> None:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    plain = Workbook()
+    plain.active["A1"] = "x"
+    plain.save(tmp_path / "plain.xlsx")
+    styled = Workbook()
+    styled.active["A1"] = "x"
+    styled.active["A1"].font = Font(b=True)
+    styled.save(tmp_path / "styled.xlsx")
+
+    page_plain = list(base.get("xlsx").extract(tmp_path / "plain.xlsx", {}))[0]
+    page_styled = list(base.get("xlsx").extract(tmp_path / "styled.xlsx", {}))[0]
+    assert page_plain.text == page_styled.text
+    assert [c.value for c in page_plain.cells] == [c.value for c in page_styled.cells]
+
+
+# ---- csv --------------------------------------------------------------------
+
+
+def test_csv_is_one_sheet_with_cell_refs(tmp_path: Path) -> None:
+    path = tmp_path / "rent-roll.csv"
+    path.write_text("Unit,Rent\n101,2400\n102,2450\n", encoding="utf-8")
+    pages = list(base.get("csv").extract(path, {}))
+    assert len(pages) == 1
+    page = pages[0]
+    assert page.kind == "sheet"
+    assert page.name == "rent-roll"
+    assert "[B2] 2400" in page.text
+    refs = {c.ref: c.value for c in page.cells}
+    assert refs["A1"] == "Unit" and refs["B3"] == "2450"
+
+
+def test_csv_sniffs_semicolons_and_tabs(tmp_path: Path) -> None:
+    semi = tmp_path / "semi.csv"
+    semi.write_text("a;b\n1;2\n", encoding="utf-8")
+    page = list(base.get("csv").extract(semi, {}))[0]
+    assert {c.ref for c in page.cells} == {"A1", "B1", "A2", "B2"}
+
+    tsv = tmp_path / "tabs.tsv"
+    tsv.write_text("a\tb\n1\t2\n", encoding="utf-8")
+    page = list(base.get("csv").extract(tsv, {}))[0]
+    assert {c.ref for c in page.cells} == {"A1", "B1", "A2", "B2"}
+
+
+def test_csv_tolerates_bom_and_latin1(tmp_path: Path) -> None:
+    bom = tmp_path / "bom.csv"
+    bom.write_bytes("﻿a,b\n1,2\n".encode("utf-8"))
+    page = list(base.get("csv").extract(bom, {}))[0]
+    assert {c.value for c in page.cells} == {"a", "b", "1", "2"}
+
+    latin = tmp_path / "latin.csv"
+    latin.write_bytes(b"caf\xe9,b\n")
+    page = list(base.get("csv").extract(latin, {}))[0]
+    assert "café" in {c.value for c in page.cells}
+
+
+def test_csv_empty_file_is_an_empty_sheet(tmp_path: Path) -> None:
+    path = tmp_path / "empty.csv"
+    path.write_text("", encoding="utf-8")
+    page = list(base.get("csv").extract(path, {}))[0]
+    assert page.cells == []
+    assert page.kind == "sheet"
+
+
+def test_csv_reports_partial_view_when_capped(tmp_path: Path) -> None:
+    from backdraft.extract.xlsx import MAX_ROWS
+
+    path = tmp_path / "big.csv"
+    path.write_text("\n".join(f"r{i},v{i}" for i in range(MAX_ROWS + 5)), encoding="utf-8")
+    page = list(base.get("csv").extract(path, {}))[0]
+    assert "showing" in page.text.splitlines()[0]
+
+
+# ---- image ------------------------------------------------------------------
+
+
+def test_image_media_type_and_selection(tmp_path: Path) -> None:
+    from backdraft.registry.store import media_type_for
+
+    assert media_type_for(Path("scan.png")) == "image"
+    assert media_type_for(Path("scan.jpeg")) == "image"
+    # without a key, auto must fail with the image-specific nudge, not a
+    # generic no-handler error, and never fall through to the text extractor
+    try:
+        base.select(Path("scan.png"), "image", {})
+    except base.ExtractionError as error:
+        message = str(error)
+        assert "vlm" in message.lower() or "key" in message.lower()
+    else:  # pragma: no cover - only when a key is configured in the env
+        pass
+
+
+def test_image_extractor_transcribes_one_page(tmp_path: Path, monkeypatch) -> None:
+    try:
+        image_module = __import__("backdraft.extract.image", fromlist=["EXTRACTOR"])
+    except Exception:
+        import pytest
+
+        pytest.skip("[vlm] extra not installed")
+    from PIL import Image as PilImage
+
+    path = tmp_path / "page.png"
+    PilImage.new("RGB", (40, 20), "white").save(path)
+
+    monkeypatch.setattr(
+        image_module, "client_settings", lambda config: ("m", "k", "http://x")
+    )
+    monkeypatch.setattr(image_module, "OpenAI", lambda **kw: object())
+    monkeypatch.setattr(
+        image_module, "_transcribe", lambda client, model, p: "# A scanned page"
+    )
+    pages = list(image_module.EXTRACTOR.extract(path, {}))
+    assert len(pages) == 1
+    page = pages[0]
+    assert page.kind == "page"
+    assert page.text == "# A scanned page"
+    assert page.image is not None and page.image.format == "webp"

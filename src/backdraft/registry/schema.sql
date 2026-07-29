@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS documents (
   sha256 TEXT NOT NULL UNIQUE,
   path TEXT NOT NULL,            -- as given at ingest; informational
   filename TEXT NOT NULL,
-  media_type TEXT NOT NULL,      -- 'pdf' | 'xlsx' | 'text'
+  media_type TEXT NOT NULL,      -- 'pdf' | 'xlsx' | 'csv' | 'image' | 'text'
   created_at TEXT NOT NULL       -- ISO-8601 UTC, everywhere
 );
 
@@ -38,6 +38,13 @@ CREATE TABLE IF NOT EXISTS pages (
   text TEXT NOT NULL,            -- the snapshot; receipts quote THIS
   summary TEXT,                  -- optional, for TOC
   UNIQUE (extraction_id, number)
+);
+
+CREATE TABLE IF NOT EXISTS page_meta (
+  extraction_id INTEGER NOT NULL REFERENCES extractions(id),
+  number INTEGER NOT NULL,       -- matches pages.number
+  meta TEXT NOT NULL,            -- JSON presentation metadata (sheet styling); never citation identity
+  PRIMARY KEY (extraction_id, number)
 );
 
 CREATE TABLE IF NOT EXISTS page_images (

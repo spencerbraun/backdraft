@@ -40,7 +40,7 @@ __all__ = [
     "BindReport",
 ]
 
-type MediaType = Literal["pdf", "xlsx", "text"]
+type MediaType = Literal["pdf", "xlsx", "csv", "image", "text"]
 type PageKind = Literal["page", "sheet"]
 type AnchorKind = Literal["page", "chunk", "cell", "range"]
 type BindMode = Literal["frontwalk", "backfill"]
@@ -119,7 +119,12 @@ class CellValue:
 class Page:
     """An ordered unit within an extraction — a PDF page or a sheet.
 
-    `text` is the snapshot. Receipts quote *this*, not the file.
+    `text` is the snapshot. Receipts quote *this*, not the file. `meta` is
+    presentation metadata riding alongside the snapshot — for sheets, the
+    workbook's styling (bold, fills, number formats, column widths, merges,
+    frozen panes) so evidence can look like the workbook. Never part of
+    citation identity: two extractions differing only in `meta` mint
+    identical tokens.
     """
 
     number: int
@@ -128,6 +133,7 @@ class Page:
     name: str | None = None
     summary: str | None = None
     cells: tuple[CellValue, ...] = ()
+    meta: dict | None = None
     extraction_id: int | None = None
     id: int | None = None
 

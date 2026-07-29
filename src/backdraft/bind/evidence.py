@@ -21,7 +21,7 @@ from typing import Any, Iterable
 
 from ..kernel.model import Claim
 
-__all__ = ["assemble", "WINDOW_ROWS", "WINDOW_COLS"]
+__all__ = ["assemble", "window_styles", "WINDOW_ROWS", "WINDOW_COLS"]
 
 WINDOW_ROWS = 6
 """Rows kept above and below a cited cell in its window."""
@@ -47,6 +47,34 @@ def col_letters(n: int) -> str:
     while n:
         n, r = divmod(n - 1, 26)
         out = chr(65 + r) + out
+    return out
+
+
+def window_styles(
+    meta: dict[str, Any] | None, cols: list[str], rows_out: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """The window's slice of a sheet's styling: resolved styles per cell ref
+    plus the window columns' widths. Palette indirection is unpacked here —
+    a window is small, so it carries plain styles."""
+    if not meta:
+        return {}
+    out: dict[str, Any] = {}
+    palette = meta.get("palette") or []
+    cell_refs = meta.get("cells") or {}
+    resolved: dict[str, dict] = {}
+    for row in rows_out:
+        n = row["n"]
+        for letter in row["cells"]:
+            ref = f"{letter}{n}"
+            idx = cell_refs.get(ref)
+            if idx is not None and 0 <= idx < len(palette):
+                resolved[ref] = palette[idx]
+    if resolved:
+        out["cells"] = resolved
+    widths = meta.get("widths") or {}
+    kept = {letter: widths[letter] for letter in cols if letter in widths}
+    if kept:
+        out["widths"] = kept
     return out
 
 
@@ -88,7 +116,7 @@ def assemble(registry, claims: Iterable[Claim], *, lean: bool = False) -> dict[s
                 cited_cells.append((anchor.slug, m["sheet"], m["col"], int(m["row"])))
             elif m := _PAGE_RE.match(locator):
                 number = int(m["page"])
-                if document.media_type == "xlsx":
+                if document.media_type in ("xlsx", "csv"):
                     sheet_pages.append((anchor.slug, number))
                 else:
                     cited_pages.setdefault(anchor.slug, set()).add(number)
@@ -143,7 +171,8 @@ def assemble(registry, claims: Iterable[Claim], *, lean: bool = False) -> dict[s
         return cells
 
     def window(cells: dict[tuple[int, int], str], sheet: str,
-               col: str | None, row: int | None) -> dict[str, Any]:
+               col: str | None, row: int | None,
+               meta: dict[str, Any] | None = None) -> dict[str, Any]:
         if not cells:
             return {}
         if col is None:  # whole-sheet citation: top-left populated block
@@ -171,12 +200,16 @@ def assemble(registry, claims: Iterable[Claim], *, lean: bool = False) -> dict[s
             }
             for r in range(min(live_rows), max(live_rows) + 1)
         ]
-        return {
+        made: dict[str, Any] = {
             "sheet": sheet,
             "cited": cited,
             "cols": [col_letters(c) for c in range(min(live_cols), max(live_cols) + 1)],
             "rows": rows_out,
         }
+        styles = window_styles(meta, made["cols"], rows_out)
+        if styles:
+            made["styles"] = styles
+        return made
 
     cited_sheets: dict[tuple[str, str], Any] = {}
 
@@ -193,7 +226,7 @@ def assemble(registry, claims: Iterable[Claim], *, lean: bool = False) -> dict[s
         page = note_sheet(slug, sheet)
         if page is None:
             continue
-        made = window(cells_map(page), sheet, col, row)
+        made = window(cells_map(page), sheet, col, row, getattr(page, "meta", None))
         if made:
             evidence["windows"][key] = made
 
@@ -204,7 +237,7 @@ def assemble(registry, claims: Iterable[Claim], *, lean: bool = False) -> dict[s
         note_sheet(slug, page.name)
         key = f"{slug}:p{number}"
         if key not in evidence["windows"]:
-            made = window(cells_map(page), page.name, None, None)
+            made = window(cells_map(page), page.name, None, None, getattr(page, "meta", None))
             if made:
                 evidence["windows"][key] = made
 
@@ -216,7 +249,7 @@ def assemble(registry, claims: Iterable[Claim], *, lean: bool = False) -> dict[s
             continue
         maxr = max(r for r, _ in cells)
         maxc = max(c for _, c in cells)
-        evidence["sheets"][f"{slug}:{sheet}"] = {
+        payload: dict[str, Any] = {
             "name": sheet,
             "nrows": maxr,
             "ncols": maxc,
@@ -225,6 +258,10 @@ def assemble(registry, claims: Iterable[Claim], *, lean: bool = False) -> dict[s
                 for r in range(1, maxr + 1)
             ],
         }
+        meta = getattr(page, "meta", None)
+        if meta:
+            payload["meta"] = meta
+        evidence["sheets"][f"{slug}:{sheet}"] = payload
 
     if not any((evidence["pages"], evidence["pagetexts"],
                 evidence["windows"], evidence["sheets"])):

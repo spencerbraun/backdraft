@@ -23,24 +23,22 @@ losing it. Items graduate by getting built and deleted.
 
 ## Formats
 
-Today: PDF (VLM primary, text-layer floor), XLSX, plain text and Markdown.
-Each new format is one Extractor implementing the existing protocol — pages
-out, receipts quotable, nothing downstream changes.
+Today: PDF (VLM primary, text-layer floor), XLSX/XLSM, CSV/TSV, images
+(png, jpeg, tiff — VLM, the file is its own snapshot), plain text and
+Markdown. Each new format is one Extractor implementing the existing
+protocol — pages out, receipts quotable, nothing downstream changes.
 
-- **Images (png, jpeg, tiff)** — a photographed or scanned page is a
-  one-page document; the VLM extractor already is this pipeline minus the
-  pdf2image step, and the source file is its own stored snapshot. Cheapest
-  high-value addition.
-- **CSV** — a workbook with one sheet; reuse the sheet representation (A1
-  refs, cell anchors) wholesale. Deterministic, keyless, near-trivial.
 - **DOCX** — leases, LOIs, agreements. Structured XML, so the deterministic
   path is the good path (paragraphs and tables straight out of the file, no
-  OCR); tables render to markdown like sheets do.
+  OCR); tables render to markdown like sheets do. Needs a decision row
+  first: DOCX has no pages, so locators want synthesizing from heading
+  sections.
 - **PPTX** — offering memoranda that arrive as decks. Slide text is
-  extractable deterministically as the floor; the faithful path renders
-  slides to images through the VLM like PDF pages.
-- **XLS / XLSM** — legacy and macro workbooks. openpyxl covers xlsm;
-  xls wants python-calamine as the tolerant fallback.
+  extractable deterministically as the floor; the faithful path (slide
+  images) needs a renderer on PATH, LibreOffice or similar, behind a
+  capability check like poppler's.
+- **XLS** — legacy workbooks; python-calamine as the tolerant fallback
+  behind an extra.
 - **Someday**: HTML pages, email (.eml) — both arrive in diligence folders,
   both have messy identity questions (what is "the source" of a web page?)
   that deserve a decision row before code.
@@ -52,10 +50,11 @@ out, receipts quotable, nothing downstream changes.
   malformed-on-purpose). The field-trial case: "about 4% of embedded
   loss-to-lease," derived from two cited cells, currently an honest
   value-trace fail with nowhere to point.
-- **Sheet styling fidelity** — carry bold / fills / merges / column widths
-  through ingest so sheet evidence looks like the workbook, not just its
-  values. Carry `cell_styles`, `merged_ranges`, `column_widths` and
-  `frozen_panes` in the sheet payload.
+- **Merged-cell and frozen-pane rendering** — ingest already captures
+  `merged` and `frozen` in sheet meta; the artifact's sheet view renders
+  neither yet (merges want colspan/rowspan grid building, frozen panes want
+  a second sticky axis). Styling, number formats, and column widths already
+  render.
 - **Living documents** — re-ingest, re-bind, and a drift-first report: "these
   claims cite figures that changed; cited-then vs. now." The primitives
   (generations, `drifted`, the word-diff) all exist; the missing piece is a

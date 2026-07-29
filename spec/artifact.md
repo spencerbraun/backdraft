@@ -70,10 +70,18 @@ slug to `{filename, media_type}`; `pages` maps `slug:pN` to a page image
 `{format, width, height, data}` with `data` base64 (for a vision-model
 extraction, the page as the model was shown it); `pagetexts` maps `slug:pN` to
 that page's extracted text; `windows` maps `slug:<locator>` to a small cell
-grid `{sheet, cited, cols, rows}` around a cited cell; `sheets` maps
-`slug:<sheet>` to the full cited sheet's values `{name, nrows, ncols, rows}`.
-A record without `evidence` is complete — evidence is context, snippets are
-the proof.
+grid `{sheet, cited, cols, rows}` around a cited cell, with an OPTIONAL
+`styles` object `{cells, widths}` carrying the workbook's presentation for
+those cells; `sheets` maps `slug:<sheet>` to the full cited sheet's values
+`{name, nrows, ncols, rows}`, with an OPTIONAL `meta` object
+`{palette, cells, widths, merged, frozen}` — cell styling as indices into a
+style palette (`b` bold, `fg`/`bg` six-hex colors, `fmt` the Excel number
+format string), column widths in Excel character units, merged ranges as A1
+ranges, and the frozen pane's top-left cell. Styling is display context and
+never citation identity: snippets, hashes, and tokens are computed from
+values alone, and a renderer that ignores `styles`/`meta` entirely is
+conforming. A record without `evidence` is complete — evidence is context,
+snippets are the proof.
 
 | Key | Type | Is |
 |---|---|---|

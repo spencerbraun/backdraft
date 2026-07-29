@@ -71,7 +71,10 @@ class ExtractedPage:
     cells so the registry can mint one anchor per cell and value-trace has values
     to compare against; each `value` is a verbatim substring of `text`. `image`,
     when present, is the page's visual snapshot; the registry stores it so bind
-    can embed the cited pages into the artifact.
+    can embed the cited pages into the artifact. `meta`, when present, is
+    JSON-shaped presentation metadata (sheet styling: bold, fills, number
+    formats, column widths, merges, frozen panes) — display context only,
+    never citation identity.
     """
 
     number: int
@@ -80,6 +83,7 @@ class ExtractedPage:
     name: str | None = None
     cells: list[CellValue] | None = None
     image: PageImage | None = None
+    meta: dict | None = None
 
 
 @runtime_checkable
@@ -102,7 +106,7 @@ class Extractor(Protocol):
 EXTRACTORS: dict[str, Extractor] = {}
 """Name -> extractor. Populated as modules are imported."""
 
-AUTO_ORDER = ("xlsx", "pdf-text", "text")
+AUTO_ORDER = ("xlsx", "csv", "pdf-text", "image", "text")
 """The built-in fallback order for `--extractor auto`. `vlm` is preferred
 for PDFs when ready — see `select` — and otherwise only chosen by name."""
 
@@ -110,7 +114,9 @@ for PDFs when ready — see `select` — and otherwise only chosen by name."""
 # because it keeps the import of an extractor's dependencies lazy.
 _MODULES = {
     "xlsx": "xlsx",
+    "csv": "csv",
     "pdf-text": "pdf_text",
+    "image": "image",
     "text": "text",
     "vlm": "vlm",
 }
@@ -160,9 +166,19 @@ def select(path: Path, media_type: str, config: dict | None = None) -> Extractor
         if extractor.can_handle(path, media_type):
             return extractor
     for name in AUTO_ORDER:
-        extractor = get(name)
+        try:
+            extractor = get(name)
+        except ExtractionError:
+            # An optional extractor whose extra is not installed (the image
+            # extractor without `[vlm]`) must not break auto for other files.
+            continue
         if extractor.can_handle(path, media_type):
             return extractor
+    if media_type == "image":
+        raise ExtractionError(
+            f"images need the vision extractor: install 'backdraft[vlm]' and set "
+            f"BACKDRAFT_VLM_API_KEY to ingest {path.name!r}"
+        )
     raise ExtractionError(f"no extractor handles {media_type!r} file {path.name!r}")
 
 

@@ -139,3 +139,38 @@ def test_no_citations_means_no_evidence() -> None:
 def test_column_math_round_trips() -> None:
     for n in (1, 26, 27, 52, 703):
         assert col_num(col_letters(n)) == n
+
+
+def test_sheet_meta_travels_into_sheets_and_windows() -> None:
+    registry = _registry()
+    styled = Page(
+        number=1, kind="sheet", text="| ... |", name="model",
+        cells=registry.page_rows["uw"][0].cells,
+        meta={
+            "palette": [{"b": 1, "fmt": "0.00%"}],
+            "cells": {"D24": 0},
+            "widths": {"C": 30.0, "D": 14.0, "Z": 9.0},
+            "frozen": "A2",
+        },
+    )
+    registry.page_rows["uw"] = [styled]
+    evidence = assemble(registry, [_claim("bd:uw:model!D24:0000", "uw", "model!D24")])
+    sheet = evidence["sheets"]["uw:model"]
+    assert sheet["meta"]["palette"] == [{"b": 1, "fmt": "0.00%"}]
+    window = evidence["windows"]["uw:model!D24"]
+    assert window["styles"]["cells"]["D24"] == {"b": 1, "fmt": "0.00%"}
+    # only the window's columns carry widths
+    assert window["styles"]["widths"] == {"C": 30.0, "D": 14.0}
+
+
+def test_unstyled_sheets_carry_no_meta_keys() -> None:
+    evidence = assemble(_registry(), [_claim("bd:uw:model!D24:0000", "uw", "model!D24")])
+    assert "meta" not in evidence["sheets"]["uw:model"]
+    assert "styles" not in evidence["windows"]["uw:model!D24"]
+
+
+def test_csv_documents_get_the_sheet_treatment() -> None:
+    registry = _registry()
+    registry.docs["uw"] = _doc("uw", "csv")
+    evidence = assemble(registry, [_claim("bd:uw:p1:0000", "uw", "p1")])
+    assert "uw:model" in evidence["sheets"]

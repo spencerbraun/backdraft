@@ -128,11 +128,14 @@ repo</a>, and agents should start from <a href="llms.txt">llms.txt</a>.</p>
 <section id="install">
 <h2>Install</h2>
 <pre>uv tool install "backdraft[vlm]"</pre>
-<p>Python 3.13+. The <code>[vlm]</code> extra adds the vision-model PDF
-extractor, the recommended path for real PDFs (glossy layouts, info boxes,
-scans), and needs <code>poppler</code> on your PATH
-(<code>brew install poppler</code>). Without it, PDFs fall back to the keyless
-embedded-text layer, and ingest says so.</p>
+<p>Python 3.13+. The <code>[vlm]</code> extra adds the vision-model
+extractor for PDFs and images, the recommended path for real PDFs (glossy
+layouts, info boxes, scans) and the only path for scanned images; PDFs need
+<code>poppler</code> on your PATH (<code>brew install poppler</code>). Without
+it, PDFs fall back to the keyless embedded-text layer, and ingest says so.
+Spreadsheets (xlsx, xlsm), CSV, text and Markdown are keyless and built in,
+and sheet evidence carries the workbook's own styling: bold, fills, number
+formats, column widths.</p>
 <h3>Bring a model provider</h3>
 <p>The vision extractor needs a key you provide, and it runs only on explicit,
 backdraft-scoped consent: set <code>BACKDRAFT_VLM_API_KEY</code> in
@@ -201,7 +204,7 @@ skill</a> imposes the gate, and you receive the artifact.</div>
 <table>
 <tr><th>Command</th><th>Does</th></tr>
 <tr><td><code>init</code></td><td>Create <code>.backdraft/</code> (registry, credentials template) in the current directory.</td></tr>
-<tr><td><code>ingest &lt;files&gt;</code></td><td>Snapshot sources into the registry, minting every anchor. <code>--extractor auto|vlm|pdf-text|xlsx|text</code>, <code>--slug</code>, <code>--config k=v</code>.</td></tr>
+<tr><td><code>ingest &lt;files&gt;</code></td><td>Snapshot sources into the registry, minting every anchor. Formats: PDF, XLSX/XLSM, CSV/TSV, images (png, jpeg, tiff), text and Markdown. <code>--extractor auto|vlm|image|pdf-text|xlsx|csv|text</code>, <code>--slug</code>, <code>--config k=v</code>.</td></tr>
 <tr><td><code>snapshot-pages &lt;slug&gt;</code></td><td>Backfill page images for an already-ingested PDF, locally, no model calls (<code>[vlm]</code> extra for rendering).</td></tr>
 <tr><td><code>ls</code></td><td>List ingested documents.</td></tr>
 <tr><td><code>read [slug] [selector]</code></td><td>The gate: document list, table of contents, or a token-marked page/range/sheet read. Mints what it shows.</td></tr>

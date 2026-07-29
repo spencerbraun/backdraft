@@ -133,6 +133,50 @@ def _is_number(raw: str) -> bool:
         return False
 
 
+def fmt_cell(raw: str, fmt: str | None) -> str:
+    """A sheet value displayed through its Excel number format.
+
+    Covers the formats that carry meaning in evidence — percent, currency,
+    grouping, fixed decimals — and falls back to `fmt_number` for the rest.
+    Display only: the record and every receipt keep the verbatim value.
+    """
+    if not fmt or not _is_number(raw):
+        return fmt_number(raw)
+    value = float(raw)
+    if "%" in fmt:
+        match = re.search(r"0\.(0+)%", fmt)
+        decimals = len(match.group(1)) if match else 0
+        return f"{value * 100:.{decimals}f}%"
+    match = re.search(r"0\.(0+)", fmt)
+    decimals = len(match.group(1)) if match else 0
+    grouped = "," in fmt
+    text = f"{value:,.{decimals}f}" if grouped else f"{value:.{decimals}f}"
+    quoted = re.search(r'"([^"]*)"', fmt)
+    symbol = quoted.group(1) if quoted else ("$" if "$" in fmt else "")
+    return symbol + text
+
+
+def _width_px(width: float) -> int:
+    """Excel column width units to pixels, clamped to sane bounds."""
+    return max(40, min(400, round(float(width) * 8)))
+
+
+def _style_attr(style: dict | None, *, cited: bool = False) -> str:
+    """Inline CSS for one cell's workbook styling. A cited cell keeps the
+    citation highlight: its fill and color are the citation's, not the sheet's."""
+    if not style:
+        return ""
+    rules = []
+    if style.get("b"):
+        rules.append("font-weight:600")
+    if not cited:
+        if style.get("bg"):
+            rules.append(f"background:#{style['bg']}")
+        if style.get("fg"):
+            rules.append(f"color:#{style['fg']}")
+    return f' style="{";".join(rules)}"' if rules else ""
+
+
 def humanize_sheet(slug: str) -> str:
     fixed = {"dy": "DY", "t12": "T12", "ttm": "TTM", "noi": "NOI"}
     return " ".join(
@@ -183,7 +227,7 @@ def location(anchor, docs: dict) -> str:
     if match := CELL_RE.match(locator):
         return f"{_esc(humanize_sheet(match['sheet']))} &middot; {match['ref']}"
     if match := PAGE_RE.match(locator):
-        if docs.get(anchor.slug, {}).get("media_type") == "xlsx":
+        if docs.get(anchor.slug, {}).get("media_type") in ("xlsx", "csv"):
             return "sheet"
         return f"Page {match['page']}"
     return _esc(locator)
@@ -197,7 +241,7 @@ def short_loc(anchor, docs: dict) -> str:
     if match := CELL_RE.match(locator):
         return match["ref"]
     if match := PAGE_RE.match(locator):
-        if docs.get(anchor.slug, {}).get("media_type") == "xlsx":
+        if docs.get(anchor.slug, {}).get("media_type") in ("xlsx", "csv"):
             return "Sheet"
         return f"Page {match['page']}"
     return locator
@@ -457,25 +501,32 @@ def _window_table(window: dict, slug: str) -> str:
     cited = window.get("cited")
     cited_col = re.match(r"[A-Z]+", cited).group() if cited else None
     cited_row = re.search(r"\d+", cited).group() if cited else None
-    head = "".join(
-        f'<th class="citedcol">{c}</th>' if c == cited_col else f"<th>{c}</th>"
-        for c in window["cols"]
-    )
+    styling = window.get("styles") or {}
+    cell_styles = styling.get("cells") or {}
+    widths = styling.get("widths") or {}
+    head_cells = []
+    for c in window["cols"]:
+        klass = ' class="citedcol"' if c == cited_col else ""
+        width = f' style="min-width:{_width_px(widths[c])}px"' if c in widths else ""
+        head_cells.append(f"<th{klass}{width}>{c}</th>")
+    head = "".join(head_cells)
     rows = []
     for row in window["rows"]:
         cells = []
         for column in window["cols"]:
             raw = row["cells"].get(column, "")
             ref = f"{column}{row['n']}"
+            style = cell_styles.get(ref)
             classes = []
             if ref == cited:
                 classes.append("cited")
             if _is_number(raw):
                 classes.append("num")
             klass = f' class="{" ".join(classes)}"' if classes else ""
-            shown = fmt_number(raw)
+            inline = _style_attr(style, cited=ref == cited)
+            shown = fmt_cell(raw, style.get("fmt") if style else None)
             tip = f' title="{_esc(raw)}"' if raw != shown else ""
-            cells.append(f"<td{klass}{tip}>{_esc(shown)}</td>")
+            cells.append(f"<td{klass}{inline}{tip}>{_esc(shown)}</td>")
         row_class = ' class="citedrow"' if str(row["n"]) == cited_row else ""
         rows.append(f'<tr{row_class}><th>{row["n"]}</th>{"".join(cells)}</tr>')
     caption = humanize_sheet(window["sheet"]) + (f", {cited}" if cited else "")
@@ -546,7 +597,7 @@ def _citation(
 
     cell = CELL_RE.match(locator)
     page_m = PAGE_RE.match(locator)
-    is_sheet_doc = docs.get(anchor.slug, {}).get("media_type") == "xlsx"
+    is_sheet_doc = docs.get(anchor.slug, {}).get("media_type") in ("xlsx", "csv")
     raw = f'<pre class="rawtext">{_esc(anchor.receipt.snippet[:4000])}</pre>'
     if cell:
         window = evidence.get("windows", {}).get(f"{anchor.slug}:{locator}")
@@ -583,7 +634,7 @@ def _citation(
     return "".join(parts)
 
 
-_TYPE_LABEL = {"xlsx": "Excel", "pdf": "PDF", "text": "Text"}
+_TYPE_LABEL = {"xlsx": "Excel", "csv": "CSV", "pdf": "PDF", "image": "Image", "text": "Text"}
 
 
 def _card(placement: Placement, docs: dict, evidence: dict, store: dict[str, dict]) -> str:
@@ -602,7 +653,7 @@ def _card(placement: Placement, docs: dict, evidence: dict, store: dict[str, dic
                 if citation.anchor
                 else ""
             )
-            kind = {"xlsx": "excel", "pdf": "pdf"}.get(media, "")
+            kind = {"xlsx": "excel", "csv": "excel", "pdf": "pdf", "image": "pdf"}.get(media, "")
             buttons.append(
                 f'<button class="{"on " if index == 0 else ""}{kind}" '
                 f'data-cite="{index}">{label}</button>'
@@ -946,7 +997,12 @@ th.citedcol{background:var(--sel-soft);color:var(--sel);font-weight:600}
 .sheettable thead th{position:sticky;top:0;z-index:2}
 .sheettable tbody th{position:sticky;left:0;z-index:1;min-width:2.6rem}
 .sheettable thead th:first-child{left:0;z-index:3}
-.sheettable td{max-width:18rem}
+.sheettable td{max-width:18rem;cursor:cell}
+.sheettable td.sel{box-shadow:inset 0 0 0 2px var(--ink)}
+.sheettable td.cited.sel{box-shadow:inset 0 0 0 2px var(--ink)}
+.namebox{font-family:var(--mono);font-size:.7rem;font-weight:500;color:var(--muted);
+  margin-left:auto;margin-right:1rem;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;min-width:0}
 
 /* ---- responsive / print ---- */
 @media (max-width:1140px){
@@ -988,6 +1044,41 @@ SCRIPT = """
     if (v === Math.trunc(v) && Math.abs(v) < 1e15) return v.toLocaleString('en-US');
     if (Math.abs(v) < 1) return v.toFixed(4);
     return Math.round(v).toLocaleString('en-US');
+  }
+  /* the workbook's own number format, mirrored from the Python renderer */
+  function fmtCell(raw, format) {
+    if (raw === '' || raw == null) return '';
+    var v = Number(raw);
+    if (!format || isNaN(v)) return fmt(raw);
+    if (format.indexOf('%') >= 0) {
+      var pm = format.match(/0\.(0+)%/);
+      return (v * 100).toFixed(pm ? pm[1].length : 0) + '%';
+    }
+    var dm = format.match(/0\.(0+)/);
+    var decimals = dm ? dm[1].length : 0;
+    var grouped = format.indexOf(',') >= 0;
+    var text = v.toLocaleString('en-US', {
+      minimumFractionDigits: decimals, maximumFractionDigits: decimals,
+      useGrouping: grouped});
+    var qm = format.match(/"([^"]*)"/);
+    var symbol = qm ? qm[1] : (format.indexOf('$') >= 0 ? '$' : '');
+    return symbol + text;
+  }
+  function cellStyle(meta, ref, cited) {
+    if (!meta || !meta.cells) return null;
+    var idx = meta.cells[ref];
+    if (idx == null) return null;
+    return (meta.palette || [])[idx] || null;
+  }
+  function styleAttr(style, cited) {
+    if (!style) return '';
+    var rules = [];
+    if (style.b) rules.push('font-weight:600');
+    if (!cited) {
+      if (style.bg) rules.push('background:#' + style.bg);
+      if (style.fg) rules.push('color:#' + style.fg);
+    }
+    return rules.length ? ' style="' + rules.join(';') + '"' : '';
   }
   function colName(n) {
     var s = '';
@@ -1036,10 +1127,17 @@ SCRIPT = """
       data.name.replace(/-/g, ' ').replace(/\\b\\w/g, function (ch) { return ch.toUpperCase(); });
     var citedCol = cited ? cited.replace(/\\d+$/, '') : null;
     var citedRow = cited ? cited.replace(/^[A-Z]+/, '') : null;
+    var meta = data.meta || {};
+    var widths = meta.widths || {};
+    var namebox = box.querySelector('.namebox');
+    if (namebox) namebox.textContent = '';
     var h = '<table class="sheettable"><thead><tr><th></th>';
     for (var c = 1; c <= data.ncols; c++) {
       var cn = colName(c);
-      h += '<th' + (cn === citedCol ? ' class="citedcol"' : '') + '>' + cn + '</th>';
+      var w = widths[cn]
+        ? ' style="min-width:' + Math.max(40, Math.min(400, Math.round(widths[cn] * 8))) + 'px"'
+        : '';
+      h += '<th' + (cn === citedCol ? ' class="citedcol"' : '') + w + '>' + cn + '</th>';
     }
     h += '</tr></thead><tbody>';
     for (var r = 1; r <= data.nrows; r++) {
@@ -1050,8 +1148,11 @@ SCRIPT = """
         var cls = [];
         if (ref === cited) cls.push('cited');
         if (raw !== '' && raw != null && isFinite(Number(raw))) cls.push('num');
+        var style = cellStyle(meta, ref);
         h += '<td' + (cls.length ? ' class="' + cls.join(' ') + '"' : '') +
-             ' title="' + String(raw).replace(/"/g, '&quot;') + '">' + fmt(raw) + '</td>';
+             styleAttr(style, ref === cited) + ' data-ref="' + ref + '"' +
+             ' title="' + String(raw).replace(/"/g, '&quot;') + '">' +
+             fmtCell(raw, style && style.fmt) + '</td>';
       }
       h += '</tr>';
     }
@@ -1103,6 +1204,21 @@ SCRIPT = """
       if (noteClaim) {
         noteClaim.scrollIntoView({block: 'center'});
         activate(noteN, noteClaim);
+      }
+      return;
+    }
+    var sheetCell = e.target.closest('.sheettable td[data-ref]');
+    if (sheetCell) {
+      var sheetScroll = sheetCell.closest('.sheetscroll');
+      var prevSel = sheetScroll.querySelector('td.sel');
+      if (prevSel) prevSel.classList.remove('sel');
+      sheetCell.classList.add('sel');
+      var nb = document.querySelector('#sheetoverlay .namebox');
+      if (nb) {
+        var shown = sheetCell.textContent || '';
+        var rawVal = sheetCell.getAttribute('title') || '';
+        nb.textContent = sheetCell.dataset.ref + (shown ? ' \\u00B7 ' + shown : '') +
+          (rawVal && rawVal !== shown ? ' (' + rawVal + ')' : '');
       }
       return;
     }
@@ -1197,6 +1313,7 @@ PAGE = """<!doctype html>
 <div class="overlay" id="zoom" role="dialog" aria-label="Enlarged page"><img alt=""></div>
 <div class="overlay" id="sheetoverlay" role="dialog" aria-label="Full sheet">
 <div class="sheetbox"><header><span class="sheetname"></span>
+<span class="namebox" aria-live="polite"></span>
 <button class="close" data-close aria-label="Close">&times;</button></header>
 <div class="sheetscroll"></div></div></div>
 {store}
