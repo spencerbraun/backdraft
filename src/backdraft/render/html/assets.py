@@ -333,29 +333,53 @@ SCRIPT = """
   var sheets = sheetsEl ? JSON.parse(sheetsEl.textContent || '{}') : {};
   var active = null, activeCard = null;
 
+  /* Python's f-string formatting rounds half to even on the double's exact
+     value. Neither JS built-in matches: toFixed rounds ties toward +inf, and
+     Intl's halfEven rounds a decimal re-parse (2.345 formats as 2.34 where
+     Python says 2.35). So the mirror rounds exactly: mantissa and exponent
+     out of the bits, scaled by 10^d under BigInt, half-even at the boundary. */
+  function fixed(v, d, grouped) {
+    var neg = v < 0 || Object.is(v, -0);
+    var dv = new DataView(new ArrayBuffer(8));
+    dv.setFloat64(0, Math.abs(v));
+    var bits = dv.getBigUint64(0);
+    var be = Number(bits >> 52n) & 0x7ff;
+    var m = bits & 0xfffffffffffffn;
+    var e = be === 0 ? -1074 : be - 1075;
+    if (be !== 0) m |= 0x10000000000000n;
+    var num = m * 10n ** BigInt(d), den = 1n;
+    if (e >= 0) num <<= BigInt(e); else den = 1n << BigInt(-e);
+    var q = num / den, twice = (num % den) * 2n;
+    if (twice > den || (twice === den && (q & 1n) === 1n)) q += 1n;
+    var s = q.toString().padStart(d + 1, '0');
+    var whole = d ? s.slice(0, -d) : s;
+    if (grouped) whole = whole.replace(/\\B(?=(\\d{3})+$)/g, ',');
+    return (neg ? '-' : '') + whole + (d ? '.' + s.slice(-d) : '');
+  }
   function fmt(raw) {
     if (raw === '' || raw == null) return '';
     var v = Number(raw);
     if (isNaN(v)) return raw;
-    if (v === Math.trunc(v) && Math.abs(v) < 1e15) return v.toLocaleString('en-US');
-    if (Math.abs(v) < 1) return v.toFixed(4);
-    return Math.round(v).toLocaleString('en-US');
+    /* v === 0 ? 0 : v — the integer branch mirrors Python's int(), which
+       drops the sign of negative zero; the decimal branches keep it */
+    if (v === Math.trunc(v) && Math.abs(v) < 1e15) return fixed(v === 0 ? 0 : v, 0, true);
+    if (Math.abs(v) < 1) return fixed(v, 4, false);
+    return fixed(v, 0, true);
   }
-  /* the workbook's own number format, mirrored from the Python renderer */
+  /* the workbook's own number format, mirrored from the Python renderer
+     (fmt_cell); tests/test_fmt_parity.py holds the two together */
   function fmtCell(raw, format) {
     if (raw === '' || raw == null) return '';
     var v = Number(raw);
     if (!format || isNaN(v)) return fmt(raw);
     if (format.indexOf('%') >= 0) {
       var pm = format.match(/0\.(0+)%/);
-      return (v * 100).toFixed(pm ? pm[1].length : 0) + '%';
+      return fixed(v * 100, pm ? pm[1].length : 0, false) + '%';
     }
     var dm = format.match(/0\.(0+)/);
     var decimals = dm ? dm[1].length : 0;
     var grouped = format.indexOf(',') >= 0;
-    var text = v.toLocaleString('en-US', {
-      minimumFractionDigits: decimals, maximumFractionDigits: decimals,
-      useGrouping: grouped});
+    var text = fixed(v, decimals, grouped);
     var qm = format.match(/"([^"]*)"/);
     var symbol = qm ? qm[1] : (format.indexOf('$') >= 0 ? '$' : '');
     return symbol + text;
