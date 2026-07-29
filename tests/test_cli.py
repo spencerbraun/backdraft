@@ -217,3 +217,92 @@ def test_skill_install_copies_the_bundled_skill(tmp_path, monkeypatch) -> None:
     result = CliRunner().invoke(app, ["skill", "install", "--all"])
     assert result.exit_code == 0, result.output
     assert (tmp_path / ".claude" / "skills" / "backdraft-backfill" / "SKILL.md").is_file()
+
+
+def test_skill_install_default_agent_touches_only_claude(tmp_path, monkeypatch) -> None:
+    from typer.testing import CliRunner
+
+    from backdraft.cli import app
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    result = CliRunner().invoke(app, ["skill", "install"])
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / ".claude" / "skills" / "backdraft" / "SKILL.md").is_file()
+    assert not (tmp_path / ".agents").exists()
+
+
+def test_skill_install_agent_codex_uses_the_standard_path(tmp_path, monkeypatch) -> None:
+    from typer.testing import CliRunner
+
+    from backdraft.cli import app
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    result = CliRunner().invoke(app, ["skill", "install", "--agent", "codex"])
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / ".agents" / "skills" / "backdraft" / "SKILL.md").is_file()
+    assert not (tmp_path / ".claude").exists()
+
+
+def test_skill_install_agent_all_lands_in_both_layouts(tmp_path, monkeypatch) -> None:
+    from typer.testing import CliRunner
+
+    from backdraft.cli import app
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    result = CliRunner().invoke(app, ["skill", "install", "--agent", "all", "--all"])
+    assert result.exit_code == 0, result.output
+    for root in (".claude", ".agents"):
+        for name in ("backdraft", "backdraft-backfill", "backdraft-artifact"):
+            assert (tmp_path / root / "skills" / name / "SKILL.md").is_file()
+
+
+def test_skill_install_agent_codex_project_lands_in_cwd(tmp_path, monkeypatch) -> None:
+    from typer.testing import CliRunner
+
+    from backdraft.cli import app
+
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(app, ["skill", "install", "--agent", "codex", "--project"])
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / ".agents" / "skills" / "backdraft" / "SKILL.md").is_file()
+
+
+def test_skill_install_rejects_an_unknown_agent(tmp_path, monkeypatch) -> None:
+    from typer.testing import CliRunner
+
+    from backdraft.cli import app
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    result = CliRunner().invoke(app, ["skill", "install", "--agent", "cursor"])
+    assert result.exit_code == 1
+    assert "unknown agent" in result.output
+
+
+def test_python_dash_m_backdraft_runs_the_cli() -> None:
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "-m", "backdraft", "--help"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "ingest" in result.stdout
+
+
+def test_skill_descriptions_fit_the_upload_cap() -> None:
+    """claude.ai's skill upload rejects descriptions over 200 characters."""
+    import re
+
+    from backdraft.cli import SKILLS, _skills_source
+
+    for name in SKILLS:
+        text = (_skills_source() / name / "SKILL.md").read_text(encoding="utf-8")
+        match = re.search(r"^description: (.+)$", text, flags=re.MULTILINE)
+        assert match, name
+        assert len(match.group(1)) <= 200, (name, len(match.group(1)))
+        # An unquoted YAML scalar dies on ": " — keep descriptions parseable.
+        assert ": " not in match.group(1), name
+        named = re.search(r"^name: (.+)$", text, flags=re.MULTILINE)
+        assert named and named.group(1) == name

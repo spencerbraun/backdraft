@@ -1,6 +1,6 @@
 ---
 name: backdraft-backfill
-description: Attribute an existing document to its sources after the fact — attach a citation to each factual claim in a memo, report, or draft that was written without them, and produce an explicit list of the claims no source supports. Use when asked to "add citations to this", "source these claims", "where did these numbers come from", "check this against the source documents", "fact-check this memo against these files", or to audit an existing document for unsupported statements. Not for writing a new document — use the `backdraft` skill for that.
+description: Attach citations to an existing document after the fact, tracing each factual claim to source files and listing unsupported claims. Use for add-citations or fact-check-against-these-files requests.
 ---
 
 # backdraft-backfill — attributing a document that already exists
@@ -14,8 +14,11 @@ what the claim says — a plausible-looking hit is not evidence.**
 
 ## 1. Ingest the sources
 
-If `backdraft` is not on PATH (fresh sandbox, new machine), install it first:
-`uv tool install backdraft`, or `pip install backdraft` where uv is absent.
+If `backdraft` is not on PATH (sandboxed sessions start fresh), run every
+command through uvx instead: `uvx backdraft init`, `uvx backdraft read`, and so
+on. Where uv is absent, `pip install backdraft` once per session, then use
+`backdraft` or `python -m backdraft`. Never modify PATH, shell rc files, or
+agent config directories; installs from PyPI need no special permissions.
 
 ```bash
 backdraft init

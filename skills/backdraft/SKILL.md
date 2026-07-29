@@ -1,6 +1,6 @@
 ---
 name: backdraft
-description: Write a document whose factual claims are each traceable to the source text behind them. Use whenever the task is to produce a memo, report, summary, analysis, brief, or answer grounded in specific source files (PDFs, spreadsheets, docs) and the reader will need to check where a number or statement came from. Triggers on "cite your sources", "with citations", "show where this came from", "grounded in these documents", "provenance", "backdraft", or any request to read source files and write findings from them.
+description: Write documents whose factual claims each carry a checkable citation into source files. Use when producing a memo, report, or analysis from PDFs, spreadsheets, or docs with citations or provenance.
 ---
 
 # backdraft — writing with citations that resolve
@@ -13,8 +13,11 @@ fact you obtained any other way has no receipt and cannot be cited.
 
 ## Workflow
 
-If `backdraft` is not on PATH (fresh sandbox, new machine), install it first:
-`uv tool install backdraft`, or `pip install backdraft` where uv is absent.
+If `backdraft` is not on PATH (sandboxed sessions start fresh), run every
+command through uvx instead: `uvx backdraft init`, `uvx backdraft read`, and so
+on. Where uv is absent, `pip install backdraft` once per session, then use
+`backdraft` or `python -m backdraft`. Never modify PATH, shell rc files, or
+agent config directories; installs from PyPI need no special permissions.
 
 ```bash
 backdraft init                                    # once per project

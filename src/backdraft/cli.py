@@ -154,6 +154,11 @@ def ingest(
 
 SKILLS = ("backdraft", "backdraft-backfill", "backdraft-artifact")
 
+# Skills directories per agent family: Claude Code reads `.claude/skills/`;
+# `.agents/skills/` is the Agent Skills standard path read by OpenAI Codex,
+# Cursor, Copilot and others.
+AGENT_DIRS = {"claude": ".claude", "codex": ".agents"}
+
 
 def _skills_source() -> Path:
     """Where the bundled skills live: package data in a wheel, repo in a checkout."""
@@ -171,37 +176,50 @@ def skill(
     action: Annotated[str, typer.Argument(help="`install` is the only action.")] = "install",
     project: Annotated[
         bool,
-        typer.Option("--project", help="Install into ./.claude/skills instead of ~/.claude/skills."),
+        typer.Option("--project", help="Install into the project's skills directory instead of the home one."),
     ] = False,
     all_: Annotated[
         bool,
         typer.Option("--all", help="Also install the backfill and artifact-reading skills."),
     ] = False,
+    agent: Annotated[
+        str,
+        typer.Option("--agent", help="Target agent layout: `claude`, `codex`, or `all`."),
+    ] = "claude",
 ) -> None:
     """Install the agent skill: `backdraft skill install`, then ask for cited work.
 
-    Copies the writing skill into your agent's skills directory (Claude Code
-    layout: `~/.claude/skills/`, or the project's `.claude/skills/` with
-    `--project`). `--all` adds the backfill and artifact-reading skills.
+    Copies the writing skill into your agent's skills directory. `--agent claude`
+    (the default) targets Claude Code's `~/.claude/skills/`; `--agent codex`
+    targets `~/.agents/skills/`, the Agent Skills standard path read by OpenAI
+    Codex, Cursor, Copilot and others; `--agent all` targets both. `--project`
+    installs under the current directory (`.claude/skills/`, `.agents/skills/`)
+    instead of the home directory. `--all` adds the backfill and
+    artifact-reading skills.
     """
     import shutil
 
     with guard():
         if action != "install":
             raise UsageError(f"unknown action {action!r}; try: backdraft skill install")
+        if agent not in (*AGENT_DIRS, "all"):
+            raise UsageError(f"unknown agent {agent!r}; try: claude, codex, or all")
         source = _skills_source()
-        target_root = (Path.cwd() / ".claude" if project else Path.home() / ".claude") / "skills"
+        agents = tuple(AGENT_DIRS) if agent == "all" else (agent,)
+        base = Path.cwd() if project else Path.home()
         names = SKILLS if all_ else SKILLS[:1]
-        for name in names:
-            src = source / name
-            if not src.is_dir():
-                raise UsageError(f"bundled skill missing: {name}")
-            dst = target_root / name
-            dst.mkdir(parents=True, exist_ok=True)
-            for item in src.iterdir():
-                if item.is_file():
-                    shutil.copy2(item, dst / item.name)
-            typer.echo(f"installed {name} -> {dst}")
+        for agent_name in agents:
+            target_root = base / AGENT_DIRS[agent_name] / "skills"
+            for name in names:
+                src = source / name
+                if not src.is_dir():
+                    raise UsageError(f"bundled skill missing: {name}")
+                dst = target_root / name
+                dst.mkdir(parents=True, exist_ok=True)
+                for item in src.iterdir():
+                    if item.is_file():
+                        shutil.copy2(item, dst / item.name)
+                typer.echo(f"installed {name} -> {dst}")
     typer.echo('next: ask your agent for cited work, e.g. "Write me a memo from ./docs, with citations."')
 
 

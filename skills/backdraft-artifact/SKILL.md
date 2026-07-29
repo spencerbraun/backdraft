@@ -1,6 +1,6 @@
 ---
 name: backdraft-artifact
-description: Read, check, or summarize a backdraft artifact — a `*.backdraft.json` sidecar or `*.backdraft.html` file — encountered with no other context. Use when handed a file with either extension, when a document mentions claims with tokens shaped `bd:slug:locator:hash`, or when asked to "check the citations in this", "verify this artifact", "what does this sidecar say", "audit these claims", or "is this document's evidence any good". Applies to reviewing someone else's bound document, not to producing one.
+description: Read and check a backdraft artifact (*.backdraft.json or *.backdraft.html), verifying receipts and summarizing claim statuses. Use when handed such a file or asked to audit its citations.
 ---
 
 # backdraft-artifact — reading a bound document cold
