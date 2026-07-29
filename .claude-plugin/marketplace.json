@@ -1,0 +1,16 @@
+{
+  "name": "backdraft",
+  "owner": {
+    "name": "Spencer Braun",
+    "url": "https://github.com/spencerbraun"
+  },
+  "description": "Self-hosting marketplace for the backdraft plugin: agent skills for writing documents whose factual claims carry verifiable citations.",
+  "plugins": [
+    {
+      "name": "backdraft",
+      "source": "./",
+      "description": "Drop-in provenance for factual claims: one click from any claim to the evidence behind it. Ships the backdraft writing, backfill, and artifact-reading skills; the CLI installs separately (uv tool install backdraft).",
+      "category": "productivity"
+    }
+  ]
+}
