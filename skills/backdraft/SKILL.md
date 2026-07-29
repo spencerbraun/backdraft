@@ -14,7 +14,7 @@ fact you obtained any other way has no receipt and cannot be cited.
 ## Workflow
 
 If `backdraft` is not on PATH (fresh sandbox, new machine), install it first:
-`pip install backdraft` — self-contained, from PyPI.
+`uv tool install backdraft`, or `pip install backdraft` where uv is absent.
 
 ```bash
 backdraft init                                    # once per project

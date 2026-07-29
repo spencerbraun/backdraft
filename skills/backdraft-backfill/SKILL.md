@@ -15,7 +15,7 @@ what the claim says — a plausible-looking hit is not evidence.**
 ## 1. Ingest the sources
 
 If `backdraft` is not on PATH (fresh sandbox, new machine), install it first:
-`pip install backdraft` — self-contained, from PyPI.
+`uv tool install backdraft`, or `pip install backdraft` where uv is absent.
 
 ```bash
 backdraft init
