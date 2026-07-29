@@ -46,6 +46,12 @@ the objection rather than rediscovering it.
 - **HTML pages and email (.eml)** — both arrive in diligence folders, both
   have messy identity questions (what is "the source" of a web page?) that
   deserve a decision row before code.
+- **Anthropic-API provider for the VLM extractor** — Cowork's sandbox
+  egress allowlist includes api.anthropic.com but not the OpenAI-compatible
+  providers, so an Anthropic-native option would let sandboxed sessions
+  ingest at full fidelity. Needs a client abstraction the vlm module
+  currently doesn't have; the documented workaround (ingest locally, the
+  registry travels with the folder) covers it meanwhile.
 - **Distribution** — published on PyPI; the repo now ships
   `.claude-plugin/plugin.json` and `marketplace.json`, so it installs as a
   Claude Code plugin and self-hosts its marketplace, and the AGENTS.md
