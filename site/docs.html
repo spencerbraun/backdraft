@@ -297,6 +297,13 @@ from Cowork's built-in skills directory; until then, zip a skill folder from
 the repo's <code>skills/</code> and upload it under Customize &gt; Skills.
 Inside a session, run the CLI per-command as <code>uvx backdraft ...</code>,
 since installs do not persist between sessions.</p>
+<p>Sandboxes and credentials: a sandbox usually cannot reach model providers,
+so ingest inside one falls back to the keyless text layer and says so. For
+full fidelity, ingest once on your own machine with the vision extractor.
+The registry lives in <code>.backdraft/</code> inside the project folder, so
+it travels with the folder into any session, and binding and rendering never
+need a key. Put <code>BACKDRAFT_VLM_API_KEY</code> in
+<code>.backdraft/env</code> yourself; never paste keys into a chat.</p>
 <h3>Codex, Cursor, Copilot</h3>
 <p>Agents in this family read skills from <code>~/.agents/skills</code>:</p>
 <pre>backdraft skill install --agent codex   <span class="dim"># into ~/.agents/skills/</span></pre>

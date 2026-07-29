@@ -25,6 +25,10 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # Formats: pdf, xlsx/xlsm, xls (via [xls]), csv/tsv, docx, pptx,
 # png/jpeg/tiff, txt/md. pptx is slide text only; export visual-heavy
 # decks to PDF and ingest via the vision extractor.
+# Sandboxes usually cannot reach model providers: if VLM ingest fails on
+# network, continue with the text layer and say so. The registry travels
+# with the project folder (.backdraft/), so a registry ingested with the
+# vision model elsewhere works in any session; bind and render need no key.
 
 ## The contract
 

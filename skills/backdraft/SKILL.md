@@ -29,7 +29,11 @@ export BACKDRAFT_SESSION=s-<short-name>
 For real PDFs (glossy layouts, info boxes, scans) the VLM extractor produces the
 best receipts; `auto` prefers it when `BACKDRAFT_VLM_API_KEY` is set (env or `.backdraft/env`; ambient provider keys
 are never read) — the default model is Gemini 3.1 Flash Lite through OpenRouter. If ingest prints a note about falling back to the text
-layer, surface that note to the user — it affects receipt quality.
+layer, surface that note to the user — it affects receipt quality. In a
+sandbox that cannot reach the model provider, do not retry: continue with the
+text layer, tell the user, and mention that a registry ingested with the
+vision model on their own machine travels with the project folder
+(`.backdraft/`) and needs no key at bind or render time.
 
 VLM ingest also stores each page's image, so the artifact can show the cited
 pages themselves. For a registry ingested before that (or via the text layer),
