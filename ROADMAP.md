@@ -10,10 +10,25 @@ The Now section is an ordered queue written for an implementing agent with no
 session context: each item carries its intent, its shape, and its acceptance
 test. The working agreement is one item at a time, top first, shipped complete
 — code, tests, docs, and a DESIGN.md decision row where the item calls for one
-— then deleted from this file in the same commit. Releases cut weekly, so an
+— then deleted from this file in the same commit. Releases cut Friday, so an
 item that lands mid-week waits on PyPI until the release; nothing ships
 half-done to make a release. An item that turns out bigger than its sizing
 gets split here, not stretched silently.
+
+The cadence is daily and the runner is an agent: one item each morning Monday
+through Thursday, landing as a direct commit to `main` — this repo does not
+use pull requests, so a week of commits is the only review surface there is.
+
+Friday builds nothing new. It reads that week's diff instead — duplication,
+drift from the repo's own idioms, branches that landed untested, help text and
+error messages that confuse, commands the docs describe wrongly — and lands
+the fixes. Then the release, and only if something landed since the last tag:
+the version moves in both `pyproject.toml` and `.claude-plugin/plugin.json`,
+and publishing the GitHub release is what ships to PyPI. Then this section is
+refilled with five items for the week ahead, drawn against the core — the four
+verbs, the registry, the grammar, the artifact — and against where an agent
+using backdraft actually stumbles. What the maintenance pass just found is the
+best evidence available for what those five should be.
 
 ## Now
 
