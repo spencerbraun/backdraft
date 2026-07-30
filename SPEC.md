@@ -352,8 +352,10 @@ class Registry:
     # page snapshots (v0.2: evidence for the artifact)
     def page_image(self, slug: str, number: int) -> PageImage | None: ...
         # The stored visual snapshot of a current-extraction page: what the VLM
-        # extractor was shown (WebP q85), or a `snapshot-pages` backfill. None
-        # for text-only extractions.
+        # extractor was shown (WebP q85), the local poppler render the CLI
+        # captures after a text-layer PDF ingest, or a `snapshot-pages`
+        # backfill. None for non-PDFs, and for PDFs ingested where poppler was
+        # unavailable.
     def save_page_image(self, extraction_id: int, number: int, *, data: bytes,
                         format: str, width: int, height: int) -> None: ...
     def current_extraction_id(self, slug: str) -> int | None: ...    # for backfill tools
@@ -370,4 +372,4 @@ class Registry:
 
 ## Addendum B — CLI assembly
 
-Top-level `cli.py` (W1) owns: typer app, registry discovery (nearest `.backdraft/` walking up from cwd; `BACKDRAFT_HOME` override), session resolution (`--session` flag > `BACKDRAFT_SESSION` env > default session), and the `init` / `ingest` / `ls` / `export` commands. It mounts sub-apps `gate/cli.py` (W2: `read`, `search`, `session`), `bind/cli.py` (W3: `bind`), `render/cli.py` (W4: `render`) — each exposes `app = typer.Typer()`; the top level mounts each inside a try/except ImportError so partial merges still run. The `backdraft` console script is declared by W1.
+Top-level `cli.py` (W1) owns: typer app, registry discovery (nearest `.backdraft/` walking up from cwd; `BACKDRAFT_HOME` override), session resolution (`--session` flag > `BACKDRAFT_SESSION` env > default session), and the `init` / `ingest` / `ls` / `export` / `snapshot-pages` commands. After each ingest, `cli.py` captures page snapshots for any PDF whose extraction carries none — the text-layer path, since `vlm` stores its own — via `extract/snapshots.py` (poppler through pdf2image, `snapshot-pages`' internals). It sits outside the extractor so `pdf-text` stays deterministic regardless of whether poppler is installed, and it is best-effort: a `SnapshotError` leaves ingest at exit 0 with a one-line note naming `snapshot-pages` as the backfill. It mounts sub-apps `gate/cli.py` (W2: `read`, `search`, `session`), `bind/cli.py` (W3: `bind`), `render/cli.py` (W4: `render`) — each exposes `app = typer.Typer()`; the top level mounts each inside a try/except ImportError so partial merges still run. The `backdraft` console script is declared by W1.

@@ -32,34 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. Page snapshots at text-layer PDF ingest
-
-**Intent.** VLM ingest stores each page's image, so artifacts show the cited
-pages themselves; text-layer ingest stores none, so the keyless path produces
-visually poorer receipts for no principled reason. The snapshots are local
-renders through poppler — no model calls, nothing leaves the machine — and the
-capability already exists as the manual `backdraft snapshot-pages` backfill.
-Close the gap: capture page snapshots automatically when a PDF ingests through
-`pdf-text`.
-
-**Shape.** The `pdf-text` extractor stays `deterministic = True`, so its
-output cannot vary with whether poppler happens to be installed — the hook
-lives *after* extraction, in the ingest path, sharing the same internals
-`snapshot-pages` uses (same `BACKDRAFT_SNAPSHOT_QUALITY` / `MAX_HEIGHT`
-budget, same storage). When poppler is absent, ingest succeeds exactly as
-today and prints a one-line note naming `snapshot-pages` as the later backfill.
-Snapshots are display-only and never touch token identity.
-
-**Acceptance.** On a machine with poppler, a text-layer PDF ingest followed by
-bind + render produces an artifact whose cited-page images are
-indistinguishable in shape from the VLM path's; tokens minted before and after
-the change are identical. Without poppler, ingest exits clean with the note.
-Tests cover both branches; `--lean` still opts out at bind. Skill and docs
-drop the "or via the text layer" caveat where it no longer applies.
-
-**Size.** One day.
-
-### 2. Source card: contents resize with the card
+### 1. Source card: contents resize with the card
 
 **Intent.** The artifact's source card is user-resizable (`resize:vertical`,
 `max-height:82vh` — assets.py) but its inner blocks hold their own fixed caps
@@ -84,7 +57,7 @@ pass recorded in the PR.
 
 **Size.** One day.
 
-### 3. Theming: sticky user preferences, drop-in themes
+### 2. Theming: sticky user preferences, drop-in themes
 
 **Intent.** The artifact's look is currently one hardcoded design. Let a user
 set a theme once and have every artifact they render honor it, and let a theme
@@ -116,7 +89,7 @@ Docs page gains a short theming section with a sample theme file.
 **Size.** Two days — decision row and variable audit, then loader, bundled
 themes, docs.
 
-### 4. URL sources: capture and link back
+### 3. URL sources: capture and link back
 
 **Intent.** Diligence folders contain links, not just files. `backdraft ingest
 <url>` should fetch a page, snapshot it into the registry like any other

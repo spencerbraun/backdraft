@@ -131,9 +131,11 @@ repo</a>, and agents should start from <a href="llms.txt">llms.txt</a>.</p>
 <p>Python 3.13+. The vision-model extractor ships by default, the recommended
 path for real PDFs (glossy layouts, info boxes, scans) and the only path for
 scanned images; it activates only when <code>BACKDRAFT_VLM_API_KEY</code> is
-set, and PDFs need <code>poppler</code> on your PATH
-(<code>brew install poppler</code>). Without a key, PDFs fall back to the
-keyless embedded-text layer, and ingest says so.
+set. Without a key, PDFs fall back to the keyless embedded-text layer, and
+ingest says so. Either way PDFs want <code>poppler</code> on your PATH
+(<code>brew install poppler</code>) — it renders the pages, which is what puts
+the cited page into the artifact; without it ingest still works and says what
+is missing.
 Spreadsheets (xlsx, xlsm), CSV, Word (docx), PowerPoint (pptx), text and
 Markdown are keyless and built in, and sheet evidence carries the workbook's
 own styling: bold, fills, number formats, column widths. Legacy xls
@@ -209,7 +211,7 @@ skill</a> imposes the gate, and you receive the artifact.</div>
 <tr><th>Command</th><th>Does</th></tr>
 <tr><td><code>init</code></td><td>Create <code>.backdraft/</code> (registry, credentials template) in the current directory.</td></tr>
 <tr><td><code>ingest &lt;files&gt;</code></td><td>Snapshot sources into the registry, minting every anchor. Formats: PDF, XLSX/XLSM, XLS, CSV/TSV, DOCX, PPTX, images (png, jpeg, tiff), text and Markdown. <code>--extractor auto|vlm|image|pdf-text|xlsx|xls|csv|docx|pptx|text</code>, <code>--slug</code>, <code>--config k=v</code>.</td></tr>
-<tr><td><code>snapshot-pages &lt;slug&gt;</code></td><td>Backfill page images for an already-ingested PDF, locally, no model calls (needs <code>poppler</code> for rendering).</td></tr>
+<tr><td><code>snapshot-pages &lt;slug&gt;</code></td><td>Backfill page images for an already-ingested PDF, locally, no model calls (needs <code>poppler</code> for rendering). Ingest stores them already — this is for a registry built before it did, or on a machine that had no poppler then.</td></tr>
 <tr><td><code>ls</code></td><td>List ingested documents.</td></tr>
 <tr><td><code>read [slug] [selector]</code></td><td>The gate: document list, table of contents, or a token-marked page/range/sheet read. Mints what it shows.</td></tr>
 <tr><td><code>search &lt;query&gt;</code></td><td>Full-text search over every anchor; hits are citable. <code>--in slug</code>, <code>--limit</code>.</td></tr>
@@ -346,9 +348,13 @@ registry contains the full text of everything ingested.</li>
 Text-layer receipts are fine for clean digital PDFs; glossy or scanned ones
 deserve the vision model.</p>
 <h3>My artifact has no page images.</h3>
-<p>Images are stored at ingest by the VLM path. For text-layer or older
-registries, run <code>backdraft snapshot-pages &lt;slug&gt;</code> (local,
-free), then re-bind.</p>
+<p>Ingest stores them for every PDF, through both the vision and the text-layer
+path — the latter renders the pages locally, which needs <code>poppler</code>
+on the machine. If ingest printed a note that it could not capture them, install
+poppler; then, for that registry or any built before ingest did this, run
+<code>backdraft snapshot-pages &lt;slug&gt;</code> (local, free) and re-bind.
+Also check you did not bind with <code>--lean</code>, which skips them
+deliberately.</p>
 <h3>What does <code>not_shown</code> actually catch?</h3>
 <p>A real token, valid in the registry, that the writing session was never
 shown, i.e. the writer cited something it didn't read. Only a session ledger

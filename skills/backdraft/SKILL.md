@@ -35,9 +35,12 @@ text layer, tell the user, and mention that a registry ingested with the
 vision model on their own machine travels with the project folder
 (`.backdraft/`) and needs no key at bind or render time.
 
-VLM ingest also stores each page's image, so the artifact can show the cited
-pages themselves. For a registry ingested before that (or via the text layer),
-`backdraft snapshot-pages <slug>` backfills them locally — no model calls.
+Ingest also stores each PDF page's image — both paths, since the text-layer
+path renders the pages locally through poppler — so the artifact can show the
+cited pages themselves. If ingest prints a note that page images were not
+captured, the machine has no poppler; ingest and citations are unaffected, and
+`backdraft snapshot-pages <slug>` backfills the images later (also the fix for
+a registry built before ingest did this). No model calls either way.
 
 Then read, narrowing as you go:
 

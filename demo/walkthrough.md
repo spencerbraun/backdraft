@@ -43,17 +43,15 @@ underwriting-model  underwriting-model.xlsx  xlsx  2 pages
 note: extracted with pdf-text (the embedded text layer). Glossy or scanned PDFs extract better through a vision model: set BACKDRAFT_VLM_API_KEY in .backdraft/env.
 ```
 
-The keyless text layer is fine for these clean generated sources. For the
-artifact to show the cited pages themselves, store their snapshots — local
-rendering, no model calls:
-
-```bash
-backdraft snapshot-pages t12-summary
-```
+The keyless text layer is fine for these clean generated sources.
 
 Ingest picked an extractor per file (`pdf-text` for the PDF, `xlsx` for the
 workbook), snapshotted the text, and minted every anchor: chunks for the PDF
-pages, cells for the sheets. Nothing is citable that was not ingested.
+pages, cells for the sheets. Nothing is citable that was not ingested. It also
+rendered each PDF page to an image and stored it, so the artifact at the end
+can show the cited pages themselves — local rendering through poppler, no model
+calls. On a machine without poppler ingest prints a note instead and
+`backdraft snapshot-pages t12-summary` backfills them whenever you like.
 
 The note is real: this walkthrough deliberately uses the keyless text-layer
 path so it reproduces anywhere, and our source PDF is born-digital, where that

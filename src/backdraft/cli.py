@@ -36,7 +36,8 @@ from .cli_context import (
     opened_registry,
     resolve_session,
 )
-from .extract import vlm_ready
+from .extract import snapshots, vlm_ready
+from .kernel.model import Document, Page
 from .registry import DIRECTORY, Registry
 
 __all__ = [
@@ -118,6 +119,7 @@ def ingest(
     """Snapshot files into the registry, minting their anchors."""
     nudge_vlm = False
     note_pptx = False
+    unsnapshot: dict[str, list[str]] = {}  # why it failed -> which documents
     with guard():
         if slug is not None and len(files) > 1:
             raise UsageError("--slug names one document; pass one file")
@@ -138,6 +140,26 @@ def ingest(
                     and not vlm_ready(settings)
                 )
                 note_pptx = note_pptx or document.media_type == "pptx"
+                # Page images: the VLM extractor stores them itself, so this
+                # only ever fires for the text-layer path (and for a re-ingest
+                # that landed before this machine had poppler). Display only,
+                # hence best-effort — a failure notes itself and ingest stands.
+                if _wants_snapshots(registry, document, pages):
+                    try:
+                        for _ in snapshots.capture(
+                            registry, document.slug, path, config=settings
+                        ):
+                            pass
+                    except snapshots.SnapshotError as error:
+                        unsnapshot.setdefault(str(error), []).append(document.slug)
+    # One line per distinct reason — which is one line, unless a machine
+    # without poppler is somehow also holding an unrenderable PDF.
+    for reason, slugs in unsnapshot.items():
+        typer.echo(
+            f"note: page images not captured — {reason}. Citations and quotes "
+            "are unaffected; artifacts just carry no cited-page image. Backfill "
+            f"later with `backdraft snapshot-pages <slug>` for: {', '.join(slugs)}."
+        )
     if nudge_vlm:
         # One line, once per invocation: `auto` fell back to the text layer,
         # and the note names the condition that failed.
@@ -230,69 +252,38 @@ def snapshot_pages(
         Path | None,
         typer.Option("--file", help="The source PDF, when it moved since ingest."),
     ] = None,
-    dpi: Annotated[int, typer.Option("--dpi", help="Render resolution.")] = 200,
+    dpi: Annotated[int, typer.Option("--dpi", help="Render resolution.")] = (
+        snapshots.DEFAULT_DPI
+    ),
 ) -> None:
     """Backfill page snapshots for an already-ingested PDF. Local, no model calls.
 
-    Ingesting through the VLM extractor stores each page's image automatically;
-    this command adds them to registries created before that, or to text-layer
-    ingests, so `bind` can embed the cited pages into the artifact. Requires
-    poppler on the machine for PDF rendering. The encoding budget is backdraft-scoped
-    settings: `BACKDRAFT_SNAPSHOT_QUALITY` (WebP quality, 85) and
-    `BACKDRAFT_SNAPSHOT_MAX_HEIGHT` (pixels, 1056), env or `.backdraft/env` —
-    display knobs only, citation tokens never derive from pixels.
+    Ingest stores each page's image already, through both the VLM and the
+    text-layer path; this command is the backfill for what ingest could not do
+    at the time — a registry built before that, or a machine that had no poppler
+    then and does now. Snapshots are what lets `bind` embed the cited pages into
+    the artifact. Requires poppler on the machine for PDF rendering. The
+    encoding budget is backdraft-scoped settings: `BACKDRAFT_SNAPSHOT_QUALITY`
+    (WebP quality, 85) and `BACKDRAFT_SNAPSHOT_MAX_HEIGHT` (pixels, 1056), env
+    or `.backdraft/env` — display knobs only, citation tokens never derive from
+    pixels.
     """
-    with guard():
-        try:
-            import io
-
-            from PIL import Image  # noqa: F401  (pdf2image needs it anyway)
-            from pdf2image import convert_from_path
-        except ImportError as error:
+    with opened_registry() as registry:
+        document = registry.document(slug)
+        if document is None:
+            raise UsageError(f"no document with slug {slug!r}")
+        if document.media_type != "pdf":
+            raise UsageError(f"{slug} is {document.media_type}, not a PDF")
+        source = file or Path(document.path)
+        if not source.is_file():
             raise UsageError(
-                "snapshot-pages could not import its PDF rendering deps — "
-                f"reinstall backdraft to restore them ({error})"
-            ) from error
-        from .extract.vlm_settings import snapshot_max_height, snapshot_quality
-
-        max_height = snapshot_max_height()
-        quality = snapshot_quality()
-
-        with opened_registry() as registry:
-            document = registry.document(slug)
-            if document is None:
-                raise UsageError(f"no document with slug {slug!r}")
-            if document.media_type != "pdf":
-                raise UsageError(f"{slug} is {document.media_type}, not a PDF")
-            source = file or Path(document.path)
-            if not source.is_file():
-                raise UsageError(
-                    f"source file not found at {source}; pass --file to point at it"
-                )
-            extraction_id = registry.current_extraction_id(slug)
-            if extraction_id is None:
-                raise UsageError(f"{slug} has no current extraction")
-            pages = registry.pages(slug)
-            for page in pages:
-                images = convert_from_path(
-                    str(source), dpi=dpi, fmt="png",
-                    first_page=page.number, last_page=page.number,
-                )
-                image = images[0]
-                if image.height > max_height:
-                    scale = max_height / image.height
-                    image = image.resize(
-                        (max(1, round(image.width * scale)), max_height)
-                    )
-                buffer = io.BytesIO()
-                image.save(buffer, format="WEBP", quality=quality)
-                registry.save_page_image(
-                    extraction_id, page.number,
-                    data=buffer.getvalue(), format="webp",
-                    width=image.width, height=image.height,
-                )
-                typer.echo(f"{slug}  p{page.number}  {image.width}x{image.height}")
-            typer.echo(f"stored {len(pages)} page snapshot(s)")
+                f"source file not found at {source}; pass --file to point at it"
+            )
+        stored = 0
+        for number, image in snapshots.capture(registry, slug, source, dpi=dpi):
+            typer.echo(f"{slug}  p{number}  {image.width}x{image.height}")
+            stored += 1
+        typer.echo(f"stored {stored} page snapshot(s)")
 
 
 @app.command()
@@ -359,6 +350,20 @@ def export(
     else:
         out.write_text(payload + "\n", encoding="utf-8")
         typer.echo(f"wrote {out}")
+
+
+def _wants_snapshots(registry: Registry, document: Document, pages: list[Page]) -> bool:
+    """Whether this ingest should render page images for `document`.
+
+    PDFs only, and only when the current extraction carries none already — so
+    the VLM path (which stores the pixels it was shown) is left alone, and a
+    no-op re-ingest re-renders nothing it already has.
+    """
+    return (
+        document.media_type == "pdf"
+        and bool(pages)
+        and registry.page_image(document.slug, pages[0].number) is None
+    )
 
 
 def _vlm_gap() -> str:
