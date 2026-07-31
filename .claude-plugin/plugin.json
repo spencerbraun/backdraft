@@ -1,7 +1,7 @@
 {
   "name": "backdraft",
   "displayName": "Backdraft",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Drop-in provenance for factual claims: one click from any claim to the evidence behind it. Ships the backdraft writing, backfill, and artifact-reading skills; the CLI installs separately (uv tool install backdraft).",
   "author": {
     "name": "Spencer Braun",
