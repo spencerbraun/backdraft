@@ -67,11 +67,13 @@ class _Renderer:
         self.height = height
         self.width = width
         self.calls: list[int] = []
+        self.dpis: list[int] = []
 
     def __call__(self, path: str, *, dpi: int, fmt: str, first_page: int, last_page: int):
         from PIL import Image
 
         self.calls.append(first_page)
+        self.dpis.append(dpi)
         return [Image.new("RGB", (self.width, self.height), "white")]
 
 
@@ -155,6 +157,25 @@ def test_missing_poppler_names_the_install(report: Path, no_poppler: None) -> No
         list(snapshots.render(report, [1]))
 
 
+def test_missing_render_deps_name_the_reinstall(
+    report: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A broken install is a different gap from a missing poppler, and says so:
+    installing poppler would not fix a pdf2image that will not import."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def blocked(name: str, *args, **kwargs):
+        if name.split(".")[0] in ("PIL", "pdf2image"):
+            raise ImportError(f"No module named {name!r}")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", blocked)
+    with pytest.raises(snapshots.SnapshotError, match="reinstall backdraft"):
+        list(snapshots.render(report, [1]))
+
+
 def test_a_render_failure_names_the_page(report: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _set_renderer(monkeypatch, _breaking(ValueError("bad xref")))
     with pytest.raises(snapshots.SnapshotError, match=r"could not render page 2"):
@@ -167,6 +188,56 @@ def test_a_page_poppler_will_not_return_is_an_error(
     _set_renderer(monkeypatch, lambda path, **kwargs: [])
     with pytest.raises(snapshots.SnapshotError, match="no page 9"):
         list(snapshots.render(report, [9]))
+
+
+@pytest.mark.parametrize(
+    "config, expected",
+    [
+        ({}, 200),
+        ({"dpi": "300"}, 300),
+        ({"dpi": 300}, 300),
+        ({"dpi": ""}, 200),  # an unset --config value is not a request for 0 dpi
+        ({"dpi": "0"}, 1),  # floored, so poppler is never handed a nonsense dpi
+        ({"dpi": "glossy"}, 200),  # a typo degrades to the default, never crashes
+    ],
+)
+def test_dpi_resolves_from_the_config(config: dict, expected: int) -> None:
+    assert snapshots.dpi_for(config) == expected
+
+
+def test_the_dpi_config_reaches_poppler(report: Path, renderer: _Renderer) -> None:
+    list(snapshots.render(report, [1], config={"dpi": "144"}))
+    assert renderer.dpis == [144]
+
+
+def test_an_explicit_dpi_beats_the_config(report: Path, renderer: _Renderer) -> None:
+    """`--dpi` is the flag on `snapshot-pages`; config is what `ingest` carries."""
+    list(snapshots.render(report, [1], dpi=90, config={"dpi": "144"}))
+    assert renderer.dpis == [90]
+
+
+def test_both_pdf_paths_share_one_encoder() -> None:
+    """The vlm extractor and this module must store identical pixels for the
+    same page, so the encoding lives in one place and vlm imports it. A second
+    copy growing back in vlm.py is the regression this catches."""
+    from backdraft.extract import vlm
+
+    assert (vlm.fit, vlm.encode, vlm.dpi_for) == (
+        snapshots.fit, snapshots.encode, snapshots.dpi_for
+    )
+    assert vlm.DEFAULT_DPI == snapshots.DEFAULT_DPI
+
+
+def test_fit_and_encode_are_the_budget(report: Path) -> None:
+    from PIL import Image
+
+    page = Image.new("RGB", (1632, 2112), "white")
+    fitted = snapshots.fit(page, 1056)
+    assert (fitted.width, fitted.height) == (816, 1056)
+    assert snapshots.fit(fitted, 1056) is fitted  # already under budget, untouched
+    snapshot = snapshots.encode(fitted, 85)
+    assert (snapshot.format, snapshot.width, snapshot.height) == ("webp", 816, 1056)
+    assert snapshot.data[:4] == b"RIFF"
 
 
 @pytest.mark.skipif(not HAS_POPPLER, reason="poppler is not installed on this machine")
@@ -266,6 +337,26 @@ def test_distinct_failures_are_reported_separately(
     xref, = [line for line in notes if "bad xref" in line]
     assert poppler.endswith("for: t12.")
     assert xref.endswith("for: rent-roll.")
+
+
+def test_ingest_carries_the_render_budget_into_the_capture(
+    project: Path, renderer: _Renderer
+) -> None:
+    """`--config` reaches the capture, so one flag means the same thing on both
+    PDF paths rather than only on the one that calls a model."""
+    _make_pdf(project / "t12.pdf", [["Occupancy closed at 91.4%"]])
+    result = runner.invoke(
+        cli.app,
+        ["ingest", "t12.pdf", "--config", "dpi=144",
+         "--config", "snapshot_max_height=400"],
+    )
+    assert result.exit_code == 0, result.output
+    assert renderer.dpis == [144]
+    registry = Registry.open(project)
+    try:
+        assert registry.page_image("t12", 1).height == 400
+    finally:
+        registry.close()
 
 
 def test_a_non_pdf_ingest_never_renders(project: Path, renderer: _Renderer) -> None:
@@ -384,6 +475,14 @@ def test_snapshot_pages_finds_a_moved_source(project: Path, renderer: _Renderer)
     assert "pass --file" in missing.output
     found = runner.invoke(cli.app, ["snapshot-pages", "t12", "--file", "archive.pdf"])
     assert found.exit_code == 0, found.output
+
+
+def test_snapshot_pages_honors_the_dpi_flag(project: Path, renderer: _Renderer) -> None:
+    _make_pdf(project / "t12.pdf", [["Occupancy closed at 91.4%"]])
+    runner.invoke(cli.app, ["ingest", "t12.pdf"])
+    result = runner.invoke(cli.app, ["snapshot-pages", "t12", "--dpi", "120"])
+    assert result.exit_code == 0, result.output
+    assert renderer.dpis == [snapshots.DEFAULT_DPI, 120]  # ingest's, then the flag's
 
 
 def test_snapshot_pages_rejects_an_unknown_slug(project: Path) -> None:

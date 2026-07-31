@@ -18,12 +18,17 @@ transcription is not a snapshot anyone can reproduce.
 `--extractor auto` prefers this extractor for PDFs when it is ready (installed,
 key configured); otherwise `auto` falls back to the text layer and the CLI says
 so. The deps ship with backdraft; `pdf2image` requires poppler on the PATH.
+
+Page pixels are `snapshots.py`'s: resolution, height budget and WebP encoding
+come from there, so the snapshot this path stores is byte-identical to the one
+the text-layer capture would have stored for the same page. Only the poppler
+call differs — this extractor renders the whole document at once because it
+transcribes every page concurrently.
 """
 
 from __future__ import annotations
 
 import base64
-import io
 import sys
 import tempfile
 from pathlib import Path
@@ -33,6 +38,12 @@ from openai import OpenAI
 from pdf2image import convert_from_path
 
 from .base import ExtractedPage, Extractor, ExtractionError, PageImage, register
+from .snapshots import (  # noqa: F401  (DEFAULT_DPI re-exported)
+    DEFAULT_DPI,
+    dpi_for,
+    encode,
+    fit,
+)
 from .vlm_settings import (  # noqa: F401  (re-exported)
     DEFAULT_MODEL,
     MAX_IMAGE_HEIGHT,
@@ -56,8 +67,6 @@ __all__ = [
     "EXTRACTOR",
     "client_settings",
 ]
-
-DEFAULT_DPI = 200
 
 SYSTEM_PROMPT = (
     "Convert this document page to markdown. Follow these rules strictly:\n\n"
@@ -91,33 +100,26 @@ class VlmExtractor:
         """
         model, api_key, base_url = client_settings(config)
         client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout_seconds(config))
-        dpi = int(config.get("dpi") or DEFAULT_DPI)
         attempts = retries(config)
         max_height = snapshot_max_height(config)
         quality = snapshot_quality(config)
 
         with tempfile.TemporaryDirectory() as workdir:
             try:
-                images = convert_from_path(str(path), dpi=dpi, fmt="png")
+                images = convert_from_path(str(path), dpi=dpi_for(config), fmt="png")
             except Exception as error:  # noqa: BLE001 - pdf2image raises broadly
                 raise ExtractionError(f"could not render {path} to images: {error}") from error
             image_paths: list[Path] = []
-            snapshots: list[PageImage] = []
+            stored: list[PageImage] = []
+            # The stored snapshot is the fitted image the model is shown, not a
+            # second rendering of it — `fit`/`encode` are the same ones the
+            # text-layer capture uses, so both paths store identical pixels.
             for number, image in enumerate(images, start=1):
-                if image.height > max_height:
-                    scale = max_height / image.height
-                    image = image.resize(
-                        (max(1, round(image.width * scale)), max_height)
-                    )
+                image = fit(image, max_height)
                 image_path = Path(workdir) / f"page_{number:04d}.png"
                 image.save(image_path, format="PNG")
                 image_paths.append(image_path)
-                buffer = io.BytesIO()
-                image.save(buffer, format="WEBP", quality=quality)
-                snapshots.append(PageImage(
-                    data=buffer.getvalue(), format="webp",
-                    width=image.width, height=image.height,
-                ))
+                stored.append(encode(image, quality))
 
             texts = run_ordered(
                 image_paths,
@@ -130,7 +132,7 @@ class VlmExtractor:
             for number, text in enumerate(texts, start=1):
                 yield ExtractedPage(
                     number=number, kind="page", text=text,
-                    image=snapshots[number - 1],
+                    image=stored[number - 1],
                 )
 
 

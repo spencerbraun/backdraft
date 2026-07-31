@@ -43,18 +43,21 @@ def test_an_unknown_extractor_name_is_an_extraction_error() -> None:
         base.get("no-such-extractor")
 
 
-def test_the_vlm_extractor_is_known_by_name_even_without_the_extra() -> None:
-    """Named, so the error a user gets is about the extra, not about a typo."""
+def test_the_vlm_extractor_is_known_by_name() -> None:
+    """Named, so the error a user gets is about the install, not about a typo."""
     assert "vlm" in base.names()
 
 
-def test_asking_for_vlm_without_the_extra_says_it_is_unavailable() -> None:
+def test_asking_for_vlm_says_what_a_broken_install_is_missing() -> None:
+    """The vision deps are core since 0.4.0, so this normally resolves. It can
+    still fail on a partial install, and then the error has to name that rather
+    than the extractor — the same gap `_vlm_gap()` reports at ingest."""
     try:
         import openai  # noqa: F401
-    except ImportError:
+    except ImportError:  # pragma: no cover - a partial install, not the norm
         with pytest.raises(ExtractionError, match="unavailable"):
             base.get("vlm")
-    else:  # pragma: no cover - only when the [vlm] extra is installed
+    else:
         assert base.get("vlm").deterministic is False
 
 
@@ -521,27 +524,20 @@ def test_direct_openai_is_explicit_base_url_plus_model(tmp_path, monkeypatch) ->
     assert (model, base_url) == ("gpt-4o-mini", "https://api.openai.com/v1")
 
 
-def test_vlm_module_imports_agree_with_vlm_settings() -> None:
-    """vlm.py cannot be imported in a dev env (the extra is absent), so its
-    import line against vlm_settings is checked statically: every name it
-    imports from `.vlm_settings` must actually exist there. This is the test
-    that was missing when a deleted constant shipped as an ImportError."""
-    import ast
-    import pathlib
+def test_vlm_module_imports_resolve() -> None:
+    """Import vlm.py for real: a deleted constant elsewhere must fail here and
+    not at a user's first `--extractor vlm`.
 
-    from backdraft.extract import vlm_settings
+    This was a static AST check from when the vision deps were the `[vlm]`
+    extra and the module could not be imported in a dev env. They moved into
+    core in 0.4.0, so the honest version of the test is the import itself,
+    which also covers what it imports from `snapshots` rather than only from
+    `vlm_settings`.
+    """
+    from backdraft.extract import vlm
 
-    source = pathlib.Path(vlm_settings.__file__).with_name("vlm.py").read_text()
-    tree = ast.parse(source)
-    imported = [
-        alias.name
-        for node in ast.walk(tree)
-        if isinstance(node, ast.ImportFrom) and node.module == "vlm_settings"
-        for alias in node.names
-    ]
-    assert imported, "vlm.py no longer imports from vlm_settings?"
-    missing = [name for name in imported if not hasattr(vlm_settings, name)]
-    assert missing == [], missing
+    assert vlm.EXTRACTOR.name == "vlm"
+    assert vlm.EXTRACTOR.deterministic is False
 
 
 # --- the VLM resilience settings (stdlib, testable without the extra)
