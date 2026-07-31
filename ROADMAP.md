@@ -57,39 +57,7 @@ pass recorded in the PR.
 
 **Size.** One day.
 
-### 2. Theming: sticky user preferences, drop-in themes
-
-**Intent.** The artifact's look is currently one hardcoded design. Let a user
-set a theme once and have every artifact they render honor it, and let a theme
-be a small file someone can drop in — fonts, colors, heading treatment at
-minimum.
-
-**Shape.** Two parts, in order:
-
-- *Decision row first.* A theme is a named set of overrides for the CSS custom
-  properties the stylesheet already exposes (`--paper`, `--ink`, `--sel`, the
-  font stacks) plus a bounded set of typographic choices (heading family/case,
-  maybe rule weight). A theme may not change layout, structure, or any
-  verification affordance — display only, tokens and records untouched.
-  Settle the file format (a flat TOML of variable names, or a raw CSS-variables
-  block) and write the DESIGN.md row before code.
-- *Then the loader.* Precedence: `render --theme <file-or-name>` >
-  project `.backdraft/theme.*` > user-wide config (XDG,
-  `~/.config/backdraft/theme.*`) > built-in default. The user-wide file is
-  what makes preferences stick across projects. Bundled themes (the default
-  plus one or two alternates) prove the format; the resolved theme is baked
-  into the artifact at render time so the file stays self-contained.
-
-**Acceptance.** Rendering with no config is byte-stable against today's
-output. A theme file in the XDG location changes fonts/colors/headers on every
-subsequent render in any project without flags; `--theme` overrides it; a
-malformed theme fails with a clear message, never a half-styled artifact.
-Docs page gains a short theming section with a sample theme file.
-
-**Size.** Two days — decision row and variable audit, then loader, bundled
-themes, docs.
-
-### 3. URL sources: capture and link back
+### 2. URL sources: capture and link back
 
 **Intent.** Diligence folders contain links, not just files. `backdraft ingest
 <url>` should fetch a page, snapshot it into the registry like any other
@@ -119,11 +87,145 @@ HTML served locally or loaded from disk); DESIGN.md row written; docs updated.
 **Size.** Two to three days — decision row and capture first, render linkage
 second.
 
+### 3. Bind's failure lines name the claim, not just the token
+
+**Intent.** Exit 2 tells a calling agent that a citation did not resolve and
+prints the token: `! unresolved: bd:t12-summary:p4.c1:1a2b`. It does not say
+which sentence that token was on. `skills/backdraft/SKILL.md` then instructs
+the agent to "tell the user which claim it belongs to" — the one fact the
+report withheld — so the agent's next move is to grep its own document for a
+token string. Meanwhile the `! unmatched:` line, three lines below, already
+prints its claim text. The two line-items should carry the same weight.
+
+**Shape.** `_print_report` in `bind/cli.py`, CLI output only — the record JSON
+is a pinned format and already carries the claim/citation nesting, so nothing
+in `spec/artifact.md` moves. `BindReport.claims` holds each claim's `text`,
+`start` and `end` alongside its citations, so the mapping from a reported
+citation back to its claim exists in memory; report the citation line as the
+token, then the claim text truncated the way the `unmatched` line already
+truncates it (80 chars), then the offset. Repeats matter here: the same token
+cited on four claims currently prints four identical lines, which reads as four
+problems — print one line per (token, claim) pair, which is what the offset
+makes legible. Applies to every non-resolved status, `not_shown` and `drifted`
+included, not only `unresolved`.
+
+**Acceptance.** In `demo/`, `backdraft bind memo.md --session s-bridgeview
+--check value-trace,overlap` prints the unresolved line with the replacement-
+reserve claim text and its offset on it. A bind whose session was never read
+into prints one line per distinct claim rather than one per citation
+occurrence. Tests cover `unresolved`, `not_shown`, `drifted` and `malformed`.
+Every doc that shows a bind report — `README.md`, `demo/walkthrough.md`,
+`site/llms.txt`, `skills/backdraft/SKILL.md`,
+`skills/backdraft-backfill/SKILL.md` — is updated to the real new output.
+
+**Size.** One day.
+
+### 4. `--config` keys are declared, validated, and listed
+
+**Intent.** `backdraft ingest x.pdf --config dpy=300` exits 0, ingests, and
+does nothing about the typo. No output names the mistake, and nothing anywhere
+— help, docs, `llms.txt` — lists what keys exist; today the only way to learn
+`dpi`, `model`, `base_url`, `api_key`, `snapshot_quality` or
+`snapshot_max_height` is to read `extract/vlm.py` and `extract/snapshots.py`.
+This repo's rule is that failures are data and never warn-and-drop, and the
+config boundary is where that rule does not hold.
+
+**Shape.** Give the `Extractor` protocol in `extract/base.py` a
+`config_keys: Mapping[str, str]` (key → one-line meaning), defaulting to empty
+so no extractor is forced to declare. `vlm` declares its provider and retry
+keys; the page-render keys (`dpi`, `snapshot_quality`, `snapshot_max_height`)
+are declared once by `extract/snapshots.py`, which already owns them, and are
+accepted for every PDF path since both rasterize. `ingest` validates the parsed
+config against the selected extractor's declared set *after* selection, since
+`auto` picks per file, and raises `UsageError` in the shape the unknown-name
+errors already use: `unknown config key 'dpy' for pdf-text; known: dpi,
+snapshot_max_height, snapshot_quality`. A key that is valid for one extractor
+and not another must fail only where it does not apply.
+
+**Acceptance.** The typo above exits 1 and names both the key and the valid
+ones; `--config dpi=300` still works on both the `vlm` and the text-layer path;
+`--config model=...` fails on `pdf-text` and passes on `vlm`. Tests for each
+branch, including a declaration-free extractor rejecting any key. The docs
+page's `ingest` row and `site/llms.txt` list the keys.
+
+**Size.** Two days.
+
+### 5. `backdraft show <token>`: the inverse of minting
+
+**Intent.** An agent handed a token — out of someone's artifact, a half-written
+draft, a colleague's message — cannot ask what it says. The gate mints tokens
+and `bind` resolves them, but only as part of binding a whole document, so
+there is no way to answer "what is `bd:t12-summary:p1.c4:410d`?" without
+reconstructing the slug and selector by hand and re-reading a whole page.
+`skills/backdraft-artifact/SKILL.md` names exactly this gap when it says only
+one check needs the outside world.
+
+**Shape.** A new command in `gate/cli.py` — `show <token> [<token> ...]` —
+because this is the gate showing source text and must mint what it shows,
+exactly as `read` and `search` do; an anchor shown here is an anchor the writer
+may cite, and `not_shown` stays true by construction. Parse with
+`kernel.tokens`, resolve through the same path `bind` uses rather than a second
+implementation of what a token means, and print the closed status set bind
+reports: `resolved` (locator + verbatim snippet), `drifted` (the snippet then
+and the snippet now), `unresolved`, `malformed`. Output follows the gate's
+line-oriented shape and ends with the usual bracketed next-step hint.
+
+**Acceptance.** In `demo/`, `backdraft show bd:t12-summary:p1.c1:c2e8` prints
+the snippet, and a subsequent `bind` of a document citing it reports `resolved`
+rather than `not_shown` — that is the test that proves it minted. A
+well-formed token naming nothing exits 1 saying so; a malformed one names the
+grammar. Several tokens in one invocation print in argument order. `README.md`,
+the docs page's command table, `site/llms.txt` and
+`skills/backdraft-artifact/SKILL.md` gain it.
+
+**Size.** Two days.
+
+### 6. Ingest finishes the list, then reports what it could not read
+
+**Intent.** `backdraft ingest a.md broken.pdf c.md` ingests `a.md`, fails on
+`broken.pdf`, and never attempts `c.md`. The registry is left half-built, the
+message names only the first failure, and nothing says which files landed and
+which were never tried — so an agent ingesting a folder must re-run and infer
+the state. This is the same warn-and-drop shape the page-snapshot capture
+already avoids: it collects failures, names them, and lets the rest of the run
+stand.
+
+**Shape.** `ingest` in `cli.py`. Move the per-file work inside a try that
+catches `BackdraftError` and records `(path, reason)` instead of propagating,
+so the loop always reaches the end of the list. After the loop, print one line
+per failure naming the file and the reason, grouped the way the snapshot note
+already groups by reason, and exit 1 if anything failed — the exit code is
+unchanged, only the coverage and the reporting improve. Re-ingest is idempotent
+for deterministic extractors, so re-running after a fix costs nothing, and the
+message should say that rather than leaving the agent to guess. Keep the guard
+in `cli_context` as the only place `BackdraftError` becomes an exit code:
+ingest catches per file and re-raises nothing, printing failures as data.
+
+**Acceptance.** The three-file example above ingests `a.md` and `c.md`, prints
+one failure line for `broken.pdf` naming why, and exits 1; `backdraft ls`
+afterwards shows both good documents. A run where every file fails still exits
+1 and names each. A run where none fail is byte-identical to today's output.
+Tests for all three.
+
+**Size.** One day.
+
 ## Parked
 
 Deliberately not queued, each with the reason, so picking one up starts from
 the objection rather than rediscovering it.
 
+- **Theming: sticky user preferences, drop-in themes** — a theme as a named
+  set of overrides for the CSS custom properties the stylesheet already
+  exposes, resolved `render --theme` > project > XDG user config > built-in.
+  Parked out of the Now queue on 2026-07-31 as the least core thing in it: by
+  its own definition it is display-only, it cannot touch a token, a record or
+  a verification affordance, and the queue's other work is what an agent hits
+  while doing real work. The objection to answer before it comes back is the
+  same one that parks the exhibits view — the artifact's single hardcoded
+  design is a deliberate strength, and a theme system's first effect is that
+  two artifacts of the same run no longer look alike, which costs a reader who
+  has learned to read one. Pick it up when someone outside the project asks
+  for it, and bring the reason with them.
 - **Exhibits view** — the evidence-first inversion. Risk: it grows the
   artifact and pollutes a design whose strength is restraint. Needs a
   deliberate design pass and a real audience before any code; not a
