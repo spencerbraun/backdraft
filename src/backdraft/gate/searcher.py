@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 from ..kernel.hashing import normalize
 
-from .reader import GateError
+from .reader import LIST_HINT, GateError
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -59,7 +59,7 @@ def search(
     Raises `GateError` if `slug` names no document.
     """
     if slug is not None and registry.document(slug) is None:
-        raise GateError(f"no such document: {slug!r}")
+        raise GateError(f"no such document: {slug!r}; {LIST_HINT}")
     hits = registry.search(query, slug=slug, limit=limit)
     _mint(registry, session, hits)
     return render_search(query, hits, slug=slug)

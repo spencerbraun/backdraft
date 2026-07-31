@@ -37,6 +37,7 @@ if TYPE_CHECKING:
 __all__ = [
     "GateError",
     "cells",
+    "LIST_HINT",
     "TOC_PREVIEW_CHARS",
     "Selection",
     "read",
@@ -50,6 +51,11 @@ __all__ = [
 class GateError(BackdraftError):
     """The gate cannot serve this read: unknown slug, unusable selector."""
 
+
+LIST_HINT = "run `backdraft read` to list what is ingested"
+"""Appended wherever a slug names nothing. An agent that guessed a slug has no
+way to discover the real one from the error alone, and would otherwise spend a
+turn finding out. Shared with `searcher.py` so both spellings stay one."""
 
 TOC_PREVIEW_CHARS = 120
 """How much of a page's text stands in for a missing summary (SPEC § Gate)."""
@@ -100,7 +106,7 @@ def select_pages(pages: Sequence[Page], selector: str) -> Selection:
             raise GateError(f"page range runs backwards: {selector!r}")
         numbers = tuple(number for number in range(first, last + 1) if number in known)
         if not numbers:
-            raise GateError(f"no such page: {selector!r}")
+            raise GateError(f"no such page: {selector!r}; {_what_exists(pages)}")
         return Selection(numbers=numbers, text=selector)
 
     if _BARE_NUMBER.fullmatch(selector) and int(selector) in known:
@@ -108,7 +114,21 @@ def select_pages(pages: Sequence[Page], selector: str) -> Selection:
         # nothing and is what a reader types by accident.
         return Selection(numbers=(int(selector),), text=f"p{selector}")
 
-    raise GateError(f"no page or sheet named {selector!r}")
+    raise GateError(f"no page or sheet named {selector!r}; {_what_exists(pages)}")
+
+
+def _what_exists(pages: Sequence[Page]) -> str:
+    """What the caller could have asked for. A selector that named nothing is
+    the one moment the answer is worth spending a line on, because otherwise
+    the next command is a second `read` just to find out."""
+    if not pages:
+        return "this document has no pages"
+    names = [page.name for page in pages if page.name]
+    if len(names) == len(pages):
+        return "sheets: " + ", ".join(names)
+    numbers = sorted(page.number for page in pages)
+    span = f"p{numbers[0]}" if len(numbers) == 1 else f"p{numbers[0]}-{numbers[-1]}"
+    return f"this document has {span}"
 
 
 def _fold(name: str) -> str:
@@ -566,7 +586,7 @@ def _mint(registry: Registry, session: str | None, anchor_ids: Sequence[int]) ->
 def _require_document(registry: Registry, slug: str) -> Document:
     document = registry.document(slug)
     if document is None:
-        raise GateError(f"no such document: {slug!r}")
+        raise GateError(f"no such document: {slug!r}; {LIST_HINT}")
     return document
 
 

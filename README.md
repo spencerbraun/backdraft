@@ -36,6 +36,7 @@ Markdown.
 $ backdraft init
 registry: /…/demo/.backdraft
 documents: 0
+… plus where settings live and what to do next
 
 $ backdraft ingest sources/t12-summary.pdf sources/underwriting-model.xlsx
 t12-summary  t12-summary.pdf  pdf  3 pages
@@ -105,7 +106,7 @@ $ backdraft bind memo.md --session s-bridgeview --check value-trace,overlap
 bound 15 claim(s), 16 citation(s) [frontwalk]
   resolved: 15
   unresolved: 1
-  overlap: partial 4, pass 11
+  overlap: pass 11, skip 4
   value-trace: pass 15
   ! unresolved: bd:t12-summary:p4.c1:1a2b
 wrote .backdraft/records/memo.backdraft.json

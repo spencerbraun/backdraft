@@ -353,6 +353,23 @@ def test_bad_selectors(fake_gate_registry: FakeDocumentRegistry, selector: str) 
         read(fake_gate_registry, "t12-audit", selector)
 
 
+def test_a_dead_selector_names_what_exists(fake_gate_registry: FakeDocumentRegistry) -> None:
+    """The error carries the answer to the question the caller would ask next,
+    so a wrong selector costs one command rather than two."""
+    with pytest.raises(GateError, match=r"this document has p1-3"):
+        read(fake_gate_registry, "t12-audit", "p9")
+    with pytest.raises(GateError, match=r"this document has p1-3"):
+        read(fake_gate_registry, "t12-audit", "nope")
+
+
+def test_a_dead_selector_on_a_workbook_names_the_sheets() -> None:
+    registry = FakeDocumentRegistry().add(
+        sheet_document("book", "book.xlsx", [("Rent Roll", ["h", "r"]), ("Assumptions", ["h", "r"])])
+    )
+    with pytest.raises(GateError, match=r"sheets: Rent Roll, Assumptions"):
+        read(registry, "book", "nope")
+
+
 def test_unknown_slug(fake_gate_registry: FakeDocumentRegistry) -> None:
     with pytest.raises(GateError):
         read(fake_gate_registry, "nope")

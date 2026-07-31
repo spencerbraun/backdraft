@@ -196,6 +196,30 @@ def test_help_lists_the_commands_w1_owns() -> None:
         assert command in result.stdout
 
 
+def test_ingest_help_names_every_extractor() -> None:
+    """The help is where a caller looks before guessing a name and getting an
+    error. A registered extractor missing from it is a doc that lies."""
+    from backdraft.extract import base
+
+    help_text = runner.invoke(cli.app, ["ingest", "--help"]).stdout
+    # Typer wraps the help column, so match on the un-wrapped run of words.
+    flattened = " ".join(help_text.split())
+    missing = [name for name in base.names() if name not in flattened]
+    assert missing == [], missing
+
+
+def test_every_command_summary_is_one_line() -> None:
+    """The command table is scannable only if each summary fits its row: typer
+    prints the docstring's whole first paragraph, so a two-line first sentence
+    silently doubles a row's height."""
+    over: list[str] = []
+    for command in cli.app.registered_commands:
+        summary = (command.callback.__doc__ or "").strip().split("\n\n")[0]
+        if len(" ".join(summary.split())) > 80:
+            over.append(command.callback.__name__)
+    assert over == [], over
+
+
 def test_a_missing_sub_app_degrades_silently() -> None:
     """A workstream that has not landed yet must not break the whole CLI."""
     assert cli._mount("backdraft.nothing.here.cli") is False

@@ -84,15 +84,22 @@ def test_read_closes_the_registry(runner: CliRunner, wired: FakeDocumentRegistry
 
 
 def test_unknown_slug_is_exit_1(runner: CliRunner, wired: FakeDocumentRegistry) -> None:
+    """Naming the listing command matters: an agent that guessed a slug cannot
+    recover the real one from the error otherwise."""
     result = runner.invoke(cli.app, ["read", "nope", "p1"])
     assert result.exit_code == 1
-    assert result.stderr.strip() == "backdraft: no such document: 'nope'"
+    assert result.stderr.strip() == (
+        "backdraft: no such document: 'nope'; "
+        "run `backdraft read` to list what is ingested"
+    )
 
 
 def test_unknown_page_is_exit_1(runner: CliRunner, wired: FakeDocumentRegistry) -> None:
     result = runner.invoke(cli.app, ["read", "t12-audit", "p9"])
     assert result.exit_code == 1
-    assert result.stderr.strip() == "backdraft: no such page: 'p9'"
+    assert result.stderr.strip() == (
+        "backdraft: no such page: 'p9'; this document has p1-3"
+    )
 
 
 def test_the_registry_is_closed_even_after_an_error(
@@ -127,7 +134,10 @@ def test_search_in_unknown_document_is_exit_1(
 ) -> None:
     result = runner.invoke(cli.app, ["search", "NOI", "--in", "nope"])
     assert result.exit_code == 1
-    assert result.stderr.strip() == "backdraft: no such document: 'nope'"
+    assert result.stderr.strip() == (
+        "backdraft: no such document: 'nope'; "
+        "run `backdraft read` to list what is ingested"
+    )
 
 
 # ---------------------------------------------------------------------------

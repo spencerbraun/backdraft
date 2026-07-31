@@ -105,9 +105,15 @@ def init(
 @app.command()
 def ingest(
     files: Annotated[list[Path], typer.Argument(help="Files to ingest.")],
-    extractor: Annotated[str, typer.Option("--extractor", help="Extractor name, or `auto`.")] = (
-        "auto"
-    ),
+    extractor: Annotated[
+        str,
+        typer.Option(
+            "--extractor",
+            help=(
+                "auto, or one of: vlm, pdf-text, xlsx, xls, csv, docx, pptx, image, text."
+            ),
+        ),
+    ] = "auto",
     slug: Annotated[
         str | None, typer.Option("--slug", help="Slug for a new document. One file only.")
     ] = None,
@@ -293,11 +299,12 @@ def clean(
         typer.Argument(help="Directory to tidy. Defaults to the current directory."),
     ] = None,
 ) -> None:
-    """Tidy a working directory: move stray records into `.backdraft/records/`
-    and delete leftover `.bound.md` projections.
+    """Tidy strays from older runs out of a working directory.
 
-    Everything removed or moved is regenerable with `backdraft bind`; artifacts
-    (`.backdraft.html`) and authored documents are never touched.
+    Moves loose records into `.backdraft/records/` and deletes leftover
+    `.bound.md` projections. Everything removed or moved is regenerable with
+    `backdraft bind`; artifacts (`.backdraft.html`) and authored documents are
+    never touched.
     """
     from .kernel.artifact import BOUND_SUFFIX, SIDECAR_SUFFIX, record_path
 

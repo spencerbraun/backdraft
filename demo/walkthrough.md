@@ -360,12 +360,15 @@ claim occurs at the cited location, across unit, scale and format differences. I
 is what makes `[a purchase price of $24.85 million](…assumptions!B10:964a)` pass
 against a cell whose snippet is the eight characters `24850000`.
 
-**`overlap: partial 4, pass 11`.** Word-overlap between claim and snippet,
+**`overlap: pass 11, skip 4`.** Word-overlap between claim and snippet,
 report-only by construction — it never returns `fail`, because a faithful summary
-can share almost no vocabulary with its source. The four `partial`s are the
-claims citing Excel cells, where the snippet is a bare number and the claim is a
-sentence. That is a signal, not a fault. The quoted claim in the memo is checked
-differently: a quotation is an exact-substring assertion, and it passes.
+can share almost no vocabulary with its source. The four `skip`s are the overlap
+check declining to measure wording against single-cell sources: those claims cite
+Excel cells, and a bare number is not a sentence, so the record says it declined
+instead of emitting a low score as though it meant something. Where it does
+measure and finds little it says `partial` — a signal, not a fault. The quoted
+claim in the memo is checked differently: a quotation is an exact-substring
+assertion, and it passes.
 
 Both checks are off by default. Out of the box, bind is pure provenance.
 
@@ -376,10 +379,6 @@ texts, and a cell window around every cited cell. It stays out of the working
 directory; the memo and the artifact are the only files you see. (A readable
 markdown projection with a `## References` section is available with
 `bind --bound` when you want one.)
-
-The four `skip` verdicts are the overlap check declining to measure wording
-against single-cell sources — a number is not a sentence, and the record says
-so instead of emitting noise.
 
 Here is what one claim looks like in the sidecar:
 
@@ -407,8 +406,8 @@ Here is what one claim looks like in the sidecar:
         },
         {
           "method": "overlap",
-          "status": "partial",
-          "detail": "0/6 claim tokens in snippet (ratio 0.00)"
+          "status": "skip",
+          "detail": "wording overlap does not apply to a single cell"
         }
       ]
     }
@@ -450,8 +449,10 @@ backdraft render memo.md --to html
 memo.backdraft.html
 ```
 
-[`memo.backdraft.html`](memo.backdraft.html) is one file, 64 KB, with no external
-request of any kind — no font, no stylesheet, no script that executes. Open it
+[`memo.backdraft.html`](memo.backdraft.html) is one file, 522 KB — most of it the
+embedded page images — with no external request of any kind: no font, no
+stylesheet, no script that executes. `bind --lean` skips the images and takes it
+to 126 KB, at the cost of the cited page being shown. Open it
 from `file://` with the network off. Hover or focus a claim to reveal its
 receipt: the verbatim snippet, the source slug and locator, the token, the full
 snippet hash, and a badge per verdict. Below the document body an **Unresolved**

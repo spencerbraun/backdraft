@@ -67,10 +67,17 @@ def bind(
     check: Annotated[
         str | None,
         typer.Option(
-            "--check", help="Verification methods to run, comma-separated. Default: none."
+            "--check",
+            help="Comma-separated: value-trace, overlap, recompute, entail. Default: none.",
         ),
     ] = None,
-    mode: Annotated[str, typer.Option("--mode", help="frontwalk | backfill")] = "frontwalk",
+    mode: Annotated[
+        str,
+        typer.Option(
+            "--mode",
+            help="frontwalk (citations already written) | backfill (also flag uncited claims).",
+        ),
+    ] = "frontwalk",
     lean: Annotated[
         bool,
         typer.Option("--lean", help="Skip page images in the artifact's evidence."),
@@ -124,7 +131,22 @@ def _print_report(report, doc: Path, *, bound: bool = False, record: Path | None
             typer.echo(f"  ! unmatched: {claim.text.strip()[:80]}")
     if bound:
         typer.echo(f"wrote {bound_path(doc)}")
-    typer.echo(f"wrote {record or sidecar_path(doc)}")
+    typer.echo(f"wrote {_as_typed(record or sidecar_path(doc))}")
+
+
+def _as_typed(path: Path) -> Path:
+    """A written path as the user would type it: relative to cwd where it sits
+    under cwd, absolute otherwise.
+
+    `render` prints the path it was handed and so is relative for free; the
+    record path is computed from the project root, so it arrives absolute and
+    has to be brought back. Same line, same shape, and no home directory in
+    output anyone pastes.
+    """
+    try:
+        return path.relative_to(Path.cwd().resolve())
+    except ValueError:
+        return path
 
 
 def _close(registry) -> None:  # noqa: ANN001

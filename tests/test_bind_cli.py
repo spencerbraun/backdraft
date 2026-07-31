@@ -129,6 +129,32 @@ def test_the_cli_writes_the_record_and_bound_is_opt_in(tmp_path, fake_bind_regis
     assert str(bound_path(doc)) in result.output
 
 
+def test_the_written_record_is_printed_as_the_user_would_type_it(
+    tmp_path, fake_bind_registry, monkeypatch
+) -> None:
+    """A path relative to cwd, matching `render`, so the line docs and skills
+    quote is the line the command prints — and no home directory in output
+    anyone pastes."""
+    fake_bind_registry.root = tmp_path
+    monkeypatch.chdir(tmp_path)
+    write(tmp_path, "prose only\n")
+    result = run("notes.md")
+    assert f"wrote {DIRECTORY}/records/notes.backdraft.json" in result.output
+
+
+def test_a_record_outside_cwd_stays_absolute(
+    tmp_path, fake_bind_registry, monkeypatch
+) -> None:
+    """Relativizing is a convenience, never a lie about where the file landed."""
+    fake_bind_registry.root = tmp_path
+    elsewhere = tmp_path / "work"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    doc = write(tmp_path, "prose only\n")
+    result = run(str(doc))
+    assert f"wrote {tmp_path.resolve()}/{DIRECTORY}/records/notes.backdraft.json" in result.output
+
+
 def test_verification_is_off_unless_check_is_given(tmp_path, fake_bind_registry) -> None:
     resolved = token(fake_bind_registry)
     fake_bind_registry.show("s1", resolved)
