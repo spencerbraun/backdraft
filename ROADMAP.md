@@ -32,32 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. Source card: contents resize with the card
-
-**Intent.** The artifact's source card is user-resizable (`resize:vertical`,
-`max-height:82vh` — assets.py) but its inner blocks hold their own fixed caps
-— the quote scroller is pinned at `15rem`, and the sheet grid and page image
-size themselves — so dragging the card taller yields whitespace, not more
-evidence. Resizing should mean seeing more.
-
-**Shape.** Make the card a flex column whose scrollable evidence region
-(quote / drift / sheet / page image) flexes to fill the card's height, with the
-header, source selector, and tabs as fixed rows. Audit every fixed
-`max-height` inside `.card` and convert to flex-driven sizing. The mobile
-card keeps `resize:none` and its current behavior. Python is the formatting
-authority and this is CSS/JS only, so no fmt-parity surface is touched; the
-minified asset budget should move only trivially.
-
-**Acceptance.** Dragging the card taller visibly grows the quote, sheet, and
-page-image viewports; dragging it short reintroduces inner scrolling rather
-than clipping the header or tabs. Verified against a real artifact (the demo)
-across the three evidence kinds, plus the mobile breakpoint. Node-side DOM
-test if cheap; otherwise the existing render tests plus a manual screenshot
-pass recorded in the PR.
-
-**Size.** One day.
-
-### 2. Theming: sticky user preferences, drop-in themes
+### 1. Theming: sticky user preferences, drop-in themes
 
 **Intent.** The artifact's look is currently one hardcoded design. Let a user
 set a theme once and have every artifact they render honor it, and let a theme
@@ -89,7 +64,7 @@ Docs page gains a short theming section with a sample theme file.
 **Size.** Two days — decision row and variable audit, then loader, bundled
 themes, docs.
 
-### 3. URL sources: capture and link back
+### 2. URL sources: capture and link back
 
 **Intent.** Diligence folders contain links, not just files. `backdraft ingest
 <url>` should fetch a page, snapshot it into the registry like any other
@@ -119,7 +94,7 @@ HTML served locally or loaded from disk); DESIGN.md row written; docs updated.
 **Size.** Two to three days — decision row and capture first, render linkage
 second.
 
-### 4. Bind's failure lines name the claim, not just the token
+### 3. Bind's failure lines name the claim, not just the token
 
 **Intent.** Exit 2 tells a calling agent that a citation did not resolve and
 prints the token: `! unresolved: bd:t12-summary:p4.c1:1a2b`. It does not say
@@ -152,7 +127,7 @@ Every doc that shows a bind report — `README.md`, `demo/walkthrough.md`,
 
 **Size.** One day.
 
-### 5. `--config` keys are declared, validated, and listed
+### 4. `--config` keys are declared, validated, and listed
 
 **Intent.** `backdraft ingest x.pdf --config dpy=300` exits 0, ingests, and
 does nothing about the typo. No output names the mistake, and nothing anywhere
@@ -182,7 +157,7 @@ page's `ingest` row and `site/llms.txt` list the keys.
 
 **Size.** Two days.
 
-### 6. `backdraft show <token>`: the inverse of minting
+### 5. `backdraft show <token>`: the inverse of minting
 
 **Intent.** An agent handed a token — out of someone's artifact, a half-written
 draft, a colleague's message — cannot ask what it says. The gate mints tokens
@@ -212,7 +187,7 @@ the docs page's command table, `site/llms.txt` and
 
 **Size.** Two days.
 
-### 7. Ingest finishes the list, then reports what it could not read
+### 6. Ingest finishes the list, then reports what it could not read
 
 **Intent.** `backdraft ingest a.md broken.pdf c.md` ingests `a.md`, fails on
 `broken.pdf`, and never attempts `c.md`. The registry is left half-built, the

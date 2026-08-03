@@ -169,6 +169,38 @@ a{color:inherit}
   padding:1.05rem 1.35rem 1.15rem;animation:rise .16s ease;
   resize:vertical;overflow:auto;min-height:12rem;max-height:82vh}
 @keyframes rise{from{opacity:0;transform:translateY(.35rem)}to{opacity:1;transform:none}}
+
+/* the card owns its height; its contents divide it. The header, the source
+   selector, the source line and the tabs are fixed rows — they are how you
+   know what you are looking at, so they never scroll away. Everything below
+   them is a viewport onto the evidence, and it takes whatever the fixed rows
+   left: drag the card taller and the evidence grows, drag it short and the
+   evidence scrolls inside itself. Nothing here may carry a fixed height —
+   that was the old bug, a quote pinned at 15rem inside a card twice as tall.
+   The two rows that are toggled — `.cite.on` and `.pane.on` — carry their own
+   share of this below, where `display` is decided. */
+.card{display:flex;flex-direction:column}
+/* an author `display` outranks the UA sheet's `[hidden]{display:none}`, so
+   the card has to hide itself once it declares one */
+.card[hidden]{display:none}
+.card>header,.card>.srccount,.card>.srcsel,.cite>.src,.cite>.alarm,
+.tabs{flex:0 0 auto}
+/* the quote, the drift diff and the record keep their own height, capped at a
+   share of the card rather than at a fixed rem: the cap tracks the drag, and
+   none of the three is ever clipped mid-line to make room for the evidence */
+.card .quote,.card .drift,.card .record{flex:0 0 auto;max-height:40%;overflow:auto}
+/* 5rem is a floor, not a size: the evidence is the point of the card and never
+   shrinks away to nothing, so at the card's minimum height it keeps this much
+   and the citation scrolls instead */
+.evidence{display:flex;flex-direction:column;flex:1 1 auto;min-height:5rem}
+.pagetext,.rawtext{flex:1 1 auto;min-height:0;overflow:auto}
+.cite>.pagetext,.cite>.rawtext{min-height:5rem}
+.grid{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+.grid .gridwrap{flex:1 1 auto;min-height:0}
+/* the page image is a picture at a fixed scale: the pane scrolls over it
+   rather than shrinking it past reading size */
+.plate:not(.grid){flex:0 0 auto}
+
 .card header{display:flex;align-items:baseline;justify-content:space-between;
   padding:0 0 .2rem}
 .cardno{font-family:var(--sans);font-size:.74rem;font-weight:600;color:var(--ink);
@@ -191,7 +223,7 @@ a{color:inherit}
 .srcsel button.on.pdf{border-bottom-color:#9E3B2F}
 
 .cite{display:none;padding:.15rem 0}
-.cite.on{display:block}
+.cite.on{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;overflow:auto}
 .src{margin:.2rem 0 .6rem;display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap}
 .src .doc{font-weight:600;color:var(--ink);font-size:.88rem}
 .src .loc{font-size:.72rem;color:var(--faint)}
@@ -199,8 +231,7 @@ a{color:inherit}
 
 .quote{margin:.35rem 0 .75rem;padding:.05rem 0 .05rem .9rem;
   border-left:2px solid var(--hairline-strong);font-family:var(--serif);
-  font-size:.9rem;line-height:1.55;color:var(--ink);
-  max-height:15rem;overflow-y:auto}
+  font-size:.9rem;line-height:1.55;color:var(--ink);overflow-y:auto}
 .quote p{margin:0 0 .5rem}.quote p:last-child{margin:0}
 .quote h1,.quote h2,.quote h3,.quote h4{font-family:var(--sans);font-size:.64rem;
   letter-spacing:.1em;text-transform:uppercase;color:var(--faint);
@@ -228,7 +259,7 @@ a{color:inherit}
 .tab:hover{color:var(--ink)}
 .tab.on{color:var(--ink);border-bottom-color:var(--ink)}
 .pane{display:none}
-.pane.on{display:block}
+.pane.on{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;overflow:auto}
 .pagetext,.rawtext{border:1px solid var(--hairline);
   border-radius:2px;padding:.7rem .85rem;background:var(--paper)}
 .pagetext{font-family:var(--serif);font-size:.86rem;line-height:1.55}
@@ -259,7 +290,7 @@ a{color:inherit}
 
 /* the excel experience */
 .grid{cursor:pointer}
-.grid .gridwrap{overflow-x:auto;border:1px solid var(--excel-line);border-radius:2px;
+.grid .gridwrap{overflow:auto;border:1px solid var(--excel-line);border-radius:2px;
   background:var(--paper)}
 .grid table,.sheettable{border-collapse:separate;border-spacing:0;
   font-family:var(--sans);font-size:.72rem;line-height:1.6;min-width:100%;
@@ -275,7 +306,11 @@ a{color:inherit}
 .grid td.num,.sheettable td.num{text-align:right}
 .grid td.cited,.sheettable td.cited{background:var(--sel-soft);
   box-shadow:inset 0 0 0 2px var(--sel);font-weight:600}
-.grid tbody th{position:sticky;left:0}
+/* both sheet views scroll under their own headers — the card's window since
+   it flexes with the card, the overlay's since it always did */
+.grid thead th,.sheettable thead th{position:sticky;top:0;z-index:2}
+.grid tbody th,.sheettable tbody th{position:sticky;left:0;z-index:1}
+.grid thead th:first-child,.sheettable thead th:first-child{left:0;z-index:3}
 tr.citedrow th{background:var(--sel-soft);color:var(--sel);font-weight:600}
 th.citedcol{background:var(--sel-soft);color:var(--sel);font-weight:600}
 
@@ -312,7 +347,9 @@ th.citedcol{background:var(--sel-soft);color:var(--sel);font-weight:600}
 .backref{flex:0 0 1.4rem;font-family:var(--mono);font-size:.72rem;
   color:var(--faint);text-decoration:none;text-align:right;padding-top:.15rem}
 .backref:hover{color:var(--ink)}
-.note .quote{font-size:.84rem}
+/* the notes are a page, not a viewport: a long quote gets a fixed cap here,
+   the one place in the artifact where nothing is resizable */
+.note .quote{font-size:.84rem;max-height:15rem}
 .colophon{margin-top:2.8rem;color:var(--muted);font-size:.72rem;
   line-height:1.55;display:flex;align-items:center;gap:.45rem}
 .bd-mark{flex:0 0 auto}
@@ -331,9 +368,7 @@ th.citedcol{background:var(--sel-soft);color:var(--sel);font-weight:600}
   padding:.7rem 1rem;border-bottom:1px solid var(--hairline)}
 .sheetbox header .close{font-size:1.2rem}
 .sheetscroll{overflow:auto;flex:1;background:var(--paper)}
-.sheettable thead th{position:sticky;top:0;z-index:2}
-.sheettable tbody th{position:sticky;left:0;z-index:1;min-width:2.6rem}
-.sheettable thead th:first-child{left:0;z-index:3}
+.sheettable tbody th{min-width:2.6rem}
 .sheettable td{max-width:18rem;cursor:cell}
 .sheettable td.sel{box-shadow:inset 0 0 0 2px var(--ink)}
 .sheettable td.cited.sel{box-shadow:inset 0 0 0 2px var(--ink)}
@@ -349,8 +384,12 @@ th.citedcol{background:var(--sel-soft);color:var(--sel);font-weight:600}
   .railcol{background:none}
   .rail{position:static;max-height:none;padding:0}
   .resting{display:none}
+  /* the phone card is not resizable, so there is no drag for the evidence to
+     follow: it goes back to one column that scrolls whole, quote cap and all */
   .card{position:fixed;left:50%;transform:translateX(-50%);bottom:1rem;z-index:80;
-    width:min(30rem,calc(100vw - 2rem));max-height:72vh;overflow-y:auto;resize:none}
+    width:min(30rem,calc(100vw - 2rem));max-height:72vh;overflow:auto;resize:none;
+    display:block}
+  .card .quote{max-height:15rem}
   @keyframes rise{from{opacity:0;transform:translate(-50%,.5rem)}
     to{opacity:1;transform:translate(-50%,0)}}
   .overlay{padding:.6rem}
