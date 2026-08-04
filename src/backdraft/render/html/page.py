@@ -71,31 +71,14 @@ def render(
     cards = "\n".join(_card(p, docs, evidence, page_store) for p in placements)
     notes = "\n".join(_note(p, docs) for p in placements)
 
-    failures = [
-        (p, c)
-        for p in placements
-        for c in p.claim.citations
-        if c.status is not CitationStatus.RESOLVED
-    ]
-    unmatched = [p for p in placements if p.claim.unmatched or not p.claim.citations]
-    n_cites = sum(len(p.claim.citations) for p in placements)
-
+    # NOTE: the masthead carries no failure count. Failure still speaks, but in
+    # context — the wavy mark on the claim it belongs to, and that claim's note
+    # with the reason — rather than as a headline a reader meets before the
+    # first sentence and cannot act on. See the DESIGN row of 2026-08-04.
     heading = title or _title(source, report)
-    subtitle_html = f'<p class="subtitle">{_esc(subtitle)}</p>' if subtitle else ""
-    alarm_bits: list[str] = []
-    if failures:
-        alarm_bits.append(
-            f"{len(failures)} of {n_cites} citations could not be traced to a source"
-        )
-    if unmatched:
-        alarm_bits.append(f"{len(unmatched)} claims carry no citation")
-    if orphans:
-        alarm_bits.append(f"{len(orphans)} recorded claims are not in this document")
-    alarm_html = (
-        f'<p class="alarmline">{_esc("; ".join(alarm_bits))} &mdash; see the notes.</p>'
-        if alarm_bits
-        else ""
-    )
+    # the newline belongs to the subtitle, not the template: without it a
+    # document that has no subtitle leaves a blank line inside the masthead
+    subtitle_html = f'\n<p class="subtitle">{_esc(subtitle)}</p>' if subtitle else ""
 
     overrides = theme.css() if theme is not None else ""
     return PAGE.format(
@@ -104,7 +87,6 @@ def render(
         css=f"{STYLESHEET_MIN}\n{overrides}" if overrides else STYLESHEET_MIN,
         js=SCRIPT_MIN,
         subtitle=subtitle_html,
-        alarm=alarm_html,
         body=body,
         cards=cards,
         notes=notes,
@@ -172,8 +154,7 @@ PAGE = """<!doctype html>
 <div class="frame">
 <div class="pagecol">
 <header class="masthead">
-<h1>{title}</h1>
-{subtitle}{alarm}
+<h1>{title}</h1>{subtitle}
 </header>
 <main class="doc">
 {body}

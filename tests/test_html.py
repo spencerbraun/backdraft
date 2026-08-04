@@ -6,7 +6,7 @@ never fetch anything, hide a failure, or lose a claim.
 
 The v2 doctrine they pin (DESIGN.md, 2026-07-28): success is silent — a clean
 artifact says nothing about citations on its face; failure speaks in one plain
-masthead line and in the notes. The load-bearing constraint is no *network*,
+mark on the claim itself and in the notes. The load-bearing constraint is no *network*,
 enforced by CSP — inline behavior script is allowed as progressive enhancement.
 """
 
@@ -30,6 +30,8 @@ from backdraft.kernel.model import (
 )
 from backdraft.kernel.tokens import parse_locator
 from backdraft.render import html, sidecar
+from backdraft.render.html.text import worst_status
+from backdraft.render.placement import locate
 
 ISLAND_RE = re.compile(
     r'<script type="application/json" id="backdraft-artifact">\n(?P<payload>.*?)\n</script>',
@@ -177,10 +179,29 @@ def test_drift_renders_both_snippets_as_a_diff(demo_doc: str, demo: BindReport) 
 # ---- failures speak; success is silent --------------------------------------
 
 
-def test_failures_are_announced_on_the_masthead(demo_doc: str, demo: BindReport) -> None:
+def test_a_failed_claim_is_marked_where_it_stands(demo_doc: str, demo: BindReport) -> None:
+    """Failure speaks at the claim, not above the document. The mark is the
+    whole of its showing in the body, so it has to be on every failed claim."""
     page = html.render(demo_doc, demo)
-    assert 'class="alarmline"' in page
-    assert "could not be traced to a source" in page
+    flagged = {
+        number
+        for number, placement in enumerate(locate(demo_doc, demo.claims), start=1)
+        if placement.placed
+        and worst_status(placement.claim) is not CitationStatus.RESOLVED
+    }
+    assert flagged, "the demo report is supposed to carry failures"
+    for number in flagged:
+        assert f'<a class="claim flagged" id="claim-{number}"' in page
+
+
+def test_the_masthead_never_summarises_failures(demo_doc: str, demo: BindReport) -> None:
+    """The removed line, pinned shut: a count above the first sentence is the
+    one thing about a failed citation a reader cannot act on (DESIGN 2026-08-04).
+    `demo` carries failures, so a summary would appear here if one existed."""
+    masthead = html.render(demo_doc, demo).split('class="masthead"')[1].split("</header>")[0]
+    assert "citation" not in masthead.lower()
+    assert "could not be traced" not in masthead
+    assert "alarmline" not in html.render(demo_doc, demo)
 
 
 def test_every_failure_is_in_the_notes(demo_doc: str, demo: BindReport) -> None:
@@ -218,14 +239,20 @@ def test_success_is_silent(demo_doc: str) -> None:
         ),
     )
     page = html.render(demo_doc, report)
-    assert 'class="alarmline"' not in page
     masthead = page.split('class="masthead"')[1].split("</header>")[0]
     assert "citation" not in masthead.lower()
+    assert 'class="claim flagged"' not in page
 
 
 def test_unmatched_claims_are_visible(backfill_doc: str, backfill: BindReport) -> None:
+    """An unmatched claim has no citation to rank, so it could quietly have
+    ranked `resolved` and lost its only mark when the masthead line went."""
     page = html.render(backfill_doc, backfill)
-    assert "carry no citation" in page or "carries no citation" in page
+    placements = [p for p in locate(backfill_doc, backfill.claims) if p.placed]
+    unmatched = [p for p in placements if p.claim.unmatched or not p.claim.citations]
+    assert unmatched, "the backfill report is supposed to carry an unmatched claim"
+    for placement in unmatched:
+        assert f'<a class="claim flagged" id="claim-{placement.number}"' in page
 
 
 def test_a_claim_absent_from_the_document_is_kept_in_the_notes(backfill: BindReport) -> None:

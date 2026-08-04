@@ -248,11 +248,21 @@ means, and each is testable:
    quote (or the cell grid / page evidence that carries it), the source, and —
    in a disclosure layer — its token, its `snippet_sha256`, and each verdict
    in plain language. A `drifted` citation renders both snippets as a diff.
-6. **Success is silent; failure speaks.** A fully-resolved artifact says
-   nothing about citations on its face. When any citation is not `resolved` or
-   any claim is `unmatched`, the masthead announces it in one plain sentence,
-   the affected claims are visibly marked, and every failure appears in the
-   Notes with its reason. Nothing is warned about and dropped.
+6. **Success is silent; failure speaks in place.** A fully-resolved artifact
+   says nothing about citations on its face. When a citation is not `resolved`
+   or a claim is `unmatched`, the claim carrying it MUST be visibly marked
+   where it stands in the document, and the failure MUST appear in the Notes
+   with its reason. A claim not found in the document body is kept in the Notes
+   (see 4), which is the whole of its showing. Nothing is warned about and
+   dropped.
+
+   Deliberately **not** required: a summary of failures in the masthead or
+   anywhere else above the document. A count a reader meets before the first
+   sentence — *"1 of 16 citations could not be traced"* — cannot be acted on,
+   because whether that one matters is a question only the claim itself
+   answers. Producers MUST NOT gate on this, and a producer that adds such a
+   summary is still conforming; the requirement is that failure is impossible
+   to miss *at the claim*, not that it is announced first.
 7. **Print-aware, light-first, fixed at render.** The artifact is a paper
    document: it renders light, carries a print stylesheet, and never responds
    to the reader's environment — no `prefers-color-scheme` branch, no stored

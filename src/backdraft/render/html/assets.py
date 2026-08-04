@@ -116,8 +116,6 @@ a{color:inherit}
 .masthead{margin:0 0 3rem;text-align:center}
 .masthead h1{font-size:1.85rem;line-height:1.35;margin:0 0 .55rem;font-weight:600}
 .subtitle{font-family:var(--serif);font-size:.95rem;color:var(--muted);margin:0}
-.alarmline{font-family:var(--sans);font-size:.78rem;color:var(--alarm);
-  margin:.6rem 0 0}
 
 /* ---- the document ---- */
 .doc h1{display:none}
@@ -128,10 +126,9 @@ a{color:inherit}
    are furniture. h4 and below share one step and go muted, so nesting reads
    without inventing four sizes nobody asked for. Unstyled is the bug this
    replaces: the markdown renderer emits h1-h6 and only two had a rule, so a
-   memo with `### ` fell to the browser's bold-Times default mid-page. */
-/* the sizes bracket the body rather than continuing down from h2: body is 17px
-   and a rem is 16, so a plain 1rem heading lands *under* the text it heads. h3
-   sits a hair above the body, h4 and below a hair under it and muted. */
+   memo with `### ` fell to the browser's bold-Times default mid-page. The sizes
+   bracket the body rather than continuing down from h2 — body is 17px and a rem
+   is 16, so a plain 1rem heading lands *under* the text it heads. */
 .doc h3{font-family:var(--serif);font-size:1.08rem;font-weight:600;
   margin:1.7rem 0 .5rem}
 .doc h4,.doc h5,.doc h6{font-family:var(--serif);font-size:1rem;font-weight:600;

@@ -5,8 +5,11 @@ Designed for two readers in three disclosure layers (DESIGN.md, 2026-07-28):
 
 * **The document.** Editorial typography on plain paper; claims wear a faint
   underline and a small numbered mark. **Success is silent** — a fully-resolved
-  artifact says nothing about citations on its face; failures earn one plain
-  sentence under the title and a wavy underline on their claims.
+  artifact says nothing about citations on its face — **and failure speaks in
+  place**: a failed claim wears a wavy alarm-coloured underline where it stands,
+  and its note carries the reason. Nothing is summarised above the document
+  (DESIGN.md, 2026-08-04): a count met before the first sentence is the one
+  thing about a failed citation a reader cannot act on.
 * **The footnote.** Click a claim: its reference card opens in the evidence
   rail — the source's words rendered as prose, then the source itself: the
   actual page image, or the cited cell highlighted in a spreadsheet window that
