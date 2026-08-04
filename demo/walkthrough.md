@@ -482,6 +482,14 @@ Put one at `~/.config/backdraft/theme.toml` and every artifact you render, in
 any project, honors it with no flag. It is display only — the tokens, receipts
 and record above are untouched, and the artifact still fetches nothing.
 
+`backdraft theme list` names the bundled themes and says which one is in effect
+here; `backdraft theme show default` prints the built-in look as a commented
+file, so redirecting it is how you start your own:
+
+```bash
+backdraft theme show default > ~/.config/backdraft/theme.toml
+```
+
 ## 10. Fixing the failure
 
 The memo's broken token was a typo for a real anchor. Find it the same way you

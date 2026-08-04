@@ -62,6 +62,7 @@ backdraft bind memo.md --check value-trace,overlap
 backdraft render memo.md --to html          # -> memo.backdraft.html
 # Look: --theme <default|press|slate|file.toml>, else .backdraft/theme.toml
 # then ~/.config/backdraft/theme.toml. Display only; never a citation concern.
+# `backdraft theme list` / `theme show <name>` if the user asks about looks.
 
 ## Exit codes (bind)
 

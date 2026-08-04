@@ -51,9 +51,11 @@ __all__ = [
     "HEADING_SELECTOR",
     "Theme",
     "ThemeError",
+    "active",
     "bundled_names",
     "load",
     "loads",
+    "locate",
     "resolve",
     "search_paths",
     "user_config_dir",
@@ -320,6 +322,38 @@ def search_paths(project_root: Path | None = None) -> list[Path]:
     return paths
 
 
+def active(project_root: Path | None = None) -> Path | None:
+    """The search-path file an unflagged render would use, or `None`.
+
+    Separate from `resolve` so `backdraft theme list` can name the file that is
+    in effect without loading it — "which theme am I getting?" has an answer
+    even when that file is the one that fails to parse.
+    """
+    for path in search_paths(project_root):
+        if path.is_file():
+            return path
+    return None
+
+
+def locate(requested: str) -> Path:
+    """The file a `--theme` argument names: a bundled theme, or a path.
+
+    A bare word wins as a bundled name; anything carrying a separator or a
+    `.toml` suffix is a path, so a `slate.toml` in the working directory stays
+    reachable without shadowing the bundled `slate`.
+    """
+    candidate = BUNDLED / f"{requested}.toml"
+    if "/" not in requested and not requested.endswith(".toml") and candidate.is_file():
+        return candidate
+    path = Path(requested).expanduser()
+    if not path.is_file():
+        raise ThemeError(
+            f"no theme {requested!r}: not a file, and not one of the bundled themes "
+            f"({', '.join(bundled_names())})"
+        )
+    return path
+
+
 def resolve(requested: str | None = None, *, project_root: Path | None = None) -> Theme | None:
     """The theme this render uses, or `None` for the built-in look.
 
@@ -328,21 +362,6 @@ def resolve(requested: str | None = None, *, project_root: Path | None = None) -
     keeps an unthemed artifact byte-identical to one built before themes existed.
     """
     if requested is not None:
-        return _named_or_path(requested)
-    for path in search_paths(project_root):
-        if path.is_file():
-            return load(path)
-    return None
-
-
-def _named_or_path(requested: str) -> Theme:
-    candidate = BUNDLED / f"{requested}.toml"
-    if "/" not in requested and not requested.endswith(".toml") and candidate.is_file():
-        return load(candidate)
-    path = Path(requested).expanduser()
-    if not path.is_file():
-        raise ThemeError(
-            f"no theme {requested!r}: not a file, and not one of the bundled themes "
-            f"({', '.join(bundled_names())})"
-        )
-    return load(path)
+        return load(locate(requested))
+    found = active(project_root)
+    return load(found) if found is not None else None

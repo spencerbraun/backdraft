@@ -8,13 +8,16 @@ Mounted by the top-level CLI as `app`, per SPEC Addendum B:
 
     from backdraft.render import cli as render_cli
     app.registered_commands.extend(render_cli.app.registered_commands)
+    app.registered_groups.extend(render_cli.app.registered_groups)
 
-which puts this module's one command at `backdraft render <doc.md>`.
+which puts `render <doc.md>` and the `theme` group at the top level. Both lines
+are load-bearing: commands and groups are separate registries on a typer app, so
+mounting only the first would silently drop `theme list` / `theme show`.
 
-NOTE: typer collapses a single-command app into a bare command, so invoking this
-module's `app` on its own takes the document as its first argument and does not
-want the word `render`. The command name only exists once it is mounted next to
-the top level's other commands.
+NOTE: this module's `app` is not meant to be invoked on its own. The command
+names only exist once it is mounted next to the top level's others — and typer
+collapses a single-command app into a bare command, which is what `app` was
+before the `theme` group joined `render` here.
 """
 
 from __future__ import annotations
@@ -34,9 +37,11 @@ from ..kernel.artifact import (
 )
 from . import footnotes, html, sidecar, theme as theming
 
-__all__ = ["app", "Target"]
+__all__ = ["app", "theme_app", "Target"]
 
 app = typer.Typer(help="Render a bound document as a self-contained artifact.")
+theme_app = typer.Typer(help="Inspect the artifact's themes.")
+app.add_typer(theme_app, name="theme")
 
 
 class Target(StrEnum):
@@ -130,3 +135,50 @@ def render(
     target = out or doc.with_name(doc.stem + _SUFFIX[to])
     target.write_text(text, encoding="utf-8")
     typer.secho(str(target), fg=typer.colors.GREEN)
+
+
+@theme_app.command("list")
+def theme_list() -> None:
+    """List the bundled themes and name the one a render here would use.
+
+    The second half is the point: precedence has four rungs, so "which theme am
+    I getting?" is a real question, and the answer is a file path or the
+    built-in look — never a guess.
+    """
+    with guard():
+        for name in theming.bundled_names():
+            typer.echo(name)
+        found = theming.active(find_root())
+        typer.echo("")
+        typer.echo(f"in effect here: {found if found is not None else 'the built-in look'}")
+        # NOTE: the hint has to know whether a theme is already in effect —
+        # telling someone to redirect `show default` at a path that is currently
+        # theirs is telling them to overwrite it.
+        typer.echo(
+            f"[Read it: backdraft theme show {found}]"
+            if found is not None
+            else (
+                "[Start your own: backdraft theme show default > "
+                f"{theming.user_config_dir() / theming.FILENAME}]"
+            )
+        )
+
+
+@theme_app.command("show")
+def theme_show(
+    name: Annotated[
+        str,
+        typer.Argument(metavar="NAME|FILE", help="A bundled theme, or a theme file."),
+    ],
+) -> None:
+    """Print a theme file, validated, to stdout.
+
+    Redirecting `show default` writes a fully commented starting point, since
+    the bundled default states every key with what it paints. Pointing it at a
+    file of your own checks that file: it prints only what `render` would
+    accept, so it doubles as the way to test a theme without rendering anything.
+    """
+    with guard():
+        path = theming.locate(name)
+        theming.load(path)
+        sys.stdout.write(path.read_text(encoding="utf-8"))

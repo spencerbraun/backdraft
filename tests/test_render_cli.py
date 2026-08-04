@@ -37,6 +37,8 @@ def _mounted() -> typer.Typer:
         """Stand-in for W1's own commands."""
 
     root.registered_commands.extend(render_app.registered_commands)
+    # groups are a separate registry: without this line `theme list` is missing
+    root.registered_groups.extend(render_app.registered_groups)
     return root
 
 
@@ -228,6 +230,73 @@ def test_a_configured_theme_is_ignored_by_the_unstyled_targets(
     result = runner.invoke(app, ["render", str(bound), "--to", "footnotes"])
     assert result.exit_code == 0, result.output
     assert "#BBBBBB" not in bound.with_name("memo.footnotes.md").read_text()
+
+
+# ---- `backdraft theme` ------------------------------------------------------
+
+
+def test_theme_list_names_the_bundled_themes() -> None:
+    result = runner.invoke(app, ["theme", "list"])
+    assert result.exit_code == 0, result.output
+    assert result.output.splitlines()[:3] == ["default", "press", "slate"]
+
+
+def test_theme_list_says_which_one_is_in_effect(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["theme", "list"])
+    assert "in effect here: the built-in look" in result.output
+    assert "Start your own" in result.output
+
+    config = tmp_path / "xdg" / "backdraft"
+    config.mkdir(parents=True)
+    (config / "theme.toml").write_text('[colors]\nink = "#AAAAAA"\n', encoding="utf-8")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+
+    result = runner.invoke(app, ["theme", "list"])
+    assert f"in effect here: {config / 'theme.toml'}" in result.output
+    # the bootstrap hint would name the file that is already theirs
+    assert "Start your own" not in result.output
+    assert "Read it:" in result.output
+
+
+def test_theme_show_prints_the_file_verbatim() -> None:
+    result = runner.invoke(app, ["theme", "show", "press"])
+    assert result.exit_code == 0, result.output
+    from backdraft.render import theme as theming
+
+    assert result.stdout == (theming.BUNDLED / "press.toml").read_text(encoding="utf-8")
+
+
+def test_theme_show_bootstraps_a_working_theme(
+    bound: pathlib.Path, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The whole point of `show`: its output is a theme file that renders."""
+    config = tmp_path / "xdg" / "backdraft"
+    config.mkdir(parents=True)
+    written = config / "theme.toml"
+    written.write_text(runner.invoke(app, ["theme", "show", "default"]).stdout)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+
+    result = runner.invoke(app, ["render", str(bound)])
+    assert result.exit_code == 0, result.output
+    assert "--ink:#282828" in bound.with_name("memo.backdraft.html").read_text()
+
+
+def test_theme_show_validates_a_file_of_your_own(tmp_path: pathlib.Path) -> None:
+    """`show <file>` is also the way to check a theme without rendering."""
+    mine = tmp_path / "mine.toml"
+    mine.write_text('[colors]\ninkk = "#111"\n', encoding="utf-8")
+    result = runner.invoke(app, ["theme", "show", str(mine)])
+    assert result.exit_code == 1
+    assert "unknown color 'inkk'" in result.output
+
+
+def test_theme_show_of_nothing_lists_the_bundled_ones() -> None:
+    result = runner.invoke(app, ["theme", "show", "dusk"])
+    assert result.exit_code == 1
+    assert "default, press, slate" in result.output
 
 
 def test_renders_with_the_registry_deleted(

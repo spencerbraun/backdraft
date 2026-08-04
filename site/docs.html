@@ -220,6 +220,7 @@ skill</a> imposes the gate, and you receive the artifact.</div>
 <tr><td><code>session start|show</code></td><td>Ledger sessions; export <code>BACKDRAFT_SESSION</code> to enable <code>not_shown</code> detection.</td></tr>
 <tr><td><code>bind &lt;doc.md&gt;</code></td><td>Resolve every citation, run <code>--check</code> verifiers, assemble evidence, write the record. <code>--session</code>, <code>--mode frontwalk|backfill</code>, <code>--lean</code> (skip page images), <code>--bound</code> (also write the markdown projection).</td></tr>
 <tr><td><code>render &lt;doc.md&gt;</code></td><td>The artifact. <code>--to html|footnotes|json</code>, <code>-o</code>, <code>--theme</code> (see <a href="#theming">Theming</a>).</td></tr>
+<tr><td><code>theme list|show</code></td><td>List the bundled themes and which one is in effect; print one (validated) to stdout. See <a href="#theming">Theming</a>.</td></tr>
 <tr><td><code>clean [dir]</code></td><td>Tidy a working directory: relocate stray records, remove leftover projections. Never touches authored files or artifacts.</td></tr>
 <tr><td><code>export</code></td><td>The whole registry as JSON.</td></tr>
 </table>
@@ -317,7 +318,12 @@ family = "sans"          <span class="dim"># serif|sans|mono, or a stack of its 
 case = "small-caps"      <span class="dim"># none|uppercase|lowercase|small-caps</span>
 weight = 600             <span class="dim"># 100–900</span>
 tracking = ".04em"</pre>
-<p>The full list of color keys is
+<p>You do not have to hunt for a starting file &mdash; the CLI hands you one,
+fully commented, with every key and what it paints:</p>
+<pre>backdraft theme list                 <span class="dim"># the bundled ones, and which is in effect</span>
+backdraft theme show default &gt; ~/.config/backdraft/theme.toml
+backdraft theme show ./mine.toml     <span class="dim"># validates it; prints only what render accepts</span></pre>
+<p>That same list of color keys is
 <a href="https://github.com/spencerbraun/backdraft/blob/main/src/backdraft/render/themes/default.toml">
 <code>themes/default.toml</code></a>, which writes out the built-in look and is
 the file to copy. Two things worth knowing: <code>serif</code>,

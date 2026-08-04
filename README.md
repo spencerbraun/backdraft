@@ -141,10 +141,21 @@ A theme is a small TOML file naming colors, font stacks and heading treatment.
 Drop one at `~/.config/backdraft/theme.toml` and every artifact you render, in
 any project, honors it without a flag; `.backdraft/theme.toml` overrides that
 for one project, and `--theme` overrides both. Themes are display only — they
-never touch a token, a receipt or the record. See
-[the docs](https://backdraft.dev/docs.html#theming) for the keys, and
-`src/backdraft/render/themes/default.toml` for a sample file that lists all of
-them.
+never touch a token, a receipt or the record.
+
+```console
+$ backdraft theme list
+default
+press
+slate
+
+in effect here: the built-in look
+[Start your own: backdraft theme show default > /Users/you/.config/backdraft/theme.toml]
+```
+
+`theme show` prints a validated file, so redirecting it writes a fully
+commented starting point with every key and what it paints — and pointing it
+at a file of your own checks that file without rendering anything.
 
 The full version of this, with every command and every output:
 [`demo/walkthrough.md`](demo/walkthrough.md). The artifact it produces is checked

@@ -275,7 +275,7 @@ All switches **default off** (`--check` opts in). Verdicts are recorded evidence
 
 - `render <authored.md> --to html` → single self-contained file: the bound doc, click/hover per claim → receipt card (quote, doc, locator, hashes, verdicts, drift diff if any), unresolved list rendered as a visible section, embedded JSON island with the full sidecar + `$format` string + legend (subtext pattern: the artifact teaches its own decoding). No external requests; no page images in v0.
 - `--to footnotes` → plain markdown projection. `--to json` → sidecar alone.
-- `--theme <name|file>` restyles the html artifact — a TOML file of colors, font stacks and heading treatment, resolved by `render/theme.py` into one CSS block emitted *after* the stylesheet (so an unthemed render is byte-identical to one from before themes existed). Precedence: `--theme` > project `.backdraft/theme.toml` > XDG `~/.config/backdraft/theme.toml` > built-in. Display only: no token, receipt or record moves, and layout is outside the allowlist.
+- `--theme <name|file>` restyles the html artifact — a TOML file of colors, font stacks and heading treatment, resolved by `render/theme.py` into one CSS block emitted *after* the stylesheet (so an unthemed render is byte-identical to one from before themes existed). Precedence: `--theme` > project `.backdraft/theme.toml` > XDG `~/.config/backdraft/theme.toml` > built-in. `backdraft theme list` names the bundled themes and which file is in effect; `theme show <name|file>` prints one, validated, so redirecting `show default` bootstraps a commented starting file and `show ./mine.toml` lints one. Display only: no token, receipt or record moves, and layout is outside the allowlist.
 - Artifact format string: `backdraft/artifact-v1` (prose spec in spec/artifact.md).
 
 ## CLI (cli.py — typer)
@@ -287,6 +287,7 @@ backdraft ls | backdraft read ...   # gate, above
 backdraft search "<query>" [--in slug]
 backdraft bind <doc.md> [--session S] [--check ...] [--mode ...]
 backdraft render <doc.md> [--to html|footnotes|json] [-o out] [--theme name|file]
+backdraft theme [list|show <name|file>]
 backdraft export [--out registry.json]
 backdraft session [start|show] 
 ```
