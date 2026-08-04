@@ -32,39 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. Theming: sticky user preferences, drop-in themes
-
-**Intent.** The artifact's look is currently one hardcoded design. Let a user
-set a theme once and have every artifact they render honor it, and let a theme
-be a small file someone can drop in — fonts, colors, heading treatment at
-minimum.
-
-**Shape.** Two parts, in order:
-
-- *Decision row first.* A theme is a named set of overrides for the CSS custom
-  properties the stylesheet already exposes (`--paper`, `--ink`, `--sel`, the
-  font stacks) plus a bounded set of typographic choices (heading family/case,
-  maybe rule weight). A theme may not change layout, structure, or any
-  verification affordance — display only, tokens and records untouched.
-  Settle the file format (a flat TOML of variable names, or a raw CSS-variables
-  block) and write the DESIGN.md row before code.
-- *Then the loader.* Precedence: `render --theme <file-or-name>` >
-  project `.backdraft/theme.*` > user-wide config (XDG,
-  `~/.config/backdraft/theme.*`) > built-in default. The user-wide file is
-  what makes preferences stick across projects. Bundled themes (the default
-  plus one or two alternates) prove the format; the resolved theme is baked
-  into the artifact at render time so the file stays self-contained.
-
-**Acceptance.** Rendering with no config is byte-stable against today's
-output. A theme file in the XDG location changes fonts/colors/headers on every
-subsequent render in any project without flags; `--theme` overrides it; a
-malformed theme fails with a clear message, never a half-styled artifact.
-Docs page gains a short theming section with a sample theme file.
-
-**Size.** Two days — decision row and variable audit, then loader, bundled
-themes, docs.
-
-### 2. URL sources: capture and link back
+### 1. URL sources: capture and link back
 
 **Intent.** Diligence folders contain links, not just files. `backdraft ingest
 <url>` should fetch a page, snapshot it into the registry like any other
@@ -94,7 +62,7 @@ HTML served locally or loaded from disk); DESIGN.md row written; docs updated.
 **Size.** Two to three days — decision row and capture first, render linkage
 second.
 
-### 3. Bind's failure lines name the claim, not just the token
+### 2. Bind's failure lines name the claim, not just the token
 
 **Intent.** Exit 2 tells a calling agent that a citation did not resolve and
 prints the token: `! unresolved: bd:t12-summary:p4.c1:1a2b`. It does not say
@@ -127,7 +95,7 @@ Every doc that shows a bind report — `README.md`, `demo/walkthrough.md`,
 
 **Size.** One day.
 
-### 4. `--config` keys are declared, validated, and listed
+### 3. `--config` keys are declared, validated, and listed
 
 **Intent.** `backdraft ingest x.pdf --config dpy=300` exits 0, ingests, and
 does nothing about the typo. No output names the mistake, and nothing anywhere
@@ -157,7 +125,7 @@ page's `ingest` row and `site/llms.txt` list the keys.
 
 **Size.** Two days.
 
-### 5. `backdraft show <token>`: the inverse of minting
+### 4. `backdraft show <token>`: the inverse of minting
 
 **Intent.** An agent handed a token — out of someone's artifact, a half-written
 draft, a colleague's message — cannot ask what it says. The gate mints tokens
@@ -187,7 +155,7 @@ the docs page's command table, `site/llms.txt` and
 
 **Size.** Two days.
 
-### 6. Ingest finishes the list, then reports what it could not read
+### 5. Ingest finishes the list, then reports what it could not read
 
 **Intent.** `backdraft ingest a.md broken.pdf c.md` ingests `a.md`, fails on
 `broken.pdf`, and never attempts `c.md`. The registry is left half-built, the

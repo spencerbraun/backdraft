@@ -1,0 +1,33 @@
+# slate — cool and technical. A sans body (the `serif` role is body text, not a
+# classification), blue-grey ink, tracked uppercase heads. For engineering and
+# diligence memos that sit next to dashboards.
+
+name = "slate"
+
+[colors]
+paper = "#FFFFFF"
+ink = "#1C2126"
+muted = "#5C6672"
+faint = "#98A2AE"
+hover = "rgba(28,33,38,.05)"
+active = "rgba(28,33,38,.09)"
+underline = "rgba(28,33,38,.18)"
+hairline = "#E3E7EB"
+hairline-strong = "#CBD2D9"
+notebook = "#F7F9FA"
+notebook-line = "rgba(28,33,38,.05)"
+sel = "#1D5FA8"
+sel-soft = "#E8F0F9"
+excel-line = "#E1E6EA"
+excel-head = "#F1F4F6"
+hl = "#FBE7A2"
+alarm = "#B03A2B"
+
+[fonts]
+serif = "ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,sans-serif"
+
+[headings]
+family = "sans"
+case = "uppercase"
+weight = 600
+tracking = ".06em"

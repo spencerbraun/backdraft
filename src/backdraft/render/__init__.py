@@ -8,6 +8,10 @@ nothing else (the registry is never opened here):
 * `footnotes` — the plain-markdown projection.
 * `sidecar` — the machine-readable record alone, `backdraft/artifact-v1`.
 
+`theme` sits beside them: it resolves the user's look into one CSS block `html`
+emits after the stylesheet. Display only — no rendering *decision* depends on
+it, and an unthemed render is byte-identical to one from before it existed.
+
 Export style (shared by every package above the kernel): **names**, never
 submodules. The three renderers each spell their entry point `render`, so they
 are reached by module path — `from backdraft.render import html`, then

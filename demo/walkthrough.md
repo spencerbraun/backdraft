@@ -471,6 +471,17 @@ backdraft render memo.md --to footnotes -o memo.footnotes.md   # markdown projec
 backdraft render memo.md --to json -o -                        # the sidecar, to stdout
 ```
 
+The look is a theme, and a theme is a small TOML file of colors, font stacks and
+heading treatment:
+
+```bash
+backdraft render memo.md --theme press     # or slate, or a file of your own
+```
+
+Put one at `~/.config/backdraft/theme.toml` and every artifact you render, in
+any project, honors it with no flag. It is display only — the tokens, receipts
+and record above are untouched, and the artifact still fetches nothing.
+
 ## 10. Fixing the failure
 
 The memo's broken token was a typo for a real anchor. Find it the same way you

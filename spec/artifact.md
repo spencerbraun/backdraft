@@ -253,8 +253,15 @@ means, and each is testable:
    any claim is `unmatched`, the masthead announces it in one plain sentence,
    the affected claims are visibly marked, and every failure appears in the
    Notes with its reason. Nothing is warned about and dropped.
-7. **Print-aware, light-first.** The artifact is a paper document: it renders
-   light regardless of system theme and carries a print stylesheet.
+7. **Print-aware, light-first, fixed at render.** The artifact is a paper
+   document: it renders light, carries a print stylesheet, and never responds
+   to the reader's environment — no `prefers-color-scheme` branch, no stored
+   preference, no control that restyles it. Its appearance is whatever the
+   producer chose when the file was written, which is what makes two readers
+   of one artifact see one document. A producer MAY let an author pick that
+   appearance (this implementation's `render --theme`); the choice is baked
+   into the file, and may not change the structure, the disclosure layers, or
+   anything a reader verifies by.
 
 Nothing above forbids a viewer built on top of the islands. The rule is that
 the artifact must be complete without one.

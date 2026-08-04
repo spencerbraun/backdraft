@@ -1,0 +1,45 @@
+# The built-in look, written out: white paper on a warm notebook ground,
+# an old-style serif for the document and a system sans for the furniture.
+#
+# This file is also the reference sample and the audit — every value here is
+# the stylesheet's own, and tests/test_theme.py fails if the two drift. Copy it
+# to ~/.config/backdraft/theme.toml and change what you like.
+#
+# Rendering `--theme default` is therefore a no-op restatement: it is how you
+# get the built-in look back on one render when a theme is configured.
+
+name = "default"
+
+# The colors, in the order the stylesheet declares them.
+[colors]
+paper = "#FFFFFF"               # cards, panes, sheet cells — the surfaces
+ink = "#282828"                 # body text
+muted = "#676767"               # secondary text
+faint = "#A3A19A"               # labels, ordinals, small print
+hover = "rgba(40,40,40,.05)"    # a claim under the pointer
+active = "rgba(40,40,40,.09)"   # the open claim
+underline = "rgba(40,40,40,.16)" # the quiet rule under every claim
+hairline = "#E8E5DD"            # borders
+hairline-strong = "#D6D2C6"     # the divider, the quote rule
+notebook = "#FBFAF6"            # the page ground and the evidence rail
+notebook-line = "rgba(40,40,40,.05)" # the rail's grid
+sel = "#1F7244"                 # the cited cell
+sel-soft = "#EAF3EE"            # its wash
+excel-line = "#E3E2DC"          # spreadsheet gridlines
+excel-head = "#F4F3EE"          # spreadsheet header cells
+hl = "#F5E6AE"                  # highlight
+alarm = "#A63A2E"               # a citation that did not resolve
+
+# Three roles, not three classifications: body text, UI text, code.
+[fonts]
+serif = "'Iowan Old Style','Iowan Old Style BT',Palatino,'Palatino Linotype',Georgia,serif"
+sans = "ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,sans-serif"
+mono = "ui-monospace,'SF Mono',Menlo,Consolas,monospace"
+
+# The document's title and section heads. `family` takes serif|sans|mono or a
+# stack of its own; `case` takes none|uppercase|lowercase|small-caps.
+[headings]
+family = "serif"
+case = "none"
+weight = 600
+tracking = "normal"

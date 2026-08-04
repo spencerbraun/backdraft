@@ -130,6 +130,106 @@ def test_unresolved_citations_do_not_fail_the_render(bound: pathlib.Path) -> Non
     assert result.exit_code == 0
 
 
+# ---- themes -----------------------------------------------------------------
+#
+# Precedence: --theme > .backdraft/theme.toml > ~/.config/backdraft/theme.toml >
+# built-in. The suite's autouse fixture points XDG at an empty directory, so a
+# test that wants the user-wide rung sets it itself.
+
+
+def _configure(root: pathlib.Path, body: str) -> None:
+    (root / ".backdraft").mkdir(parents=True, exist_ok=True)
+    (root / ".backdraft" / "theme.toml").write_text(body, encoding="utf-8")
+
+
+def test_the_flag_takes_a_bundled_theme(bound: pathlib.Path) -> None:
+    result = runner.invoke(app, ["render", str(bound), "--theme", "slate"])
+    assert result.exit_code == 0, result.output
+    artifact = bound.with_name("memo.backdraft.html").read_text(encoding="utf-8")
+    assert "--ink:#1C2126" in artifact
+    assert "text-transform:uppercase" in artifact
+
+
+def test_a_project_theme_applies_with_no_flag(bound: pathlib.Path) -> None:
+    _configure(bound.parent, '[colors]\nink = "#BBBBBB"\n')
+    result = runner.invoke(app, ["render", str(bound)])
+    assert result.exit_code == 0, result.output
+    assert "--ink:#BBBBBB" in bound.with_name("memo.backdraft.html").read_text()
+
+
+def test_a_user_wide_theme_applies_in_any_project(
+    bound: pathlib.Path, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The rung that makes a preference stick: no flag, no project config."""
+    config = tmp_path / "xdg" / "backdraft"
+    config.mkdir(parents=True)
+    (config / "theme.toml").write_text('[colors]\nink = "#AAAAAA"\n', encoding="utf-8")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+
+    result = runner.invoke(app, ["render", str(bound)])
+    assert result.exit_code == 0, result.output
+    assert "--ink:#AAAAAA" in bound.with_name("memo.backdraft.html").read_text()
+
+
+def test_the_flag_overrides_a_configured_theme(bound: pathlib.Path) -> None:
+    _configure(bound.parent, '[colors]\nink = "#BBBBBB"\n')
+    result = runner.invoke(app, ["render", str(bound), "--theme", "press"])
+    assert result.exit_code == 0, result.output
+    artifact = bound.with_name("memo.backdraft.html").read_text()
+    assert "--ink:#241F1A" in artifact
+    assert "#BBBBBB" not in artifact
+
+
+def test_the_flag_takes_a_theme_file(bound: pathlib.Path, tmp_path: pathlib.Path) -> None:
+    mine = tmp_path / "mine.toml"
+    mine.write_text('[colors]\nsel = "#123456"\n', encoding="utf-8")
+    result = runner.invoke(app, ["render", str(bound), "--theme", str(mine)])
+    assert result.exit_code == 0, result.output
+    assert "--sel:#123456" in bound.with_name("memo.backdraft.html").read_text()
+
+
+def test_no_theme_anywhere_leaves_the_artifact_untouched(bound: pathlib.Path) -> None:
+    """Theming is inert by default: the built-in look, and no override block."""
+    result = runner.invoke(app, ["render", str(bound)])
+    assert result.exit_code == 0, result.output
+    artifact = bound.with_name("memo.backdraft.html").read_text()
+    assert artifact.count(":root{") == 1
+
+
+def test_a_malformed_theme_writes_no_artifact(bound: pathlib.Path) -> None:
+    """Never a half-styled artifact: resolution happens before anything is
+    written, so a bad theme costs a message and no file."""
+    _configure(bound.parent, '[colors]\nink = "#GG"\n')
+    result = runner.invoke(app, ["render", str(bound)])
+    assert result.exit_code == 1
+    assert "is not a CSS color" in result.output
+    assert "theme.toml" in result.output
+    assert not bound.with_name("memo.backdraft.html").exists()
+
+
+def test_an_unknown_theme_name_lists_the_bundled_ones(bound: pathlib.Path) -> None:
+    result = runner.invoke(app, ["render", str(bound), "--theme", "dusk"])
+    assert result.exit_code == 1
+    assert "default, press, slate" in result.output
+    assert not bound.with_name("memo.backdraft.html").exists()
+
+
+def test_the_theme_flag_is_refused_on_the_unstyled_targets(bound: pathlib.Path) -> None:
+    result = runner.invoke(app, ["render", str(bound), "--to", "json", "--theme", "slate"])
+    assert result.exit_code == 1
+    assert "--theme styles the html artifact" in result.output
+
+
+def test_a_configured_theme_is_ignored_by_the_unstyled_targets(
+    bound: pathlib.Path,
+) -> None:
+    """A theme is display; the record and the projection have none to change."""
+    _configure(bound.parent, '[colors]\nink = "#BBBBBB"\n')
+    result = runner.invoke(app, ["render", str(bound), "--to", "footnotes"])
+    assert result.exit_code == 0, result.output
+    assert "#BBBBBB" not in bound.with_name("memo.footnotes.md").read_text()
+
+
 def test_renders_with_the_registry_deleted(
     tmp_path: pathlib.Path, demo: BindReport, monkeypatch: pytest.MonkeyPatch
 ) -> None:

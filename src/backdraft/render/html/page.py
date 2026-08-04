@@ -15,6 +15,7 @@ from ...kernel.artifact import FORMAT, sidecar
 from ...kernel.model import BindReport, CitationStatus
 from .. import markdown
 from ..placement import locate
+from ..theme import Theme
 from .assets import FLAME_PATH, SCRIPT_MIN, STYLESHEET_MIN, _favicon
 from .components import _card, _note, _page_store_html, _sources_index
 from .text import _esc, split_subtitle, worst_status
@@ -26,11 +27,22 @@ SHEETS_ISLAND_ID = "bd-sheets"
 """The id of the JSON island holding full cited-sheet values for the sheet view."""
 
 
-def render(source: str, report: BindReport, *, title: str | None = None) -> str:
+def render(
+    source: str,
+    report: BindReport,
+    *,
+    title: str | None = None,
+    theme: Theme | None = None,
+) -> str:
     """Render the artifact: `source` as a document, `report` as its evidence.
 
     `title` overrides the page title, which otherwise comes from the document's
     first heading and falls back to the bound document's filename.
+
+    `theme` restyles the artifact (see `render/theme.py`). It is emitted after
+    the stylesheet rather than into it, so `theme=None` — the default, and what
+    an unconfigured render passes — produces exactly the bytes this renderer
+    produced before themes existed.
     """
     evidence = report.evidence or {}
     docs: dict = evidence.get("documents", {})
@@ -85,10 +97,11 @@ def render(source: str, report: BindReport, *, title: str | None = None) -> str:
         else ""
     )
 
+    overrides = theme.css() if theme is not None else ""
     return PAGE.format(
         title=_esc(heading),
         favicon=_favicon(),
-        css=STYLESHEET_MIN,
+        css=f"{STYLESHEET_MIN}\n{overrides}" if overrides else STYLESHEET_MIN,
         js=SCRIPT_MIN,
         subtitle=subtitle_html,
         alarm=alarm_html,

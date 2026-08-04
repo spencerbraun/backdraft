@@ -26,13 +26,13 @@ from typing import Annotated
 
 import typer
 
-from ..cli_context import UsageError, guard
+from ..cli_context import UsageError, find_root, guard
 from ..kernel.artifact import (
     ARTIFACT_SUFFIX,
     FOOTNOTES_SUFFIX,
     SIDECAR_SUFFIX,
 )
-from . import footnotes, html, sidecar
+from . import footnotes, html, sidecar, theme as theming
 
 __all__ = ["app", "Target"]
 
@@ -63,12 +63,25 @@ def render(
         Path | None,
         typer.Option("-o", "--out", help="Output file; '-' writes to stdout."),
     ] = None,
+    theme: Annotated[
+        str | None,
+        typer.Option(
+            "--theme",
+            metavar="NAME|FILE",
+            help=(
+                "Restyle the artifact: a bundled theme "
+                f"({', '.join(theming.bundled_names())}) or a theme file. "
+                "Without it, .backdraft/theme.toml then "
+                "~/.config/backdraft/theme.toml decide."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Render `doc` and its sidecar.
 
     The sidecar is found beside the document as `<doc>.backdraft.json` (see
     spec/artifact.md). Exit codes: 0 on success, 1 when the document or its
-    sidecar is missing or unreadable.
+    sidecar is missing or unreadable, or the theme cannot be used.
 
     NOTE: the spec's exit code 2 belongs to `bind` — render reports unresolved
     citations in the artifact, which is the whole point, and does not fail on
@@ -87,10 +100,22 @@ def render(
             report = sidecar.read(found)
         except (ValueError, KeyError, OSError) as error:
             raise UsageError(f"unreadable sidecar {found.name}: {error}") from error
+        if theme is not None and to is not Target.HTML:
+            raise UsageError(f"--theme styles the html artifact; --to {to.value} has no styling")
+        # NOTE: resolved before anything is written, so a bad theme costs a
+        # message and no file — never a half-styled artifact. Themes are the one
+        # thing render reads out of `.backdraft/`, and it is a config file, not
+        # the registry: the artifact stays reproducible from the two files a
+        # reader was handed.
+        chosen = (
+            theming.resolve(theme, project_root=find_root(doc.parent))
+            if to is Target.HTML
+            else None
+        )
 
     source = doc.read_text(encoding="utf-8")
     if to is Target.HTML:
-        text = html.render(source, report)
+        text = html.render(source, report, theme=chosen)
     elif to is Target.FOOTNOTES:
         text = footnotes.render(source, report)
     else:

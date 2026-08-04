@@ -72,6 +72,8 @@ backdraft/
       placement.py          # locating each claim's span in the document render was handed
       footnotes.py          # markdown projection
       sidecar.py            # sidecar reader/writer over kernel/artifact.py's format
+      theme.py              # the artifact's look: TOML in, one CSS override block out
+      themes/               # the bundled themes, as the same files a user would write
       _text.py              # presentation helpers both renderers share (status prose, elision)
       cli.py                # `render` — mounted by the top-level cli
     cli.py                  # typer entry; owns discovery, sessions, and the mounts
@@ -273,6 +275,7 @@ All switches **default off** (`--check` opts in). Verdicts are recorded evidence
 
 - `render <authored.md> --to html` → single self-contained file: the bound doc, click/hover per claim → receipt card (quote, doc, locator, hashes, verdicts, drift diff if any), unresolved list rendered as a visible section, embedded JSON island with the full sidecar + `$format` string + legend (subtext pattern: the artifact teaches its own decoding). No external requests; no page images in v0.
 - `--to footnotes` → plain markdown projection. `--to json` → sidecar alone.
+- `--theme <name|file>` restyles the html artifact — a TOML file of colors, font stacks and heading treatment, resolved by `render/theme.py` into one CSS block emitted *after* the stylesheet (so an unthemed render is byte-identical to one from before themes existed). Precedence: `--theme` > project `.backdraft/theme.toml` > XDG `~/.config/backdraft/theme.toml` > built-in. Display only: no token, receipt or record moves, and layout is outside the allowlist.
 - Artifact format string: `backdraft/artifact-v1` (prose spec in spec/artifact.md).
 
 ## CLI (cli.py — typer)
@@ -283,7 +286,7 @@ backdraft ingest <files...> [--extractor auto] [--slug S] [--config k=v]
 backdraft ls | backdraft read ...   # gate, above
 backdraft search "<query>" [--in slug]
 backdraft bind <doc.md> [--session S] [--check ...] [--mode ...]
-backdraft render <doc.md> [--to html|footnotes|json] [-o out]
+backdraft render <doc.md> [--to html|footnotes|json] [-o out] [--theme name|file]
 backdraft export [--out registry.json]
 backdraft session [start|show] 
 ```

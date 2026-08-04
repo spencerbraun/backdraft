@@ -109,6 +109,7 @@ footer{text-align:center;font-family:var(--sans);font-size:.74rem;color:var(--mu
   <a href="#writing">Writing rules</a>
   <a href="#verification">Verification</a>
   <a href="#files">Files &amp; the artifact</a>
+  <a href="#theming">Theming</a>
   <a href="#agents">Agents &amp; harnesses</a>
   <a href="#security">Security &amp; privacy</a>
   <a href="#faq">FAQ</a>
@@ -218,7 +219,7 @@ skill</a> imposes the gate, and you receive the artifact.</div>
 <tr><td><code>cell &lt;slug&gt; &lt;sheet!REF&gt;…</code></td><td>Mint specific cells' tokens directly: token plus verbatim value.</td></tr>
 <tr><td><code>session start|show</code></td><td>Ledger sessions; export <code>BACKDRAFT_SESSION</code> to enable <code>not_shown</code> detection.</td></tr>
 <tr><td><code>bind &lt;doc.md&gt;</code></td><td>Resolve every citation, run <code>--check</code> verifiers, assemble evidence, write the record. <code>--session</code>, <code>--mode frontwalk|backfill</code>, <code>--lean</code> (skip page images), <code>--bound</code> (also write the markdown projection).</td></tr>
-<tr><td><code>render &lt;doc.md&gt;</code></td><td>The artifact. <code>--to html|footnotes|json</code>, <code>-o</code>.</td></tr>
+<tr><td><code>render &lt;doc.md&gt;</code></td><td>The artifact. <code>--to html|footnotes|json</code>, <code>-o</code>, <code>--theme</code> (see <a href="#theming">Theming</a>).</td></tr>
 <tr><td><code>clean [dir]</code></td><td>Tidy a working directory: relocate stray records, remove leftover projections. Never touches authored files or artifacts.</td></tr>
 <tr><td><code>export</code></td><td>The whole registry as JSON.</td></tr>
 </table>
@@ -276,6 +277,60 @@ Record layer in plain language.</p>
 <p>The artifact embeds only <em>cited</em> evidence, a memo citing ten pages
 of a gigabyte corpus is a ~2&nbsp;MB file. Recipients need the one
 <code>.html</code> file and nothing else.</p>
+</section>
+
+<section id="theming">
+<h2>Theming</h2>
+<p>The artifact's look is a theme, and a theme is a small TOML file. Three
+ship — <code>default</code>, <code>press</code> (cream stock, small-caps
+serif heads) and <code>slate</code> (a sans body, tracked uppercase
+heads):</p>
+<pre>backdraft render memo.md --theme slate
+backdraft render memo.md --theme ./house-style.toml</pre>
+<p>To make it stick, put a file where every render will find it. Precedence,
+first match wins:</p>
+<table>
+<tr><th>Where</th><th>Applies to</th></tr>
+<tr><td><code>--theme &lt;name|file&gt;</code></td><td>this render</td></tr>
+<tr><td><code>.backdraft/theme.toml</code></td><td>this project</td></tr>
+<tr><td><code>~/.config/backdraft/theme.toml</code></td><td>every project, no flag needed (honors <code>XDG_CONFIG_HOME</code>)</td></tr>
+<tr><td>built-in</td><td>everything else</td></tr>
+</table>
+<p>A sample file — set only the keys you want, the rest stay the built-in
+default:</p>
+<pre><span class="dim"># ~/.config/backdraft/theme.toml</span>
+name = "house"
+
+[colors]
+paper = "#FFFDF8"        <span class="dim"># cards, panes, sheet cells</span>
+ink = "#241F1A"          <span class="dim"># body text</span>
+sel = "#1F6F5C"          <span class="dim"># the cited cell</span>
+alarm = "#9B3524"        <span class="dim"># a citation that did not resolve</span>
+
+[fonts]
+serif = "Charter, Georgia, serif"     <span class="dim"># body text</span>
+sans = "Inter, system-ui, sans-serif" <span class="dim"># UI text</span>
+mono = "'SF Mono', Menlo, monospace"  <span class="dim"># code</span>
+
+[headings]
+family = "sans"          <span class="dim"># serif|sans|mono, or a stack of its own</span>
+case = "small-caps"      <span class="dim"># none|uppercase|lowercase|small-caps</span>
+weight = 600             <span class="dim"># 100–900</span>
+tracking = ".04em"</pre>
+<p>The full list of color keys is
+<a href="https://github.com/spencerbraun/backdraft/blob/main/src/backdraft/render/themes/default.toml">
+<code>themes/default.toml</code></a>, which writes out the built-in look and is
+the file to copy. Two things worth knowing: <code>serif</code>,
+<code>sans</code> and <code>mono</code> name <em>roles</em> — body text, UI
+text, code — not classifications, so a sans-bodied theme sets
+<code>serif</code>; and <code>[headings]</code> styles the document's own title
+and section heads, not the small labels around them.</p>
+<p>A theme is display only. It cannot change layout, cannot touch a token, a
+receipt or the record, and cannot make the artifact fetch anything —
+<code>url()</code> is refused with that reason, since the file's CSP would
+block the request anyway. Unknown keys and unusable values fail the render with
+a message naming both, so a typo costs you an error and never a half-styled
+artifact.</p>
 </section>
 
 <section id="agents">

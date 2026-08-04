@@ -1,0 +1,29 @@
+# press — warm letterpress. Cream stock, brown-black ink, small-caps heads.
+# For memos that want to read as printed matter rather than as a screen.
+
+name = "press"
+
+[colors]
+paper = "#FFFDF8"
+ink = "#241F1A"
+muted = "#6B6259"
+faint = "#A69C8E"
+hover = "rgba(36,31,26,.05)"
+active = "rgba(36,31,26,.09)"
+underline = "rgba(36,31,26,.18)"
+hairline = "#E7E0D2"
+hairline-strong = "#D3C9B4"
+notebook = "#F7F2E7"
+notebook-line = "rgba(36,31,26,.05)"
+sel = "#1F6F5C"
+sel-soft = "#E6F1ED"
+excel-line = "#E4DED0"
+excel-head = "#F1EBDD"
+hl = "#F3E2A8"
+alarm = "#9B3524"
+
+[headings]
+family = "serif"
+case = "small-caps"
+weight = 600
+tracking = ".01em"
