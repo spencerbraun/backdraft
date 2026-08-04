@@ -19,7 +19,6 @@ sel = "#1F6F5C"
 sel-soft = "#E6F1ED"
 excel-line = "#E4DED0"
 excel-head = "#F1EBDD"
-hl = "#F3E2A8"
 alarm = "#9B3524"
 
 [headings]

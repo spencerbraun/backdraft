@@ -27,7 +27,6 @@ sel = "#1F7244"                 # the cited cell
 sel-soft = "#EAF3EE"            # its wash
 excel-line = "#E3E2DC"          # spreadsheet gridlines
 excel-head = "#F4F3EE"          # spreadsheet header cells
-hl = "#F5E6AE"                  # highlight
 alarm = "#A63A2E"               # a citation that did not resolve
 
 # Three roles, not three classifications: body text, UI text, code.

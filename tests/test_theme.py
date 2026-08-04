@@ -48,6 +48,16 @@ def test_layout_and_color_scheme_stay_outside_the_allowlist() -> None:
     assert by_selector(STYLESHEET)[":root"]["color-scheme"] == "light"
 
 
+def test_an_image_sits_on_the_themed_surface_not_on_white() -> None:
+    """`background:#fff` behind an image was white by coincidence, not by
+    intent: it is the artifact's surface, so it tracks `paper` like every other
+    surface. Nothing shows through an opaque WebP today — every stored image is
+    RGB — so this is a dead constant made correct, not a visible fix."""
+    sheet = by_selector(STYLESHEET)
+    assert sheet[".plate img"]["background"] == "var(--paper)"
+    assert sheet[".overlay > img"]["background"] == "var(--paper)"
+
+
 def test_the_bundled_default_restates_the_stylesheet() -> None:
     default = theme.resolve("default")
     assert default is not None

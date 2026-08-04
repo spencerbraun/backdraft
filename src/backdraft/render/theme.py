@@ -76,7 +76,7 @@ the artifact's structure rather than its look.
 COLOR_VARS = (
     "paper", "ink", "muted", "faint", "hover", "active", "underline",
     "hairline", "hairline-strong", "notebook", "notebook-line",
-    "sel", "sel-soft", "excel-line", "excel-head", "hl", "alarm",
+    "sel", "sel-soft", "excel-line", "excel-head", "alarm",
 )
 """Every color the stylesheet reads from a custom property, in `:root` order.
 

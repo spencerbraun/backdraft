@@ -85,7 +85,6 @@ STYLESHEET = """
   --notebook:#FBFAF6; --notebook-line:rgba(40,40,40,.05);
   --sel:#1F7244; --sel-soft:#EAF3EE;
   --excel-line:#E3E2DC; --excel-head:#F4F3EE;
-  --hl:#F5E6AE;
   --alarm:#A63A2E;
   --serif:'Iowan Old Style','Iowan Old Style BT',Palatino,'Palatino Linotype',Georgia,serif;
   --sans:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,sans-serif;
@@ -281,7 +280,7 @@ a{color:inherit}
 /* evidence plates */
 .plate{margin:.1rem 0 .3rem;cursor:zoom-in}
 .plate img{display:block;width:100%;height:auto;border:1px solid var(--hairline);
-  border-radius:2px;background:#fff}
+  border-radius:2px;background:var(--paper)}
 .plate:hover img{border-color:var(--hairline-strong)}
 .plate figcaption{font-family:var(--sans);font-size:.68rem;color:var(--muted);
   margin-top:.4rem;display:flex;justify-content:space-between;gap:.6rem}
@@ -359,7 +358,7 @@ th.citedcol{background:var(--sel-soft);color:var(--sel);font-weight:600}
   display:none;align-items:center;justify-content:center;padding:1.5rem}
 .overlay.open{display:flex}
 .overlay > img{max-width:100%;max-height:100%;border-radius:2px;cursor:zoom-out;
-  background:#fff}
+  background:var(--paper)}
 .sheetbox{background:var(--paper);border-radius:4px;
   width:min(78rem,100%);height:auto;max-height:min(48rem,100%);
   display:flex;flex-direction:column;overflow:hidden}
