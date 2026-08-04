@@ -23,7 +23,7 @@ from backdraft.render.html.assets import STYLESHEET
 from css_util import by_selector, root_variables
 
 DEFAULT_HEADINGS = (
-    ".masthead h1,.doc h2{font-family:var(--serif);text-transform:none;"
+    f"{theme.HEADING_SELECTOR}{{font-family:var(--serif);text-transform:none;"
     "font-variant:normal;font-weight:600;letter-spacing:normal}"
 )
 
@@ -65,11 +65,29 @@ def test_the_bundled_default_restates_the_stylesheet() -> None:
     assert default.variables == expected, "drifted from the stylesheet's :root"
 
 
+def test_every_document_heading_level_is_styled() -> None:
+    """The markdown renderer emits h1-h6. A level with no rule falls to the
+    browser's default mid-document, which is the bug this pins shut."""
+    sheet = by_selector(STYLESHEET)
+    for level in range(1, 7):
+        assert f".doc h{level}" in sheet, f"h{level} falls to the browser's default"
+
+
+def test_a_themes_heading_treatment_reaches_every_level() -> None:
+    """Small-caps section heads and a body-face subsection would read as a
+    mistake, so the theme's one heading rule covers the whole scale."""
+    styled = theme.resolve("press").css()
+    for selector in (".masthead h1", *(f".doc h{n}" for n in range(2, 7))):
+        assert selector in styled
+
+
 def test_the_bundled_default_headings_are_the_stylesheets() -> None:
     """The default's heading block is a no-op restatement of the base rules."""
     sheet = by_selector(STYLESHEET)
-    assert sheet[".doc h2"]["font-family"] == "var(--serif)"
-    assert sheet[".doc h2"]["font-weight"] == sheet[".masthead h1"]["font-weight"] == "600"
+    for selector in theme.HEADING_SELECTOR.split(","):
+        if selector != ".masthead h1":
+            assert sheet[selector]["font-family"] == "var(--serif)"
+        assert sheet[selector]["font-weight"] == "600"
     assert theme.resolve("default").css().endswith(DEFAULT_HEADINGS)
 
 

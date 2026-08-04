@@ -123,6 +123,19 @@ a{color:inherit}
 .doc h1{display:none}
 .doc h2{font-family:var(--serif);font-size:1.2rem;font-weight:600;
   margin:2.3rem 0 .7rem}
+/* subordinate heads stay in the document's voice — they are the author's
+   structure, not the small uppercase labels the rail and end matter use, which
+   are furniture. h4 and below share one step and go muted, so nesting reads
+   without inventing four sizes nobody asked for. Unstyled is the bug this
+   replaces: the markdown renderer emits h1-h6 and only two had a rule, so a
+   memo with `### ` fell to the browser's bold-Times default mid-page. */
+/* the sizes bracket the body rather than continuing down from h2: body is 17px
+   and a rem is 16, so a plain 1rem heading lands *under* the text it heads. h3
+   sits a hair above the body, h4 and below a hair under it and muted. */
+.doc h3{font-family:var(--serif);font-size:1.08rem;font-weight:600;
+  margin:1.7rem 0 .5rem}
+.doc h4,.doc h5,.doc h6{font-family:var(--serif);font-size:1rem;font-weight:600;
+  color:var(--muted);margin:1.4rem 0 .4rem}
 .doc p{margin:0 0 1.05rem}
 .doc ul,.doc ol{margin:0 0 1.05rem;padding-left:1.4rem}
 .doc blockquote{margin:1.1rem 0;padding:.1rem 0 .1rem 1rem;

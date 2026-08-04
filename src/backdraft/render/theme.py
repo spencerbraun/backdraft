@@ -67,12 +67,17 @@ FILENAME = "theme.toml"
 BUNDLED = Path(__file__).parent / "themes"
 """The shipped themes, as the same TOML files a user would write."""
 
-HEADING_SELECTOR = ".masthead h1,.doc h2"
-"""The document's own headings — the title and the section heads.
+HEADING_SELECTOR = ".masthead h1,.doc h2,.doc h3,.doc h4,.doc h5,.doc h6"
+"""The document's own headings — the title and every level under it.
 
-Deliberately not the rail's, the endmatter's or the quote's: those small
-uppercase labels are furniture, and a theme that restyled them would be changing
-the artifact's structure rather than its look.
+Every level, because a theme that gave the section heads small caps and left a
+subsection in the body face would look like a mistake rather than a choice.
+`.doc h1` is absent on purpose: the masthead renders the title, and the copy in
+the document body is `display:none`.
+
+Deliberately not the rail's, the endmatter's or the quote's headings: those
+small uppercase labels are furniture, and a theme that restyled them would be
+changing the artifact's structure rather than its look.
 """
 
 COLOR_VARS = (
