@@ -216,6 +216,18 @@ def test_the_served_content_type_selects_the_extractor(project: Path, serve) -> 
     assert _document(project, "rent-roll")["extractions"][0]["extractor"] == "csv"
 
 
+def test_a_pdf_served_from_a_url_takes_the_pdf_path(project: Path, tmp_path: Path, serve) -> None:
+    """A binary type routes through the staged file's suffix like any other."""
+    from test_snapshots import _make_pdf
+
+    pdf = _make_pdf(tmp_path / "t12.pdf", [["Debt service coverage ratio: 1.42x"]])
+    base = serve({"/download": (200, "application/pdf", pdf.read_bytes())})
+    result = runner.invoke(cli.app, ["ingest", f"{base}/download"])
+    assert result.exit_code == 0, result.output
+    assert "download  download.pdf  pdf  1 pages" in result.output
+    assert _document(project, "download")["extractions"][0]["extractor"] == "pdf-text"
+
+
 def test_an_unlabelled_body_is_read_as_a_page(project: Path, serve) -> None:
     """The thing at the end of an http URL with no type and no suffix is a page."""
     base = serve({"/thing": (200, "", b"<p>Just a paragraph.</p>")})
