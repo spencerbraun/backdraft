@@ -9,8 +9,13 @@ CREATE TABLE IF NOT EXISTS documents (
   sha256 TEXT NOT NULL UNIQUE,
   path TEXT NOT NULL,            -- as given at ingest; informational
   filename TEXT NOT NULL,
-  media_type TEXT NOT NULL,      -- 'pdf' | 'xlsx' | 'csv' | 'image' | 'text'
+  media_type TEXT NOT NULL,      -- 'pdf' | 'xlsx' | 'csv' | 'image' | 'html' | 'text'
   created_at TEXT NOT NULL       -- ISO-8601 UTC, everywhere
+);
+
+CREATE TABLE IF NOT EXISTS document_meta (
+  document_id INTEGER PRIMARY KEY REFERENCES documents(id),
+  meta TEXT NOT NULL             -- JSON provenance (a URL source's `url` + `fetched_at`); never citation identity
 );
 
 CREATE TABLE IF NOT EXISTS extractions (

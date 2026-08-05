@@ -41,7 +41,9 @@ __all__ = [
     "BindReport",
 ]
 
-type MediaType = Literal["pdf", "xlsx", "xls", "csv", "docx", "pptx", "image", "text"]
+type MediaType = Literal[
+    "pdf", "xlsx", "xls", "csv", "docx", "pptx", "image", "html", "text"
+]
 
 SHEET_MEDIA_TYPES: frozenset[str] = frozenset({"xlsx", "xls", "csv"})
 """The media types whose pages are sheets: cell anchors, sheet windows, the
@@ -83,7 +85,14 @@ class VerdictStatus(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class Document:
-    """An ingested file. Identity is the sha256 of its bytes; `slug` is the handle."""
+    """An ingested file. Identity is the sha256 of its bytes; `slug` is the handle.
+
+    `meta` is provenance metadata riding alongside the snapshot, JSON-shaped and
+    absent for most documents. A source fetched from the web carries `url` (the
+    page it came from, after redirects) and `fetched_at`. Never part of citation
+    identity: the URL is where the bytes were found, the sha256 is what they
+    were — see the 2026-08-05 decision row.
+    """
 
     slug: str
     sha256: str
@@ -91,6 +100,7 @@ class Document:
     filename: str
     media_type: MediaType
     created_at: str
+    meta: dict | None = None
     id: int | None = None
 
 

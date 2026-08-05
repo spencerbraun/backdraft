@@ -8,7 +8,7 @@ Design stance: this is a small codebase built as a base platform. A pure kernel 
 
 | Concept | Is | Identity |
 |---|---|---|
-| **Document** | An ingested file | sha256 of bytes; human handle is a `slug` |
+| **Document** | An ingested file, or a web page snapshotted at ingest | sha256 of bytes; human handle is a `slug`. A fetched page's origin URL is provenance metadata, never identity |
 | **Extraction** | A snapshot of a document's content produced by one extractor run | (document, extractor, version, config); generations are kept, one is `current` |
 | **Page** | Ordered unit within an extraction — a PDF page or a sheet | (extraction, number) |
 | **Anchor** | An addressable location in an extraction, carrying its **receipt**: verbatim snippet + snippet hash | locator within extraction; named by its token |
@@ -52,6 +52,7 @@ backdraft/
       pptx.py               # python-pptx; one page per slide, text floor
       text.py               # md/txt passthrough
       image.py              # an image is a one-page document; VLM transcription
+      html.py               # html/htm → one page of readable text; a parse, not a readability guess
       vlm.py                # pdf→images→VLM per page (deps ship by default; key gates use)
       vlm_settings.py       # provider/model/base-url resolution; stdlib-only
     gate/
@@ -76,7 +77,8 @@ backdraft/
       themes/               # the bundled themes, as the same files a user would write
       _text.py              # presentation helpers both renderers share (status prose, elision)
       cli.py                # `render` — mounted by the top-level cli
-    cli.py                  # typer entry; owns discovery, sessions, and the mounts
+    fetch.py                # the whole network surface: one bounded GET over http(s), stdlib only
+    cli.py                  # typer entry; owns discovery, sessions, the network, and the mounts
   skills/
     backdraft/SKILL.md            # front-walk
     backdraft-backfill/SKILL.md
@@ -136,8 +138,13 @@ CREATE TABLE documents (
   sha256 TEXT NOT NULL UNIQUE,
   path TEXT NOT NULL,            -- as given at ingest; informational
   filename TEXT NOT NULL,
-  media_type TEXT NOT NULL,      -- 'pdf' | 'xlsx' | 'xls' | 'csv' | 'docx' | 'pptx' | 'image' | 'text'
+  media_type TEXT NOT NULL,      -- 'pdf' | 'xlsx' | 'xls' | 'csv' | 'docx' | 'pptx' | 'image' | 'html' | 'text'
   created_at TEXT NOT NULL       -- ISO-8601 UTC, everywhere
+);
+
+CREATE TABLE document_meta (
+  document_id INTEGER PRIMARY KEY REFERENCES documents(id),
+  meta TEXT NOT NULL             -- JSON provenance; a fetched page carries {url, fetched_at}. Never citation identity.
 );
 
 CREATE TABLE extractions (
@@ -228,7 +235,7 @@ class Extractor(Protocol):
     def extract(self, path: Path, config: dict) -> Iterator[ExtractedPage]: ...
 ```
 
-Registered in a plain dict; `ingest --extractor auto` picks the first `can_handle`, built-ins ordered `xlsx, xls, csv, docx, pptx, pdf-text, image, text` (an extractor whose optional extra is missing is skipped, not fatal). `vlm` is pdf→images→VLM per page, OpenAI-compatible client, model configurable; its deps ship by default and the backdraft-scoped key gates use. **For PDFs, `auto` prefers `vlm` when it is ready (importable, key configured)** (glossy layouts and info boxes extract badly from the text layer, and the snapshot is the receipt); otherwise it falls back to `pdf-text` and prints a one-line nudge naming the VLM option. An explicit `--extractor` always wins. The sheet representation (shared by xlsx, xls, csv): `Row | A | B...` header, `[B10] value` prefixes, dimension caps, inflated-sheet placeholder pages; cell values are never rounded, since the snapshot is the receipt a claim is traced against. `docx` synthesizes pages from heading sections (the document's smallest present outline level among Heading 1–2 splits; no headings → one page), so locators stay `pN.cM`. `pptx` is one page per slide, text floor only; ingest notes that slide visuals need the PDF-export path. `pdf-text` reconstructs paragraph breaks from line geometry before handing the page over, so the chunker's blank-line rule has something to fire on.
+Registered in a plain dict; `ingest --extractor auto` picks the first `can_handle`, built-ins ordered `xlsx, xls, csv, docx, pptx, pdf-text, image, html, text` (an extractor whose optional extra is missing is skipped, not fatal). `vlm` is pdf→images→VLM per page, OpenAI-compatible client, model configurable; its deps ship by default and the backdraft-scoped key gates use. **For PDFs, `auto` prefers `vlm` when it is ready (importable, key configured)** (glossy layouts and info boxes extract badly from the text layer, and the snapshot is the receipt); otherwise it falls back to `pdf-text` and prints a one-line nudge naming the VLM option. An explicit `--extractor` always wins. The sheet representation (shared by xlsx, xls, csv): `Row | A | B...` header, `[B10] value` prefixes, dimension caps, inflated-sheet placeholder pages; cell values are never rounded, since the snapshot is the receipt a claim is traced against. `docx` synthesizes pages from heading sections (the document's smallest present outline level among Heading 1–2 splits; no headings → one page), so locators stay `pN.cM`. `pptx` is one page per slide, text floor only; ingest notes that slide visuals need the PDF-export path. `pdf-text` reconstructs paragraph breaks from line geometry before handing the page over, so the chunker's blank-line rule has something to fire on. `html` is one page for the whole document, named by its `<title>`: block elements end a block so the chunker's blank-line rule fires, `script`/`style`/`noscript`/`template`/`svg` are dropped whole, lists become `- `/`1. ` lines in a single block, and tables become pipe tables as `docx` renders them. It is a parse and not a readability heuristic — no boilerplate stripping, since a guess that changes between two versions of a site moves anchors. Decoding is a pure function of the bytes (BOM, then `<meta charset>`, then UTF-8 with replacement), so a saved page and a fetched one extract identically.
 
 ## Gate (gate/)
 
@@ -282,7 +289,8 @@ All switches **default off** (`--check` opts in). Verdicts are recorded evidence
 
 ```
 backdraft init                      # create .backdraft/, print status
-backdraft ingest <files...> [--extractor auto] [--slug S] [--config k=v]
+backdraft ingest <sources...> [--extractor auto] [--slug S] [--config k=v]
+                                    # a source is a path or an http(s) URL
 backdraft ls | backdraft read ...   # gate, above
 backdraft search "<query>" [--in slug]
 backdraft bind <doc.md> [--session S] [--check ...] [--mode ...]
@@ -327,10 +335,15 @@ class Registry:
 
     # write side (W1)
     def ingest(self, path: Path, *, extractor: str | None = None,
-               slug: str | None = None, config: dict | None = None) -> Document: ...
+               slug: str | None = None, config: dict | None = None,
+               url: str | None = None, fetched_at: str | None = None) -> Document: ...
         # runs extractor → new extraction generation, pages, eager anchors, FTS rows.
         # Token carry-over per re-ingest semantics; hash-collision extension steps TOKEN_HASH_LENGTHS.
         # Sheet names sanitized to the sheetref charset here, at ingest.
+        # `url` marks `path` as a snapshot staged from the web: the document records the
+        # URL as its path, carries {url, fetched_at} as meta, and matches an earlier
+        # fetch by URL rather than by the temporary file. Identity stays the bytes.
+        # The registry never fetches; `fetch.py` does, and the CLI calls it.
 
     # read side (W1 implements; W2/W3 consume)
     def documents(self) -> list[Document]: ...
@@ -376,4 +389,4 @@ class Registry:
 
 ## Addendum B — CLI assembly
 
-Top-level `cli.py` (W1) owns: typer app, registry discovery (nearest `.backdraft/` walking up from cwd; `BACKDRAFT_HOME` override), session resolution (`--session` flag > `BACKDRAFT_SESSION` env > default session), and the `init` / `ingest` / `ls` / `export` / `snapshot-pages` commands. After each ingest, `cli.py` captures page snapshots for any PDF whose extraction carries none — the text-layer path, since `vlm` stores its own — via `extract/snapshots.py` (poppler through pdf2image, `snapshot-pages`' internals). It sits outside the extractor so `pdf-text` stays deterministic regardless of whether poppler is installed, and it is best-effort: a `SnapshotError` leaves ingest at exit 0 with a one-line note naming `snapshot-pages` as the backfill. It mounts sub-apps `gate/cli.py` (W2: `read`, `search`, `session`), `bind/cli.py` (W3: `bind`), `render/cli.py` (W4: `render`) — each exposes `app = typer.Typer()`; the top level mounts each inside a try/except ImportError so partial merges still run. The `backdraft` console script is declared by W1.
+Top-level `cli.py` (W1) owns: typer app, registry discovery (nearest `.backdraft/` walking up from cwd; `BACKDRAFT_HOME` override), session resolution (`--session` flag > `BACKDRAFT_SESSION` env > default session), and the `init` / `ingest` / `ls` / `export` / `snapshot-pages` commands. After each ingest, `cli.py` captures page snapshots for any PDF whose extraction carries none — the text-layer path, since `vlm` stores its own — via `extract/snapshots.py` (poppler through pdf2image, `snapshot-pages`' internals). It sits outside the extractor so `pdf-text` stays deterministic regardless of whether poppler is installed, and it is best-effort: a `SnapshotError` leaves ingest at exit 0 with a one-line note naming `snapshot-pages` as the backfill. `cli.py` also owns the network for the same reason: an `ingest` argument with a scheme is fetched through `fetch.py` (stdlib `urllib`, http and https only, redirects followed, 32 MiB cap) and staged in a temporary file named for the content type the server declared — which is what selects the extractor — so extractors stay pure functions of bytes and the registry opens no sockets. It mounts sub-apps `gate/cli.py` (W2: `read`, `search`, `session`), `bind/cli.py` (W3: `bind`), `render/cli.py` (W4: `render`) — each exposes `app = typer.Typer()`; the top level mounts each inside a try/except ImportError so partial merges still run. The `backdraft` console script is declared by W1.

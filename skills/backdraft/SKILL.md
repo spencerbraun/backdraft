@@ -22,6 +22,7 @@ agent config directories; installs from PyPI need no special permissions.
 ```bash
 backdraft init                                    # once per project
 backdraft ingest report.pdf model.xlsx notes.md   # every source, up front
+backdraft ingest https://example.com/q4-results   # a URL is a source too
 backdraft session start --id s-<short-name>       # optional; enables not_shown
 export BACKDRAFT_SESSION=s-<short-name>
 ```
@@ -34,6 +35,14 @@ sandbox that cannot reach the model provider, do not retry: continue with the
 text layer, tell the user, and mention that a registry ingested with the
 vision model on their own machine travels with the project folder
 (`.backdraft/`) and needs no key at bind or render time.
+
+If the user points you at a web page, ingest the URL rather than fetching it
+yourself: text you fetched outside the gate has no receipt and cannot be cited.
+The page is snapshotted at that moment and the URL is stored with it, so
+`backdraft ls` tells you where each source came from — use that when the prose
+should name the page. What you get is what a plain unauthenticated GET returns:
+a JavaScript-rendered page or one behind a login will come back thin or empty,
+and if it does, say so to the user rather than citing the shell of it.
 
 Ingest also stores each PDF page's image — both paths, since the text-layer
 path renders the pages locally through poppler — so the artifact can show the

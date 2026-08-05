@@ -32,35 +32,45 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. URL sources: capture and link back
+### 1. URL sources: the artifact links back
 
-**Intent.** Diligence folders contain links, not just files. `backdraft ingest
-<url>` should fetch a page, snapshot it into the registry like any other
-source, and — the other half — artifacts should show a source's origin URL and
-link back to it, so a claim cited to a web page carries both the frozen
-receipt and the live pointer.
+**Intent.** The capture half of URL sources landed 2026-08-05: `backdraft
+ingest <url>` fetches a page, snapshots it, and stores its origin URL and fetch
+time as document meta (see the decision row). Nothing downstream of the
+registry knows. `bind`'s evidence carries `{filename, media_type}` per source,
+so the artifact's resting source list and its receipt cards name a file that
+never existed on anyone's disk — `q4-2025.html` — and a reader holding the
+artifact has the frozen receipt with no way back to the live page. That
+pointer is half of what citing a web page is for, and it is the half that
+answers "is this still true?".
 
-**Shape.** This is the graduation of the "HTML pages" question from Later, and
-it needs its decision row: *the source's identity is the sha256 of the fetched
-snapshot at ingest time*, same as a file — the URL is provenance metadata, not
-identity. A page that changes later is a new generation; the existing drift
-machinery already describes that. Capture: fetch (stdlib or the lightest
-dependency that handles redirects and encodings), extract readable text into
-the normal page/chunk structure, store the origin URL and fetch timestamp in
-source meta. Render: sources carrying an origin URL show it in the resting
-source list and the card, as a real link. Out of scope for this item:
-JavaScript-rendered pages (note the limitation), authentication, and `.eml`
-(stays in Later).
+**Shape.** Two seams, both narrow. `bind/evidence.py` assembles the `documents`
+map; where a `Document` carries `meta` with a `url`, add `url` and `fetched_at`
+to its entry, and *only* there — an artifact built from files must stay
+byte-identical to one built before this change, which is also the test. That
+makes it an artifact-format change: `spec/artifact.md` and the `$legend` text in
+`kernel/artifact.py` both spell out that `documents` maps slug to `{filename,
+media_type}`, and both must name the new keys. Then the render side:
+`render/html/components.py` owns the receipt card's source line and the resting
+source list, and both should show the URL as a real `<a href>` — the artifact's
+CSP forbids fetching, not linking — with the fetch date beside it, because "as
+of" is what makes a frozen quote from a live page defensible. Escape the href
+with `html.escape(..., quote=True)` as `render/markdown.py` already does for
+authored links; artifact rule 3 forbids `javascript:` URLs and that is a
+conformance requirement, not a nicety, so a stored non-http scheme must not
+become a live link. `render/footnotes.py` is the markdown projection of the
+same layers and its source line takes the URL too.
 
-**Acceptance.** `ingest https://…` on a static page mints citable tokens;
-`read`/`search`/`cell`-equivalents behave as for text sources; bind embeds the
-receipt; the artifact's source entry links to the URL and the record JSON
-carries url + fetched-at. Re-ingesting a changed page produces a new
-generation and `drifted` behaves correctly. A network-free test suite (fixture
-HTML served locally or loaded from disk); DESIGN.md row written; docs updated.
+**Acceptance.** In a scratch project, ingest a page from a local fixture server
+(`tests/test_fetch.py`'s `serve` fixture is the harness — keep it network-free),
+bind a memo citing it, and `render --to html`: the source list and the cited
+claim's card both show the origin URL as a clickable link with the fetch date,
+and `--to footnotes` names it too. Render the demo (all file sources) before
+and after the change and diff: byte-identical, which is what proves the
+addition is conditional. Golden render tests updated; `spec/artifact.md` and
+the `$legend` updated together.
 
-**Size.** Two to three days — decision row and capture first, render linkage
-second.
+**Size.** One to two days.
 
 ### 2. Bind's failure lines name the claim, not just the token
 
@@ -217,8 +227,8 @@ the objection rather than rediscovering it.
   machine).
 - **Email (.eml)** — arrives in diligence folders alongside everything else;
   identity questions (headers vs. body, attachments as child sources) deserve
-  a decision row before code. The web-page half of this item graduated to the
-  Now queue as URL sources.
+  a decision row before code. The web-page half of this item shipped
+  2026-08-05; `document_meta` is where an email's provenance would land.
 - **Anthropic-API provider for the VLM extractor** — Cowork's sandbox
   egress allowlist includes api.anthropic.com but not the OpenAI-compatible
   providers, so an Anthropic-native option would let sandboxed sessions

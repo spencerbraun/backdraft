@@ -29,8 +29,9 @@ cd demo
 
 **Ingest** the sources. Every anchor is minted here, chunks for PDF pages,
 cells for spreadsheet sheets. Formats: PDF, XLSX/XLSM, XLS, CSV/TSV, DOCX,
-PPTX, images (png, jpeg, tiff, through the vision model), plain text and
-Markdown.
+PPTX, HTML, images (png, jpeg, tiff, through the vision model), plain text and
+Markdown. A source can also be an `http(s)` URL — the page is fetched once and
+snapshotted like any other source, and the URL travels with it.
 
 ```console
 $ backdraft init
@@ -184,6 +185,31 @@ decode and check it, so the format outlives this implementation.
 Failures are data throughout: `unresolved`, `not_shown`, `drifted`, `malformed`
 and `unmatched` are first-class records in the report and visible sections in the
 artifact. Nothing is ever warned about and dropped.
+
+## Web sources
+
+`backdraft ingest https://example.com/q4-results` fetches the page once and
+snapshots it exactly as a file: the bytes at fetch time are the document's
+identity, and the URL and fetch timestamp ride along as provenance. So a page
+that has changed since you cited it comes back as a new generation of the same
+document and the old citations report `drifted` — the same machinery as an
+edited PDF, which is the point of hashing the snapshot rather than trusting the
+address.
+
+```console
+$ backdraft ingest https://example.com/reports/q4-2025
+q4-2025  q4-2025.html  html  1 pages
+
+$ backdraft ls
+q4-2025	q4-2025.html	html	1 pages	https://example.com/reports/q4-2025
+```
+
+What it does not do, stated rather than worked around: JavaScript-rendered
+pages give you whatever the server sends to a plain GET, pages behind a login
+are out of reach, and the extractor is a parse rather than a readability guess
+— navigation and footers are part of the page, because a heuristic that changes
+its mind between two versions of a site would move anchors. Responses are
+capped at 32 MiB.
 
 ## What lives where
 

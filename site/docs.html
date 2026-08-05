@@ -137,12 +137,30 @@ ingest says so. Either way PDFs want <code>poppler</code> on your PATH
 (<code>brew install poppler</code>) — it renders the pages, which is what puts
 the cited page into the artifact; without it ingest still works and says what
 is missing.
-Spreadsheets (xlsx, xlsm), CSV, Word (docx), PowerPoint (pptx), text and
+Spreadsheets (xlsx, xlsm), CSV, Word (docx), PowerPoint (pptx), HTML, text and
 Markdown are keyless and built in, and sheet evidence carries the workbook's
 own styling: bold, fills, number formats, column widths. Legacy xls
 workbooks are read, values only, through the <code>[xls]</code> extra. Slide
 decks extract text only; a visual-heavy deck is better exported to PDF and
 ingested through the vision extractor, which captures charts and images.</p>
+
+<h3>Web pages</h3>
+<p>An ingest source can be an <code>http(s)</code> URL, not only a path.
+Diligence folders contain links, and a link should be as citable as a file:</p>
+<pre>backdraft ingest https://example.com/reports/q4-2025
+<span class="dim">q4-2025  q4-2025.html  html  1 pages</span></pre>
+<p>The page is fetched once and snapshotted like any other source. Its identity
+is the sha256 of the bytes fetched at that moment — the URL is provenance
+riding alongside, not identity — so a page that has since changed comes back as
+a new generation of the same document and citations into the old one report
+<code>drifted</code>, exactly as an edited PDF does. <code>backdraft ls</code>
+shows the origin URL for anything fetched.</p>
+<p>What this does not do, said plainly rather than worked around:
+JavaScript-rendered pages give you whatever the server returns to a plain GET,
+pages behind a login are out of reach, and the extractor is a parse rather than
+a readability guess — navigation and footers are part of the page, because a
+heuristic that changed its mind between two versions of a site would move
+anchors. Responses are capped at 32&nbsp;MiB.</p>
 <h3>Bring a model provider</h3>
 <p>The vision extractor needs a key you provide, and it runs only on explicit,
 backdraft-scoped consent: set <code>BACKDRAFT_VLM_API_KEY</code> in
@@ -211,9 +229,9 @@ skill</a> imposes the gate, and you receive the artifact.</div>
 <table>
 <tr><th>Command</th><th>Does</th></tr>
 <tr><td><code>init</code></td><td>Create <code>.backdraft/</code> (registry, credentials template) in the current directory.</td></tr>
-<tr><td><code>ingest &lt;files&gt;</code></td><td>Snapshot sources into the registry, minting every anchor. Formats: PDF, XLSX/XLSM, XLS, CSV/TSV, DOCX, PPTX, images (png, jpeg, tiff), text and Markdown. <code>--extractor auto|vlm|image|pdf-text|xlsx|xls|csv|docx|pptx|text</code>, <code>--slug</code>, <code>--config k=v</code>.</td></tr>
+<tr><td><code>ingest &lt;sources&gt;</code></td><td>Snapshot sources into the registry, minting every anchor. A source is a path or an <code>http(s)</code> URL. Formats: PDF, XLSX/XLSM, XLS, CSV/TSV, DOCX, PPTX, HTML, images (png, jpeg, tiff), text and Markdown. <code>--extractor auto|vlm|image|pdf-text|xlsx|xls|csv|docx|pptx|html|text</code>, <code>--slug</code>, <code>--config k=v</code>.</td></tr>
 <tr><td><code>snapshot-pages &lt;slug&gt;</code></td><td>Backfill page images for an already-ingested PDF, locally, no model calls (needs <code>poppler</code> for rendering). Ingest stores them already — this is for a registry built before it did, or on a machine that had no poppler then.</td></tr>
-<tr><td><code>ls</code></td><td>List ingested documents.</td></tr>
+<tr><td><code>ls</code></td><td>List ingested documents: slug, filename, media type, page count, and the origin URL for anything fetched.</td></tr>
 <tr><td><code>read [slug] [selector]</code></td><td>The gate: document list, table of contents, or a token-marked page/range/sheet read. Mints what it shows.</td></tr>
 <tr><td><code>search &lt;query&gt;</code></td><td>Full-text search over every anchor; hits are citable. <code>--in slug</code>, <code>--limit</code>.</td></tr>
 <tr><td><code>cell &lt;slug&gt; &lt;sheet!REF&gt;…</code></td><td>Mint specific cells' tokens directly: token plus verbatim value.</td></tr>

@@ -26,7 +26,7 @@ import json
 import re
 import sqlite3
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Iterable, Sequence
@@ -85,6 +85,9 @@ _MEDIA_SUFFIXES: dict[str, MediaType] = {
     ".tif": "image",
     ".tiff": "image",
     ".webp": "image",
+    ".html": "html",
+    ".htm": "html",
+    ".xhtml": "html",
 }
 
 
@@ -210,6 +213,8 @@ class Registry:
         extractor: str | None = None,
         slug: str | None = None,
         config: dict | None = None,
+        url: str | None = None,
+        fetched_at: str | None = None,
     ) -> Document:
         """Snapshot a file into a new extraction generation.
 
@@ -224,6 +229,14 @@ class Registry:
         `extractor` names one (`None` or `"auto"` picks the first that can handle
         the file). `slug` is honoured only when the document is new — a slug is
         stable once assigned. `config` is hashed into the generation's identity.
+
+        `url` says the file at `path` is a snapshot staged from the web: the
+        document then records the URL as its path and carries `{url,
+        fetched_at}` as meta, and continuity across re-fetches follows the URL
+        rather than the temporary file the bytes were staged in. Identity is
+        still the sha256 of those bytes — a page that changed since the last
+        fetch is a new generation of the same document, exactly like an edited
+        file. Fetching is the caller's job; the registry opens no sockets.
         """
         path = Path(path)
         try:
@@ -241,15 +254,20 @@ class Registry:
         settings = dict(config or {})
         settings_hash = config_hash(settings)
 
-        existing = self._find_document(sha256=sha256, path=path)
+        existing = self._find_document(sha256=sha256, path=path, url=url)
         if existing is not None and self._is_noop(existing, sha256, chosen, settings_hash):
-            return existing
+            # A re-fetch that changed nothing still moves the clock: `fetched_at`
+            # is when the page was last confirmed to say this, which is the
+            # question a reader of a months-old citation actually has.
+            return self._touch_meta(existing, url, fetched_at)
 
         pages = list(chosen.extract(path, settings))
 
         now = _now()
         with self._connection:
-            document = self._upsert_document(existing, sha256, path, media_type, slug, now)
+            document = self._upsert_document(
+                existing, sha256, path, media_type, slug, now, url, fetched_at
+            )
             previous = self._current_extraction_id(document.id)
             self._connection.execute(
                 "UPDATE extractions SET is_current = 0 WHERE document_id = ? AND is_current = 1",
@@ -263,8 +281,9 @@ class Registry:
 
     def documents(self) -> list[Document]:
         """Every ingested document, oldest first."""
+        meta = self._meta_by_document()
         return [
-            _document(row)
+            _document(row, meta.get(row["id"]))
             for row in self._connection.execute(
                 "SELECT * FROM documents ORDER BY created_at, id"
             )
@@ -275,7 +294,7 @@ class Registry:
         row = self._connection.execute(
             "SELECT * FROM documents WHERE slug = ?", (slug,)
         ).fetchone()
-        return _document(row) if row else None
+        return _document(row, self._meta_for(row["id"])) if row else None
 
     def pages(self, slug: str) -> list[Page]:
         """The current extraction's pages, in order. Sheets carry their cells."""
@@ -538,17 +557,20 @@ class Registry:
                         ],
                     }
                 )
-            documents.append(
-                {
-                    "slug": document.slug,
-                    "sha256": document.sha256,
-                    "path": document.path,
-                    "filename": document.filename,
-                    "media_type": document.media_type,
-                    "created_at": document.created_at,
-                    "extractions": extractions,
-                }
-            )
+            entry: dict[str, Any] = {
+                "slug": document.slug,
+                "sha256": document.sha256,
+                "path": document.path,
+                "filename": document.filename,
+                "media_type": document.media_type,
+                "created_at": document.created_at,
+            }
+            if document.meta:
+                # Only where there is provenance to carry, so an export of a
+                # registry of files is unchanged from before URL sources.
+                entry["meta"] = document.meta
+            entry["extractions"] = extractions
+            documents.append(entry)
         return {
             "$format": EXPORT_FORMAT,
             "documents": documents,
@@ -580,26 +602,73 @@ class Registry:
 
     # ---- ingest internals ---------------------------------------------------
 
-    def _find_document(self, *, sha256: str, path: Path) -> Document | None:
+    def _find_document(
+        self, *, sha256: str, path: Path, url: str | None = None
+    ) -> Document | None:
         """The document this ingest is about, if the registry already has it.
 
-        Matched by bytes, then by path. NOTE: the spec identifies a document by
-        its bytes, but a re-ingest of an *edited* file has different bytes and
-        must still be the same document — otherwise nothing ever drifts, it just
-        becomes a second document. Path continuity carries identity across an
-        edit. `slug` deliberately does not participate: it names a *new*
-        document, and a taken slug is an error rather than a silent retarget.
+        Matched by bytes, then by origin — the URL for a fetched source, the
+        path for a file. NOTE: the spec identifies a document by its bytes, but
+        a re-ingest of an *edited* file has different bytes and must still be
+        the same document — otherwise nothing ever drifts, it just becomes a
+        second document. Origin continuity carries identity across an edit.
+        `slug` deliberately does not participate: it names a *new* document, and
+        a taken slug is an error rather than a silent retarget.
+
+        Bytes are checked first because `documents.sha256` is UNIQUE: when the
+        same content arrives twice under two origins it is one document, and
+        deciding otherwise would be a constraint violation rather than a policy.
         """
+        meta = self._meta_by_document()
         row = self._connection.execute(
             "SELECT * FROM documents WHERE sha256 = ?", (sha256,)
         ).fetchone()
         if row is not None:
-            return _document(row)
-        target = path.resolve()
+            return _document(row, meta.get(row["id"]))
+        target = None if url is not None else path.resolve()
         for row in self._connection.execute("SELECT * FROM documents ORDER BY id"):
-            if Path(row["path"]).resolve() == target:
-                return _document(row)
+            origin = (meta.get(row["id"]) or {}).get("url")
+            if url is not None:
+                if origin == url:
+                    return _document(row, meta.get(row["id"]))
+                continue
+            # A fetched document's `path` is its URL, so it can never be the
+            # file being ingested — and resolving it as one would be nonsense.
+            if origin is None and Path(row["path"]).resolve() == target:
+                return _document(row, meta.get(row["id"]))
         return None
+
+    def _meta_by_document(self) -> dict[int, dict]:
+        """Provenance metadata per document id, absent for documents with none."""
+        return {
+            row["document_id"]: json.loads(row["meta"])
+            for row in self._connection.execute("SELECT * FROM document_meta")
+        }
+
+    def _meta_for(self, document_id: int) -> dict | None:
+        row = self._connection.execute(
+            "SELECT meta FROM document_meta WHERE document_id = ?", (document_id,)
+        ).fetchone()
+        return json.loads(row["meta"]) if row else None
+
+    def _save_meta(self, document_id: int, meta: dict) -> None:
+        self._connection.execute(
+            "INSERT OR REPLACE INTO document_meta (document_id, meta) VALUES (?, ?)",
+            (document_id, json.dumps(meta, separators=(",", ":"), sort_keys=True)),
+        )
+
+    def _touch_meta(
+        self, document: Document, url: str | None, fetched_at: str | None
+    ) -> Document:
+        """Record a re-fetch that produced identical bytes. No new generation."""
+        if url is None:
+            return document
+        meta = {**(document.meta or {}), "url": url}
+        if fetched_at is not None:
+            meta["fetched_at"] = fetched_at
+        with self._connection:
+            self._save_meta(document.id, meta)  # type: ignore[arg-type]
+        return replace(document, meta=meta)
 
     def _is_noop(
         self, document: Document, sha256: str, extractor: Any, settings_hash: str
@@ -623,39 +692,52 @@ class Registry:
         media_type: MediaType,
         slug: str | None,
         now: str,
+        url: str | None = None,
+        fetched_at: str | None = None,
     ) -> Document:
         """Insert a new document, or point an existing one at the new bytes."""
+        # A fetched source records where it came from, not where it was staged:
+        # the staging file is gone by the time anything reads this.
+        stored_path = url if url is not None else str(path)
+        meta = None if url is None else {"url": url, "fetched_at": fetched_at or now}
         if existing is not None:
             self._connection.execute(
                 "UPDATE documents SET sha256 = ?, path = ?, filename = ?, media_type = ? "
                 "WHERE id = ?",
-                (sha256, str(path), path.name, media_type, existing.id),
+                (sha256, stored_path, path.name, media_type, existing.id),
             )
+            if meta is not None:
+                self._save_meta(existing.id, meta)  # type: ignore[arg-type]
             # NOTE: `slug` is ignored here on purpose — a slug is stable once
             # assigned, because tokens already in an authored document use it.
             return Document(
                 slug=existing.slug,
                 sha256=sha256,
-                path=str(path),
+                path=stored_path,
                 filename=path.name,
                 media_type=media_type,
                 created_at=existing.created_at,
+                meta=meta if meta is not None else existing.meta,
                 id=existing.id,
             )
         assigned = self._assign_slug(slug, path.name)
         cursor = self._connection.execute(
             "INSERT INTO documents (slug, sha256, path, filename, media_type, created_at) "
             "VALUES (?, ?, ?, ?, ?, ?)",
-            (assigned, sha256, str(path), path.name, media_type, now),
+            (assigned, sha256, stored_path, path.name, media_type, now),
         )
+        document_id = int(cursor.lastrowid or 0)
+        if meta is not None:
+            self._save_meta(document_id, meta)
         return Document(
             slug=assigned,
             sha256=sha256,
-            path=str(path),
+            path=stored_path,
             filename=path.name,
             media_type=media_type,
             created_at=now,
-            id=int(cursor.lastrowid or 0),
+            meta=meta,
+            id=document_id,
         )
 
     def _assign_slug(self, requested: str | None, filename: str) -> str:
@@ -908,7 +990,7 @@ def _now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _document(row: sqlite3.Row) -> Document:
+def _document(row: sqlite3.Row, meta: dict | None = None) -> Document:
     return Document(
         slug=row["slug"],
         sha256=row["sha256"],
@@ -916,6 +998,7 @@ def _document(row: sqlite3.Row) -> Document:
         filename=row["filename"],
         media_type=row["media_type"],
         created_at=row["created_at"],
+        meta=meta,
         id=row["id"],
     )
 

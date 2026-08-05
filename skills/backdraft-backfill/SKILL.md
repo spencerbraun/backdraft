@@ -23,6 +23,7 @@ agent config directories; installs from PyPI need no special permissions.
 ```bash
 backdraft init
 backdraft ingest sources/*.pdf sources/*.xlsx
+backdraft ingest https://example.com/q4-results   # a URL is a source too
 backdraft ls
 ```
 

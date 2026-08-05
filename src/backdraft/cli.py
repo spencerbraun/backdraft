@@ -18,11 +18,14 @@ non-resolved citations (so a hook can gate on it).
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Annotated, Iterable
+from tempfile import TemporaryDirectory
+from typing import Annotated, Iterable, Iterator
 
 import typer
 
+from . import fetch
 from .cli_context import (
     DEFAULT_SESSION,
     EXIT_UNRESOLVED,
@@ -104,60 +107,72 @@ def init(
 
 @app.command()
 def ingest(
-    files: Annotated[list[Path], typer.Argument(help="Files to ingest.")],
+    sources: Annotated[
+        list[str], typer.Argument(help="Files, or http(s) URLs, to ingest.")
+    ],
     extractor: Annotated[
         str,
         typer.Option(
             "--extractor",
             help=(
-                "auto, or one of: vlm, pdf-text, xlsx, xls, csv, docx, pptx, image, text."
+                "auto, or one of: vlm, pdf-text, xlsx, xls, csv, docx, pptx, "
+                "image, html, text."
             ),
         ),
     ] = "auto",
     slug: Annotated[
-        str | None, typer.Option("--slug", help="Slug for a new document. One file only.")
+        str | None, typer.Option("--slug", help="Slug for a new document. One source only.")
     ] = None,
     config: Annotated[
         list[str] | None,
         typer.Option("--config", help="Extractor config as `key=value`. Repeatable."),
     ] = None,
 ) -> None:
-    """Snapshot files into the registry, minting their anchors."""
+    """Snapshot files or web pages into the registry, minting their anchors.
+
+    A source is a path or an http(s) URL. A URL is fetched once and snapshotted
+    like any other source — the bytes at fetch time are the document's identity,
+    and the URL travels with it as provenance, so re-ingesting a page that has
+    since changed makes a new generation and the citations on the old one report
+    `drifted`. JavaScript-rendered pages and pages behind a login are out of
+    reach: what is fetched is what the server sends unauthenticated.
+    """
     nudge_vlm = False
     note_pptx = False
     unsnapshot: dict[str, list[str]] = {}  # why it failed -> which documents
     with guard():
-        if slug is not None and len(files) > 1:
-            raise UsageError("--slug names one document; pass one file")
+        if slug is not None and len(sources) > 1:
+            raise UsageError("--slug names one document; pass one source")
         settings = _parse_config(config or [])
         with opened_registry() as registry:
-            for path in files:
-                document = registry.ingest(
-                    path, extractor=extractor, slug=slug, config=settings
-                )
-                pages = registry.pages(document.slug)
-                typer.echo(
-                    f"{document.slug}  {document.filename}  "
-                    f"{document.media_type}  {len(pages)} pages"
-                )
-                nudge_vlm = nudge_vlm or (
-                    extractor == "auto"
-                    and document.media_type == "pdf"
-                    and not vlm_ready(settings)
-                )
-                note_pptx = note_pptx or document.media_type == "pptx"
-                # Page images: the VLM extractor stores them itself, so this
-                # only ever fires for the text-layer path (and for a re-ingest
-                # that landed before this machine had poppler). Display only,
-                # hence best-effort — a failure notes itself and ingest stands.
-                if _wants_snapshots(registry, document, pages):
-                    try:
-                        for _ in snapshots.capture(
-                            registry, document.slug, path, config=settings
-                        ):
-                            pass
-                    except snapshots.SnapshotError as error:
-                        unsnapshot.setdefault(str(error), []).append(document.slug)
+            for source in sources:
+                with _staged(source) as (path, origin):
+                    document = registry.ingest(
+                        path, extractor=extractor, slug=slug, config=settings, **origin
+                    )
+                    pages = registry.pages(document.slug)
+                    typer.echo(
+                        f"{document.slug}  {document.filename}  "
+                        f"{document.media_type}  {len(pages)} pages"
+                    )
+                    nudge_vlm = nudge_vlm or (
+                        extractor == "auto"
+                        and document.media_type == "pdf"
+                        and not vlm_ready(settings)
+                    )
+                    note_pptx = note_pptx or document.media_type == "pptx"
+                    # Page images: the VLM extractor stores them itself, so this
+                    # only ever fires for the text-layer path (and for a re-ingest
+                    # that landed before this machine had poppler). Display only,
+                    # hence best-effort — a failure notes itself and ingest stands.
+                    if _wants_snapshots(registry, document, pages):
+                        try:
+                            for _ in snapshots.capture(
+                                registry, document.slug, path, config=settings
+                            ):
+                                pass
+                        except snapshots.SnapshotError as error:
+                            unsnapshot.setdefault(str(error), []).append(document.slug)
     # One line per distinct reason — which is one line, unless a machine
     # without poppler is somehow also holding an unrenderable PDF.
     for reason, slugs in unsnapshot.items():
@@ -329,7 +344,11 @@ def clean(
 
 @app.command("ls")
 def list_documents() -> None:
-    """List the ingested documents: slug, filename, media type, page count."""
+    """List the ingested documents: slug, filename, media type, page count.
+
+    A source fetched from the web carries its origin URL as a fifth field —
+    only where there is one, so a registry of files prints what it always did.
+    """
     with opened_registry() as registry:
         documents = registry.documents()
         if not documents:
@@ -337,9 +356,10 @@ def list_documents() -> None:
             return
         for document in documents:
             pages = registry.pages(document.slug)
+            origin = (document.meta or {}).get("url")
             typer.echo(
                 f"{document.slug}\t{document.filename}\t{document.media_type}\t"
-                f"{len(pages)} pages"
+                f"{len(pages)} pages" + (f"\t{origin}" if origin else "")
             )
 
 
@@ -357,6 +377,27 @@ def export(
     else:
         out.write_text(payload + "\n", encoding="utf-8")
         typer.echo(f"wrote {out}")
+
+
+@contextmanager
+def _staged(source: str) -> Iterator[tuple[Path, dict[str, str]]]:
+    """The local file `ingest` should read, plus the origin kwargs for the registry.
+
+    A path yields itself and nothing else. A URL is fetched here — the CLI owns
+    the network, the way it owns page-snapshot capture, so the registry and the
+    extractors stay pure — and staged in a temporary file named for the content
+    type the server declared, which is what selects the extractor. The
+    directory lives until the `with` closes, because page snapshots are
+    captured from that file too.
+    """
+    if not fetch.is_url(source):
+        yield Path(source), {}
+        return
+    fetched = fetch.fetch(source)
+    with TemporaryDirectory(prefix="backdraft-fetch-") as directory:
+        staged = Path(directory) / fetch.filename_for(fetched.url, fetched.content_type)
+        staged.write_bytes(fetched.data)
+        yield staged, {"url": fetched.url, "fetched_at": fetched.fetched_at}
 
 
 def _wants_snapshots(registry: Registry, document: Document, pages: list[Page]) -> bool:

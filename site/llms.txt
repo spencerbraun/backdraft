@@ -26,8 +26,15 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # model calls) so artifacts show the cited page. No poppler: ingest still
 # succeeds, notes it, and `backdraft snapshot-pages <slug>` backfills later.
 # Formats: pdf, xlsx/xlsm, xls (via [xls]), csv/tsv, docx, pptx,
-# png/jpeg/tiff, txt/md. pptx is slide text only; export visual-heavy
+# png/jpeg/tiff, html/htm, txt/md. pptx is slide text only; export visual-heavy
 # decks to PDF and ingest via the vision extractor.
+# An ingest source can be an http(s) URL, not just a path: the page is fetched
+# once and snapshotted like a file. Identity is the sha256 of the fetched
+# bytes, so re-ingesting a changed page is a new generation and old citations
+# report drifted; the URL + fetched_at ride along as provenance and show in
+# `backdraft ls`. JavaScript-rendered pages and anything behind a login are out
+# of reach — you get what a plain GET returns. No boilerplate stripping: nav
+# and footers are part of the page.
 # Sandboxes usually cannot reach model providers: if VLM ingest fails on
 # network, continue with the text layer and say so. The registry travels
 # with the project folder (.backdraft/), so a registry ingested with the
@@ -44,6 +51,7 @@ token by hand; copy it from gate output.
 
 backdraft init                              # once per project
 backdraft ingest report.pdf model.xlsx      # every source up front
+backdraft ingest https://example.com/q4     # a URL is a source too
 backdraft session start --id s-<name>       # enables not_shown detection
 export BACKDRAFT_SESSION=s-<name>
 
