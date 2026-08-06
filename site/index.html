@@ -21,9 +21,13 @@
 html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
 body{margin:0;background:var(--notebook);color:var(--ink);
   font-family:var(--serif);font-size:17px;line-height:1.6;
-  background-image:
-    repeating-linear-gradient(0deg,var(--notebook-line) 0 1px,transparent 1px 18px),
-    repeating-linear-gradient(90deg,var(--notebook-line) 0 1px,transparent 1px 18px)}
+  /* Honeycomb, 18px row pitch — the rhythm the square grid had. Each hexagon
+     draws only its two upper edges and its left vertical, which lays the whole
+     comb with every edge drawn exactly once; a shared edge drawn twice would
+     read as a darker seam, the stroke being semi-transparent. The stroke is
+     --notebook-line's value inlined, because a data URI cannot read a custom
+     property — move the two together. */
+  background-image:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220.78%22 height=%2236%22%3E%3Cpath d=%22M-31.18 -6L-20.78 -12L-10.39 -6M-31.18 6L-31.18 -6M-10.39 -6L0 -12L10.39 -6M-10.39 6L-10.39 -6M10.39 -6L20.78 -12L31.18 -6M10.39 6L10.39 -6M-20.78 12L-10.39 6L0 12M-20.78 24L-20.78 12M0 12L10.39 6L20.78 12M0 24L0 12M20.78 12L31.18 6L41.57 12M20.78 24L20.78 12M-31.18 30L-20.78 24L-10.39 30M-31.18 42L-31.18 30M-10.39 30L0 24L10.39 30M-10.39 42L-10.39 30M10.39 30L20.78 24L31.18 30M10.39 42L10.39 30%22 fill=%22none%22 stroke=%22rgba(40,40,40,.05)%22/%3E%3C/svg%3E")}
 a{color:inherit;text-decoration:underline;text-decoration-color:rgba(40,40,40,.28);
   text-underline-offset:3px;text-decoration-thickness:1px}
 a:hover{text-decoration-color:var(--ink)}
