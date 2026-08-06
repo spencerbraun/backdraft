@@ -154,6 +154,52 @@ Tests for all three.
 
 **Size.** One day.
 
+### 5. The demo cites a web page, so the feature is visible
+
+**Intent.** URL sources ship complete — `ingest` fetches and snapshots, the
+registry keeps `url` and `fetched_at`, and as of 2026-08-06 the artifact links
+back to the page with its fetch date. None of it appears at
+`backdraft.dev/demo.html`, because both demo sources are local files
+(`t12-summary.pdf`, `underwriting-model.xlsx`). The one artifact anybody
+actually looks at does not show the capability, and the byte-identity test that
+proved the change was safe is the same fact that keeps it invisible. A reader
+evaluating backdraft cannot see that a web citation is a citation like any
+other.
+
+**Shape.** Add a third source to `demo/`: the Wikipedia article for the county
+the property sits in, cited for market context — population, median household
+income, the kind of external figure a screening memo genuinely leans on and
+cannot get from a T12. Bridgeview Commons is fictional and says so in its own
+first line, so give it a real county and let the memo name it; one new
+paragraph under "The asset" or a short "Market" section, with one or two
+claims. Cite Wikipedia's **permanent link** (`?oldid=<rev>`), not the bare
+article URL: an article is edited constantly, a citation into the live URL
+would report `drifted` within days, and a front-page demo that permanently
+shows drift teaches that the tool is broken rather than that the source moved.
+An immutable revision plus the rendered "as of" date is also what a careful
+analyst cites. Write the tradeoff as a DESIGN row, naming the thing given up —
+the demo no longer shows a live page changing under a citation, which is the
+better story and belongs in a `drifted` walkthrough, not the shop window.
+
+Practical notes for whoever builds this: `demo/.backdraft/` is gitignored, so
+the fetch happens once on the implementer's machine and the snapshot then
+travels in the local registry; `demo/generate_sources.py` builds the two
+fixture files and is *not* where this goes, since the page is fetched rather
+than generated. Re-bind and re-render (`bind memo.md --session s-bridgeview
+--check value-trace,overlap`, then `render memo.md --to html`), and copy the
+result over `site/demo.html` — the two are byte-identical by convention.
+`demo/walkthrough.md` shows real CLI output and its `ls` and `bind` blocks both
+move.
+
+**Acceptance.** `backdraft.dev/demo.html` shows three sources, one of them a
+clickable Wikipedia link with a fetch date, on both the resting rail and the
+end-matter list; the claim citing it opens a card whose source line carries the
+same link. `demo/walkthrough.md` matches what the commands now print. A re-bind
+some weeks later still reports `resolved`, not `drifted` — that is the check
+that the permanent link did its job.
+
+**Size.** One day.
+
 ## Parked
 
 Deliberately not queued, each with the reason, so picking one up starts from
