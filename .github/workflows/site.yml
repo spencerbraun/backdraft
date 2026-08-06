@@ -8,19 +8,29 @@ permissions:
   contents: read
   pages: write
   id-token: write
+# One deployment at a time, and a publish in flight is never cancelled: a
+# cancelled Pages deploy can leave the backend with a deployment that never
+# completes, which is a stuck site rather than a lost run.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
-  deploy:
+  # Build and deploy are separate so that re-running the failed job re-runs
+  # only the deploy. Bundled, a retry uploaded a second `github-pages`
+  # artifact and `deploy-pages` refused the run for finding two of them.
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site/
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
