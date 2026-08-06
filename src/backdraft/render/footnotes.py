@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from ..kernel.model import BindReport, Citation, CitationStatus
 from ._text import quote_lines as _quote
-from ._text import short, status_note
+from ._text import fetched_on, short, status_note
 from .placement import Placement, locate
 from .sidecar import FORMAT, SIDECAR_SUFFIX
 
@@ -31,18 +31,19 @@ _Note = tuple[str, list[str]]
 def render(source: str, report: BindReport) -> str:
     """Render `source` and its bind report as plain markdown with footnotes."""
     placements = locate(source, report.claims)
+    docs: dict = (report.evidence or {}).get("documents", {})
     notes: list[_Note] = []
-    body = _body(source, placements, notes)
+    body = _body(source, placements, notes, docs)
     sections = [body.rstrip(), "---", _receipts(report, notes), _unresolved(placements)]
     return "\n\n".join(section for section in sections if section) + "\n"
 
 
-def _body(source: str, placements: list[Placement], notes: list[_Note]) -> str:
+def _body(source: str, placements: list[Placement], notes: list[_Note], docs: dict) -> str:
     """The document with each claim's citation construct replaced by refs."""
     pieces: list[str] = []
     cursor = 0
     for placement in placements:
-        claim_notes = _notes_for(placement, len(notes))
+        claim_notes = _notes_for(placement, len(notes), docs)
         notes.extend(claim_notes)
         if placement.start is None or placement.end is None:
             continue
@@ -55,18 +56,33 @@ def _body(source: str, placements: list[Placement], notes: list[_Note]) -> str:
     return "".join(pieces)
 
 
-def _notes_for(placement: Placement, offset: int) -> list[_Note]:
+def _notes_for(placement: Placement, offset: int, docs: dict) -> list[_Note]:
     """One note per citation; a claim with no citation still gets one."""
     claim = placement.claim
     if not claim.citations:
         return [(f"{LABEL_PREFIX}{offset + 1}", _unanchored_note(placement))]
     return [
-        (f"{LABEL_PREFIX}{offset + position}", _note(citation, placement))
+        (f"{LABEL_PREFIX}{offset + position}", _note(citation, placement, docs))
         for position, citation in enumerate(claim.citations, start=1)
     ]
 
 
-def _note(citation: Citation, placement: Placement) -> list[str]:
+def _origin(slug: str, docs: dict) -> str:
+    """A fetched source's origin, as a trailing fragment of the source line.
+
+    The markdown projection gives up the click, not the pointer: an autolink
+    carries the URL to a reader in a pull request or an email, where the
+    artifact's live link cannot follow. "" for a source that came from a file.
+    """
+    entry = docs.get(slug) or {}
+    url = str(entry.get("url") or "")
+    if not url:
+        return ""
+    when = fetched_on(entry.get("fetched_at"))
+    return f" · <{url}>" + (f" as of {when}" if when else "")
+
+
+def _note(citation: Citation, placement: Placement, docs: dict) -> list[str]:
     """The lines of one footnote: source, quote, token, drift, verdicts.
 
     Groups are separated by blank lines so that the quote is a blockquote in the
@@ -75,7 +91,10 @@ def _note(citation: Citation, placement: Placement) -> list[str]:
     anchor = citation.anchor
     if anchor is not None:
         groups = [
-            [f"**{anchor.slug}** · `{anchor.locator}` · {citation.status}"],
+            [
+                f"**{anchor.slug}** · `{anchor.locator}` · {citation.status}"
+                f"{_origin(anchor.slug, docs)}"
+            ],
             _quote(anchor.receipt.snippet),
             [f"Token `{citation.token}` · sha256 `{anchor.receipt.snippet_sha256}`"],
         ]

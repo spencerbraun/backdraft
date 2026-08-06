@@ -199,7 +199,10 @@ LEGEND: dict[str, Any] = {
     ],
     "evidence": (
         "Optional. Evidence context for the cited sources, bounded by what is cited "
-        "— never the whole corpus. `documents` maps slug to {filename, media_type}. "
+        "— never the whole corpus. `documents` maps slug to {filename, media_type}, "
+        "plus {url, fetched_at} for a source fetched from the web: the page the bytes "
+        "came from, after redirects, and when they were taken. Provenance only — the "
+        "sha256 is the identity, and a source read from a file carries neither key. "
         "`pages` maps `slug:pN` to a page image {format, width, height, data} where "
         "`data` is base64; for a vision-model extraction this is the page as the "
         "model was shown it. `pagetexts` maps `slug:pN` to that page's extracted "

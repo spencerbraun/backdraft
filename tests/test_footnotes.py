@@ -111,3 +111,51 @@ def test_provenance_line_names_the_sidecar(demo_doc: str, demo: BindReport) -> N
     text = footnotes.render(demo_doc, demo)
     assert "`memo.backdraft.json` (`backdraft/artifact-v1`)" in text
     assert "frontwalk, session `s-bridgeview-01`" in text
+
+
+# ---- a fetched source's origin travels into the markdown --------------------
+
+URL = "https://example.com/reports/q4-2025"
+
+
+def _with_origin(report: BindReport, **entry) -> BindReport:
+    return dataclasses.replace(
+        report,
+        evidence={
+            "documents": {
+                "t12-audit": {"filename": "q4-2025.html", "media_type": "html", **entry}
+            },
+            "pages": {}, "pagetexts": {}, "windows": {}, "sheets": {},
+        },
+    )
+
+
+def test_the_source_line_carries_the_origin_as_an_autolink(
+    demo_doc: str, demo: BindReport
+) -> None:
+    """The projection gives up the click, not the pointer."""
+    text = footnotes.render(
+        demo_doc, _with_origin(demo, url=URL, fetched_at="2026-08-05T09:14:00Z")
+    )
+    assert f"**t12-audit** · `p8.c3` · resolved · <{URL}> as of 2026-08-05" in text
+
+
+def test_a_source_without_an_origin_keeps_the_line_it_had(
+    demo_doc: str, demo: BindReport
+) -> None:
+    text = footnotes.render(demo_doc, _with_origin(demo))
+    assert "**t12-audit** · `p8.c3` · resolved\n" in text
+
+
+def test_a_report_with_no_evidence_still_renders(demo_doc: str, demo: BindReport) -> None:
+    """Evidence is optional; the projection may not require it to name a source."""
+    text = footnotes.render(demo_doc, dataclasses.replace(demo, evidence=None))
+    assert "**t12-audit** · `p8.c3` · resolved\n" in text
+
+
+def test_an_unparseable_fetch_time_leaves_the_url_undated(
+    demo_doc: str, demo: BindReport
+) -> None:
+    text = footnotes.render(demo_doc, _with_origin(demo, url=URL, fetched_at="whenever"))
+    assert f"· <{URL}>\n" in text
+    assert "as of" not in text

@@ -293,3 +293,62 @@ def test_a_saved_html_file_ingests_without_any_url(project: Path, tmp_path: Path
     result = runner.invoke(cli.app, ["ingest", str(path)])
     assert "saved  saved.html  html" in result.output
     assert "meta" not in _document(project, "saved")
+
+
+# ---- the artifact links back ------------------------------------------------
+
+
+def _cite_the_page(project: Path, base: str) -> Path:
+    """Ingest the page, read it, and write a memo citing its first chunk."""
+    runner.invoke(cli.app, ["ingest", f"{base}/q4"])
+    read = runner.invoke(cli.app, ["read", "q4", "p1", "--session", "s-web"])
+    doc = project / "memo.md"
+    doc.write_text(
+        f"# Bridgeview\n\n[NOI rose eleven percent]({_first_token(read.output)}).\n",
+        encoding="utf-8",
+    )
+    result = runner.invoke(cli.app, ["bind", str(doc), "--session", "s-web"])
+    assert result.exit_code == 0, result.output
+    return doc
+
+
+def test_the_artifact_links_back_to_the_page_it_quoted(project: Path, serve) -> None:
+    """The receipt is frozen; the link is how a reader asks whether it still
+    says this. Both the source list and the cited claim's card carry it."""
+    base = serve(_page_routes())
+    doc = _cite_the_page(project, base)
+    result = runner.invoke(cli.app, ["render", str(doc), "--to", "html"])
+    assert result.exit_code == 0, result.output
+    page = (project / "memo.backdraft.html").read_text(encoding="utf-8")
+
+    url = f"{base}/q4"
+    assert f'<a class="origin" href="{url}">{url}</a>' in page
+    listing = page.split('<ul class="srclist">', 1)[1].split("</ul>", 1)[0]
+    assert f'href="{url}"' in listing
+    card = page.split('<article class="card"', 1)[1]
+    assert f'href="{url}"' in card.split("</article>", 1)[0]
+    assert '<span class="asof">fetched 2' in page
+    # the staged filename is not what the reader is shown
+    assert "q4.html" not in listing
+
+
+def test_the_markdown_projection_names_the_url_too(project: Path, serve) -> None:
+    base = serve(_page_routes())
+    doc = _cite_the_page(project, base)
+    result = runner.invoke(cli.app, ["render", str(doc), "--to", "footnotes"])
+    assert result.exit_code == 0, result.output
+    text = (project / "memo.footnotes.md").read_text(encoding="utf-8")
+    assert f"<{base}/q4> as of 2" in text
+
+
+def test_a_file_source_renders_with_no_origin_at_all(project: Path, note: Path) -> None:
+    """The addition is conditional: nothing about a file ingest changed."""
+    runner.invoke(cli.app, ["ingest", str(note)])
+    read = runner.invoke(cli.app, ["read", "quarterly-notes", "p1", "--session", "s-file"])
+    doc = project / "memo.md"
+    doc.write_text(f"# Memo\n\n[A claim]({_first_token(read.output)}).\n", encoding="utf-8")
+    assert runner.invoke(cli.app, ["bind", str(doc), "--session", "s-file"]).exit_code == 0
+    runner.invoke(cli.app, ["render", str(doc), "--to", "html"])
+    page = (project / "memo.backdraft.html").read_text(encoding="utf-8")
+    assert 'class="origin"' not in page
+    assert 'class="asof"' not in page

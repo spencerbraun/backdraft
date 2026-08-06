@@ -181,3 +181,55 @@ def test_xls_documents_get_the_sheet_treatment() -> None:
     registry.docs["uw"] = _doc("uw", "xls")
     evidence = assemble(registry, [_claim("bd:uw:p1:0000", "uw", "p1")])
     assert "uw:model" in evidence["sheets"]
+
+
+# ---- provenance for a source that came from the web -------------------------
+
+
+def _fetched(slug: str = "memo") -> Document:
+    """The same document, but ingested from a URL rather than opened."""
+    doc = _doc(slug, "html")
+    return Document(
+        slug=doc.slug, sha256=doc.sha256, path="https://example.com/reports/q4",
+        filename=f"{slug}.html", media_type="html", created_at=doc.created_at,
+        meta={"url": "https://example.com/reports/q4", "fetched_at": "2026-08-05T09:14:00Z"},
+    )
+
+
+def test_a_fetched_source_carries_its_origin_and_fetch_time() -> None:
+    registry = _registry()
+    registry.docs["memo"] = _fetched()
+    evidence = assemble(registry, [_claim("bd:memo:p6.c1:0000", "memo", "p6.c1")])
+    entry = evidence["documents"]["memo"]
+    assert entry["url"] == "https://example.com/reports/q4"
+    assert entry["fetched_at"] == "2026-08-05T09:14:00Z"
+    assert entry["filename"] == "memo.html"
+
+
+def test_a_file_source_carries_neither_key() -> None:
+    """The whole point of making the keys conditional: an artifact built from
+    files is byte-identical to one built before URL sources existed."""
+    evidence = assemble(_registry(), [_claim("bd:memo:p6.c1:0000", "memo", "p6.c1")])
+    assert set(evidence["documents"]["memo"]) == {"filename", "media_type"}
+
+
+def test_a_fetch_time_without_a_url_is_not_provenance() -> None:
+    """`fetched_at` alone says when nothing was taken from nowhere."""
+    registry = _registry()
+    registry.docs["memo"] = Document(
+        slug="memo", sha256="0" * 64, path="/x/memo", filename="memo.pdf",
+        media_type="pdf", created_at="2026-07-28T00:00:00Z",
+        meta={"fetched_at": "2026-08-05T09:14:00Z"},
+    )
+    evidence = assemble(registry, [_claim("bd:memo:p6.c1:0000", "memo", "p6.c1")])
+    assert set(evidence["documents"]["memo"]) == {"filename", "media_type"}
+
+
+def test_meta_that_is_not_provenance_adds_nothing() -> None:
+    registry = _registry()
+    registry.docs["memo"] = Document(
+        slug="memo", sha256="0" * 64, path="/x/memo", filename="memo.pdf",
+        media_type="pdf", created_at="2026-07-28T00:00:00Z", meta={"pages": 3},
+    )
+    evidence = assemble(registry, [_claim("bd:memo:p6.c1:0000", "memo", "p6.c1")])
+    assert set(evidence["documents"]["memo"]) == {"filename", "media_type"}

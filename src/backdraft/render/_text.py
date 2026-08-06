@@ -16,9 +16,14 @@ its own quoting even where the code looks alike.
 
 from __future__ import annotations
 
+import re
+from typing import Any
+
 from ..kernel.model import CitationStatus
 
-__all__ = ["STATUS_NOTE", "quote_lines", "sentence", "short", "status_note"]
+__all__ = ["STATUS_NOTE", "fetched_on", "quote_lines", "sentence", "short", "status_note"]
+
+_ISO_DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
 
 STATUS_NOTE: dict[CitationStatus, str] = {
     CitationStatus.DRIFTED: "the source changed after this claim was written",
@@ -36,6 +41,18 @@ STATUS_NOTE: dict[CitationStatus, str] = {
 def status_note(status: CitationStatus) -> str:
     """The one-line reason for a status, or "" when there is nothing to say."""
     return STATUS_NOTE.get(status, "")
+
+
+def fetched_on(value: Any) -> str:
+    """The date out of a stored ISO fetch timestamp, or "" if it is not one.
+
+    Both renderers date a fetched source's origin, and both want the day rather
+    than the second: "as of" is what makes a frozen quote from a live page
+    defensible, and no reader needs the milliseconds. A `fetched_at` that does
+    not parse shows as nothing rather than as a broken date.
+    """
+    match = _ISO_DATE_RE.match(str(value or ""))
+    return match.group(1) if match else ""
 
 
 def sentence(text: str) -> str:

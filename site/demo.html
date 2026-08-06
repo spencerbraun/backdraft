@@ -128,6 +128,13 @@ border-bottom:2px solid transparent;margin-bottom:-1px;letter-spacing:.01em}
 .src{margin:.2rem 0 .6rem;display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap}
 .src .doc{font-weight:600;color:var(--ink);font-size:.88rem}
 .src .loc{font-size:.72rem;color:var(--faint)}
+.src .from{flex:0 0 100%;display:flex;gap:.5rem;flex-wrap:wrap;
+align-items:baseline;font-size:.72rem}
+.origin{color:var(--muted);overflow-wrap:anywhere;
+text-decoration:underline;text-decoration-color:var(--underline);
+text-underline-offset:2px}
+a.origin:hover{color:var(--ink);text-decoration-color:var(--ink)}
+.asof{color:var(--faint);white-space:nowrap}
 .alarm{color:var(--alarm);font-size:.78rem;margin:.35rem 0}
 .quote{margin:.35rem 0 .75rem;padding:.05rem 0 .05rem .9rem;
 border-left:2px solid var(--hairline-strong);font-family:var(--serif);
@@ -500,13 +507,13 @@ immediate<sup class="mark">14</sup></a>, and none of it is escrowed. The model's
       "3. Recount `summary` from `claims`.",
       "Steps 1 to 3 need nothing but this object. If you also hold the source documents, look `locator` up in the document named by `slug` and compare its text against `snippet`; that is the only check this record cannot make of itself."
     ],
-    "evidence": "Optional. Evidence context for the cited sources, bounded by what is cited — never the whole corpus. `documents` maps slug to {filename, media_type}. `pages` maps `slug:pN` to a page image {format, width, height, data} where `data` is base64; for a vision-model extraction this is the page as the model was shown it. `pagetexts` maps `slug:pN` to that page's extracted text. `windows` maps `slug:\u003clocator\u003e` to a small cell grid around a cited cell: {sheet, cited, cols, rows}, plus optional `styles` {cells, widths} carrying the workbook's own presentation for those cells. `sheets` maps `slug:\u003csheet\u003e` to the full cited sheet's values: {name, nrows, ncols, rows}, plus optional `meta` {palette, cells, widths, merged, frozen} — cell styling as palette indices, column widths in Excel units, merged ranges, the frozen pane. Styling is display context only and is never part of citation identity: snippets and hashes are computed from values alone. A record without `evidence` is still complete — evidence is context, snippets are the proof. The HTML artifact may omit `pages[*].data` from its embedded copy of this object when the same bytes are present in the page as image elements.",
+    "evidence": "Optional. Evidence context for the cited sources, bounded by what is cited — never the whole corpus. `documents` maps slug to {filename, media_type}, plus {url, fetched_at} for a source fetched from the web: the page the bytes came from, after redirects, and when they were taken. Provenance only — the sha256 is the identity, and a source read from a file carries neither key. `pages` maps `slug:pN` to a page image {format, width, height, data} where `data` is base64; for a vision-model extraction this is the page as the model was shown it. `pagetexts` maps `slug:pN` to that page's extracted text. `windows` maps `slug:\u003clocator\u003e` to a small cell grid around a cited cell: {sheet, cited, cols, rows}, plus optional `styles` {cells, widths} carrying the workbook's own presentation for those cells. `sheets` maps `slug:\u003csheet\u003e` to the full cited sheet's values: {name, nrows, ncols, rows}, plus optional `meta` {palette, cells, widths, merged, frozen} — cell styling as palette indices, column widths in Excel units, merged ranges, the frozen pane. Styling is display context only and is never part of citation identity: snippets and hashes are computed from values alone. A record without `evidence` is still complete — evidence is context, snippets are the proof. The HTML artifact may omit `pages[*].data` from its embedded copy of this object when the same bytes are present in the page as image elements.",
     "version": "The format string in `$format` is matched exactly, as an opaque string. A reader that does not recognize `backdraft/artifact-v1` must not guess: later versions may reuse these field names with different meanings. There is no compatibility range and no minor-version negotiation."
   },
   "doc_path": "memo.md",
   "mode": "frontwalk",
   "session_id": "s-bridgeview",
-  "bound_at": "2026-08-04T15:56:48Z",
+  "bound_at": "2026-08-06T13:11:55Z",
   "claims": [
     {
       "text": "128 units across four three-story garden buildings, built\nin 1998 and substantially renovated between 2019 and\n2021",

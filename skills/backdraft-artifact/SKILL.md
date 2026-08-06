@@ -53,6 +53,13 @@ Only one check needs the outside world: looking the `locator` up in the document
 named by `slug` and comparing it to `snippet`. Say plainly whether you did that
 or not.
 
+For a source fetched from the web, `evidence.documents[slug]` carries `url` and
+`fetched_at` — where the bytes came from and when. That is the one source whose
+outside world you can name precisely: report the claim as resting on the page
+*as of* that date, and if the reader needs to know whether it still says this,
+the URL is the check to hand them. Do not fetch it yourself to find out — that
+is a re-ingest and it belongs to whoever owns the registry.
+
 ## What to report
 
 **Quote snippets verbatim.** The snippet is the receipt. Paraphrasing it destroys

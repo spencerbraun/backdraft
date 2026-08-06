@@ -479,3 +479,99 @@ def test_page_image_evidence_is_stored_once_and_referenced(demo_doc: str, demo: 
     page = html.render(demo_doc, report)
     assert page.count("data:image/webp;base64,QUJDRA==") == 1
     assert 'data-ev="ev-t12-audit-p8"' in page
+
+
+# ---- a fetched source points back at the page it came from -------------------
+
+URL = "https://example.com/reports/q4-2025"
+
+
+def _with_origin(report: BindReport, **entry) -> BindReport:
+    """The demo report, with `t12-audit` recorded as a fetched page."""
+    return dataclasses.replace(
+        report,
+        evidence={
+            "documents": {
+                "t12-audit": {"filename": "q4-2025.html", "media_type": "html", **entry}
+            },
+            "pages": {}, "pagetexts": {}, "windows": {}, "sheets": {},
+        },
+    )
+
+
+def test_a_fetched_sources_receipt_links_to_the_live_page(
+    demo_doc: str, demo: BindReport
+) -> None:
+    page = html.render(
+        demo_doc, _with_origin(demo, url=URL, fetched_at="2026-08-05T09:14:00Z")
+    )
+    assert f'<a class="origin" href="{URL}">{URL}</a>' in page
+    assert '<span class="asof">fetched 2026-08-05</span>' in page
+
+
+def test_the_source_list_shows_the_origin_in_place_of_the_staged_filename(
+    demo_doc: str, demo: BindReport
+) -> None:
+    """`q4-2025.html` names nothing on anyone's disk; the URL does. The record
+    island keeps the filename — this is what the reader is shown, not what is
+    stored."""
+    page = html.render(
+        demo_doc, _with_origin(demo, url=URL, fetched_at="2026-08-05T09:14:00Z")
+    )
+    listing = page.split('<ul class="srclist">', 1)[1].split("</ul>", 1)[0]
+    assert re.search(
+        r'<li><span class="doc">Q4 2025</span>'
+        rf'<span class="filemeta"><a class="origin" href="{re.escape(URL)}">{re.escape(URL)}'
+        r"</a> &middot; fetched 2026-08-05 &middot; \d+ citations?</span></li>",
+        listing,
+    )
+    assert "q4-2025.html" not in listing
+
+
+def test_a_file_source_still_shows_its_filename(demo_doc: str, demo: BindReport) -> None:
+    page = html.render(demo_doc, _with_origin(demo))
+    assert "q4-2025.html &middot;" in page
+    assert 'class="origin"' not in page
+
+
+def test_the_origin_survives_in_the_script_free_notes(
+    demo_doc: str, demo: BindReport
+) -> None:
+    """Artifact rule 2: the reader without JavaScript loses the card, not the
+    provenance. The Notes section carries the same link."""
+    page = html.render(demo_doc, _with_origin(demo, url=URL))
+    notes = page.split('<ol class="notes">', 1)[1].split("</ol>", 1)[0]
+    assert f'href="{URL}"' in notes
+
+
+def test_a_url_under_an_unknown_scheme_is_shown_but_never_linked(
+    demo_doc: str, demo: BindReport
+) -> None:
+    """Artifact rule 3 forbids `javascript:` URLs, and the guard is an
+    allowlist — the pointer is still shown, as text a reader can read."""
+    page = html.render(demo_doc, _with_origin(demo, url="javascript:alert(1)"))
+    assert '<span class="origin">javascript:alert(1)</span>' in page
+    assert "<a class=\"origin\"" not in page
+
+
+def test_the_origin_href_is_escaped(demo_doc: str, demo: BindReport) -> None:
+    page = html.render(demo_doc, _with_origin(demo, url='https://x.test/a"><b>'))
+    assert '<b>' not in page.split('<ol class="notes">', 1)[1]
+    assert "https://x.test/a&quot;&gt;&lt;b&gt;" in page
+
+
+def test_an_unparseable_fetch_time_shows_no_date(demo_doc: str, demo: BindReport) -> None:
+    page = html.render(demo_doc, _with_origin(demo, url=URL, fetched_at="whenever"))
+    assert f'href="{URL}"' in page
+    assert "fetched whenever" not in page
+    assert 'class="asof"' not in page
+
+
+def test_an_artifact_with_a_link_still_fetches_nothing(
+    demo_doc: str, demo: BindReport
+) -> None:
+    """The CSP forbids fetching, not linking: `img-src data:` and nothing else
+    stays true with an `<a href>` to the open web in the page."""
+    page = html.render(demo_doc, _with_origin(demo, url=URL))
+    assert "default-src 'none'" in page
+    assert "connect-src" not in page

@@ -14,6 +14,7 @@ import re
 from typing import Any
 
 from .. import markdown
+from .._text import fetched_on
 from ...kernel.model import SHEET_MEDIA_TYPES, Citation, CitationStatus, Claim, Verdict
 
 CELL_RE = re.compile(r"^(?P<sheet>[^!]+)!(?P<ref>[A-Z]{1,3}\d+)$")
@@ -90,6 +91,32 @@ def source_title(slug: str, docs: dict) -> str:
     if re.fullmatch(r"[a-z0-9][a-z0-9 \-]*", base):
         return humanize_sheet(base.replace(" ", "-"))
     return base
+
+
+ORIGIN_SCHEMES = ("http://", "https://")
+"""The only schemes an origin URL may be linked under. Artifact rule 3 forbids
+`javascript:` URLs, so this is an allowlist rather than a guard against one
+known-bad scheme: whatever the registry stored, only these become live."""
+
+
+def origin(slug: str, docs: dict) -> tuple[str, str]:
+    """A fetched source's origin as `(url html, fetch date)`; `("", "")` for a file.
+
+    The URL is a live link — the artifact's CSP forbids fetching, not linking,
+    and pointing back at the page is half of what citing one is for: the receipt
+    says what it said, the link is how a reader asks whether it still does. A
+    URL under an unrecognized scheme is shown as plain text rather than dropped;
+    provenance the reader must paste by hand still beats provenance withheld.
+    """
+    entry = docs.get(slug) or {}
+    url = str(entry.get("url") or "")
+    if not url:
+        return "", ""
+    if url.lower().startswith(ORIGIN_SCHEMES):
+        html = f'<a class="origin" href="{_esc(url)}">{_esc(url)}</a>'
+    else:
+        html = f'<span class="origin">{_esc(url)}</span>'
+    return html, fetched_on(entry.get("fetched_at"))
 
 
 def md_html(text: str) -> str:

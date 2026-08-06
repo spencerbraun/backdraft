@@ -23,10 +23,31 @@ from .text import (
     humanize_verdict,
     location,
     md_html,
+    origin,
     short_loc,
     source_title,
     table_heavy,
 )
+
+
+def _source_line(anchor, docs: dict) -> str:
+    """A receipt's source: what it is, where in it, and — for a page fetched
+    from the web — the URL it came from and the date it was taken.
+
+    The card and the script-free note both open with this, so it lives here
+    once: the two layers are the same receipt at different depths, and a
+    provenance line that appeared in only one of them would be missing exactly
+    where a reader without JavaScript is left.
+    """
+    url_html, when = origin(anchor.slug, docs)
+    trailer = ""
+    if url_html:
+        asof = f'<span class="asof">fetched {when}</span>' if when else ""
+        trailer = f'<span class="from">{url_html}{asof}</span>'
+    return (
+        f'<p class="src"><span class="doc">{_esc(source_title(anchor.slug, docs))}</span>'
+        f'<span class="loc">{location(anchor, docs)}</span>{trailer}</p>'
+    )
 
 
 def _page_plate(anchor, page: dict, docs: dict, store: dict[str, dict]) -> str:
@@ -143,8 +164,7 @@ def _citation(
     locator = str(anchor.locator)
     parts = [
         wrap,
-        f'<p class="src"><span class="doc">{_esc(source_title(anchor.slug, docs))}</span>'
-        f'<span class="loc">{location(anchor, docs)}</span></p>',
+        _source_line(anchor, docs),
         _status_sentence(citation),
         _drift_block(citation),
     ]
@@ -270,8 +290,7 @@ def _note(placement: Placement, docs: dict) -> str:
             short = short.replace("**", "").replace("*", "")
             quote_html = f'<blockquote class="quote">{md_html(short)}</blockquote>'
         parts.append(
-            f'<p class="src"><span class="doc">{_esc(source_title(citation.anchor.slug, docs))}</span>'
-            f'<span class="loc">{location(citation.anchor, docs)}</span></p>'
+            f"{_source_line(citation.anchor, docs)}"
             f"{_status_sentence(citation)}{_drift_block(citation)}"
             f"{quote_html}{_record_block(citation)}"
         )
@@ -292,10 +311,16 @@ def _sources_index(placements: list[Placement], docs: dict) -> str:
     items = []
     for slug, count in sorted(counts.items(), key=lambda item: -item[1]):
         entry = docs.get(slug, {})
-        meta = _esc(entry.get("filename", slug))
+        url_html, when = origin(slug, docs)
+        # A fetched page's filename is a staging artifact — `q4-2025.html` names
+        # nothing on anyone's disk — so where there is an origin URL it stands
+        # in the filename's place rather than beside it.
+        meta = [url_html] if url_html else [_esc(entry.get("filename", slug))]
+        if when:
+            meta.append(f"fetched {when}")
+        meta.append(f"{count} citation{'s' if count != 1 else ''}")
         items.append(
             f'<li><span class="doc">{_esc(source_title(slug, docs))}</span>'
-            f'<span class="filemeta">{meta} &middot; '
-            f"{count} citation{'s' if count != 1 else ''}</span></li>"
+            f'<span class="filemeta">{" &middot; ".join(meta)}</span></li>'
         )
     return "".join(items)

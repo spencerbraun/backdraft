@@ -21,7 +21,7 @@ from typing import Any, Iterable
 
 from ..kernel.model import SHEET_MEDIA_TYPES, Claim
 
-__all__ = ["assemble", "window_styles", "WINDOW_ROWS", "WINDOW_COLS"]
+__all__ = ["assemble", "document_entry", "window_styles", "WINDOW_ROWS", "WINDOW_COLS"]
 
 WINDOW_ROWS = 6
 """Rows kept above and below a cited cell in its window."""
@@ -78,6 +78,31 @@ def window_styles(
     return out
 
 
+def document_entry(document) -> dict[str, Any]:  # noqa: ANN001
+    """One source's entry in the evidence `documents` map.
+
+    `filename` and `media_type` are always there. A source fetched from the web
+    also carries `url` and `fetched_at` out of its document meta, so a reader
+    holding only the artifact can go back to the live page and ask whether it
+    still says this — the half of citing a web page that a frozen receipt
+    cannot answer on its own.
+
+    The two keys appear only where there is a URL, which is what keeps an
+    artifact built from files byte-identical to one built before URL sources
+    existed. Provenance, never identity: the sha256 is what the bytes were.
+    """
+    entry: dict[str, Any] = {
+        "filename": document.filename,
+        "media_type": document.media_type,
+    }
+    meta = getattr(document, "meta", None) or {}
+    if url := meta.get("url"):
+        entry["url"] = url
+        if fetched_at := meta.get("fetched_at"):
+            entry["fetched_at"] = fetched_at
+    return entry
+
+
 def assemble(registry, claims: Iterable[Claim], *, lean: bool = False) -> dict[str, Any] | None:  # noqa: ANN001
     """Evidence for every cited anchor, or None when there is nothing to give.
 
@@ -125,13 +150,7 @@ def assemble(registry, claims: Iterable[Claim], *, lean: bool = False) -> dict[s
         return None
 
     evidence: dict[str, Any] = {
-        "documents": {
-            slug: {
-                "filename": documents[slug].filename,
-                "media_type": documents[slug].media_type,
-            }
-            for slug in slugs
-        },
+        "documents": {slug: document_entry(documents[slug]) for slug in slugs},
         "pages": {},
         "pagetexts": {},
         "windows": {},

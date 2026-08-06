@@ -66,7 +66,11 @@ keys come first, then the bind report:
 
 `evidence` is OPTIONAL: context for the cited sources, assembled at bind and
 bounded by what is cited — never the whole corpus. Its keys: `documents` maps
-slug to `{filename, media_type}`; `pages` maps `slug:pN` to a page image
+slug to `{filename, media_type}`, plus `url` and `fetched_at` for a source
+fetched from the web — the page the bytes came from (after redirects) and when
+they were taken, both OPTIONAL and both absent for a source read from a file;
+they are provenance, never identity, so two documents differing only in `url`
+are still distinct only if their bytes differ. `pages` maps `slug:pN` to a page image
 `{format, width, height, data}` with `data` base64 (for a vision-model
 extraction, the page as the model was shown it); `pagetexts` maps `slug:pN` to
 that page's extracted text; `windows` maps `slug:<locator>` to a small cell

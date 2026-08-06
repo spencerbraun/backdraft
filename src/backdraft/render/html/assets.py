@@ -236,6 +236,15 @@ a{color:inherit}
 .src{margin:.2rem 0 .6rem;display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap}
 .src .doc{font-weight:600;color:var(--ink);font-size:.88rem}
 .src .loc{font-size:.72rem;color:var(--faint)}
+/* the origin of a fetched page: its own line under the source, because a URL
+   is long and the document's name should not have to share a row with one */
+.src .from{flex:0 0 100%;display:flex;gap:.5rem;flex-wrap:wrap;
+  align-items:baseline;font-size:.72rem}
+.origin{color:var(--muted);overflow-wrap:anywhere;
+  text-decoration:underline;text-decoration-color:var(--underline);
+  text-underline-offset:2px}
+a.origin:hover{color:var(--ink);text-decoration-color:var(--ink)}
+.asof{color:var(--faint);white-space:nowrap}
 .alarm{color:var(--alarm);font-size:.78rem;margin:.35rem 0}
 
 .quote{margin:.35rem 0 .75rem;padding:.05rem 0 .05rem .9rem;

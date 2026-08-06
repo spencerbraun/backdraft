@@ -32,47 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. URL sources: the artifact links back
-
-**Intent.** The capture half of URL sources landed 2026-08-05: `backdraft
-ingest <url>` fetches a page, snapshots it, and stores its origin URL and fetch
-time as document meta (see the decision row). Nothing downstream of the
-registry knows. `bind`'s evidence carries `{filename, media_type}` per source,
-so the artifact's resting source list and its receipt cards name a file that
-never existed on anyone's disk — `q4-2025.html` — and a reader holding the
-artifact has the frozen receipt with no way back to the live page. That
-pointer is half of what citing a web page is for, and it is the half that
-answers "is this still true?".
-
-**Shape.** Two seams, both narrow. `bind/evidence.py` assembles the `documents`
-map; where a `Document` carries `meta` with a `url`, add `url` and `fetched_at`
-to its entry, and *only* there — an artifact built from files must stay
-byte-identical to one built before this change, which is also the test. That
-makes it an artifact-format change: `spec/artifact.md` and the `$legend` text in
-`kernel/artifact.py` both spell out that `documents` maps slug to `{filename,
-media_type}`, and both must name the new keys. Then the render side:
-`render/html/components.py` owns the receipt card's source line and the resting
-source list, and both should show the URL as a real `<a href>` — the artifact's
-CSP forbids fetching, not linking — with the fetch date beside it, because "as
-of" is what makes a frozen quote from a live page defensible. Escape the href
-with `html.escape(..., quote=True)` as `render/markdown.py` already does for
-authored links; artifact rule 3 forbids `javascript:` URLs and that is a
-conformance requirement, not a nicety, so a stored non-http scheme must not
-become a live link. `render/footnotes.py` is the markdown projection of the
-same layers and its source line takes the URL too.
-
-**Acceptance.** In a scratch project, ingest a page from a local fixture server
-(`tests/test_fetch.py`'s `serve` fixture is the harness — keep it network-free),
-bind a memo citing it, and `render --to html`: the source list and the cited
-claim's card both show the origin URL as a clickable link with the fetch date,
-and `--to footnotes` names it too. Render the demo (all file sources) before
-and after the change and diff: byte-identical, which is what proves the
-addition is conditional. Golden render tests updated; `spec/artifact.md` and
-the `$legend` updated together.
-
-**Size.** One to two days.
-
-### 2. Bind's failure lines name the claim, not just the token
+### 1. Bind's failure lines name the claim, not just the token
 
 **Intent.** Exit 2 tells a calling agent that a citation did not resolve and
 prints the token: `! unresolved: bd:t12-summary:p4.c1:1a2b`. It does not say
@@ -105,7 +65,7 @@ Every doc that shows a bind report — `README.md`, `demo/walkthrough.md`,
 
 **Size.** One day.
 
-### 3. `--config` keys are declared, validated, and listed
+### 2. `--config` keys are declared, validated, and listed
 
 **Intent.** `backdraft ingest x.pdf --config dpy=300` exits 0, ingests, and
 does nothing about the typo. No output names the mistake, and nothing anywhere
@@ -135,7 +95,7 @@ page's `ingest` row and `site/llms.txt` list the keys.
 
 **Size.** Two days.
 
-### 4. `backdraft show <token>`: the inverse of minting
+### 3. `backdraft show <token>`: the inverse of minting
 
 **Intent.** An agent handed a token — out of someone's artifact, a half-written
 draft, a colleague's message — cannot ask what it says. The gate mints tokens
@@ -165,7 +125,7 @@ the docs page's command table, `site/llms.txt` and
 
 **Size.** Two days.
 
-### 5. Ingest finishes the list, then reports what it could not read
+### 4. Ingest finishes the list, then reports what it could not read
 
 **Intent.** `backdraft ingest a.md broken.pdf c.md` ingests `a.md`, fails on
 `broken.pdf`, and never attempts `c.md`. The registry is left half-built, the

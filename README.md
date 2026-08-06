@@ -204,6 +204,13 @@ $ backdraft ls
 q4-2025	q4-2025.html	html	1 pages	https://example.com/reports/q4-2025
 ```
 
+The origin travels into the artifact too. A claim citing a fetched page shows
+the URL as a link on its receipt, with the date the bytes were taken, and the
+source list names the page rather than the staged filename. That pointer is the
+half of citing a web page a frozen receipt cannot answer on its own: the
+snippet says what the page said, the link is how a reader asks whether it still
+says it.
+
 What it does not do, stated rather than worked around: JavaScript-rendered
 pages give you whatever the server sends to a plain GET, pages behind a login
 are out of reach, and the extractor is a parse rather than a readability guess
