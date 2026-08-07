@@ -124,7 +124,7 @@ def fetch(url: str, *, timeout: float = TIMEOUT, max_bytes: int = MAX_BYTES) -> 
     if scheme not in SCHEMES:
         raise FetchError(
             f"cannot fetch {scheme!r} URLs; ingest reads {' and '.join(SCHEMES)}. "
-            f"For a local file, pass its path instead of a {scheme}:// URL."
+            "For a local file, pass its path rather than a URL."
         )
     request = urllib.request.Request(  # noqa: S310 - scheme checked above
         url,

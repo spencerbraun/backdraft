@@ -244,6 +244,18 @@ def test_a_broken_theme_file_names_itself(tmp_path) -> None:
     assert str(written) in str(caught.value)
 
 
+def test_a_theme_that_cannot_be_read_says_so_rather_than_raising_oserror(
+    tmp_path,
+) -> None:
+    """A path that resolves but will not open — a directory here, a permission
+    or an encoding elsewhere. It is a `ThemeError` like every other theme
+    failure, so `guard` reports it and `render` writes nothing."""
+    directory = tmp_path / "theme.toml"
+    directory.mkdir()
+    with pytest.raises(theme.ThemeError, match="cannot read theme"):
+        theme.load(directory)
+
+
 def test_the_project_theme_outranks_the_user_wide_one(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

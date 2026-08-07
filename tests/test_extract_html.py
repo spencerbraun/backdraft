@@ -104,6 +104,20 @@ def test_block_elements_separate_and_inline_ones_do_not() -> None:
     assert text == "One whole sentence.\n\nAnother."
 
 
+@pytest.mark.parametrize(
+    ("markup", "expected"),
+    [("<p>one</p><hr/><p>two</p>", "one\n\ntwo"), ("<p>a<br/>b</p>", "a\nb")],
+)
+def test_a_self_closing_tag_does_what_its_open_form_does(
+    markup: str, expected: str
+) -> None:
+    """XHTML-style `<hr/>` and `<br/>` reach the parser as start-end tags, which
+    is a separate callback: without it a page written that way loses every
+    break it declared."""
+    _, text = parse(markup)
+    assert text == expected
+
+
 def test_br_breaks_a_line_without_breaking_the_block() -> None:
     _, text = parse("<p>First line<br>second line</p>")
     assert text == "First line\nsecond line"
@@ -169,6 +183,13 @@ def test_markup_that_never_closes_its_table_still_renders_it() -> None:
 def test_block_elements_inside_a_cell_do_not_break_the_row() -> None:
     _, text = parse("<table><tr><td><p>one</p><p>two</p></td><td>three</td></tr></table>")
     assert text.splitlines()[0] == "| one two | three |"
+
+
+def test_a_cell_outside_any_row_still_lands_in_the_table() -> None:
+    """Markup that opens cells without a `<tr>`: the cells are the content, and
+    dropping them would silently lose text a claim could be traced to."""
+    _, text = parse("<table><td>a</td><td>b</td></table>")
+    assert text == "| a | b |\n| --- | --- |"
 
 
 # ---- what is not the page's text --------------------------------------------

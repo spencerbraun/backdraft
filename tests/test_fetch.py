@@ -150,6 +150,26 @@ def test_an_unreachable_host_says_so() -> None:
         fetch(f"http://127.0.0.1:{dead}/page", timeout=5)
 
 
+def test_a_server_that_accepts_and_never_answers_times_out() -> None:
+    """A listener that completes the handshake and then says nothing.
+
+    The likeliest real failure of the network path, and its own arm: a read
+    timeout surfaces as `TimeoutError`, which `urllib` does *not* wrap in
+    `URLError` the way it wraps a connect failure, so it reaches `fetch` as a
+    bare `OSError`. Without that arm it would leave the CLI as a traceback
+    rather than as a message.
+    """
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    port = listener.getsockname()[1]
+    try:
+        with pytest.raises(FetchError, match="could not read"):
+            fetch(f"http://127.0.0.1:{port}/hangs", timeout=0.25)
+    finally:
+        listener.close()
+
+
 def test_a_response_over_the_cap_is_refused_by_name(serve) -> None:
     base = serve({"/big": (200, "text/html", b"x" * 5000)})
     with pytest.raises(FetchError, match="larger than"):
