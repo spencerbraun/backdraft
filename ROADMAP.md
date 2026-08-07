@@ -200,6 +200,185 @@ that the permanent link did its job.
 
 **Size.** One day.
 
+### 6. The gate names a fetched source by its page, not by its staging filename
+
+**Intent.** A fetched page's `filename` is `q4-2025.html`, a name invented by
+`fetch.filename_for` for a temporary file that no longer exists. The
+2026-08-06 decision row ruled on this for the artifact — the URL *replaces* the
+filename there, because "showing both would give a reader two names for one
+thing and let the fictional one look authoritative" — but the same fictional
+name is still what `backdraft read` prints in its document list, what its table
+of contents headline prints, and what `ls` prints in column two. The gate is
+where a writing agent actually lives, and there it learns nothing about
+provenance at all: `skills/backdraft/SKILL.md` has to send it to `ls` for a
+fact the surface it is already using could tell it. One rule, applied in one
+place, is the fix.
+
+**Shape.** `gate/reader.py`'s `render_documents` and `_document_headline`, plus
+`cli.py`'s `ls` (which now shares the gate's page-count vocabulary through
+`gate.unit` and should share this too). For a document whose `meta` carries a
+`url`, show the origin in place of the filename, exactly as the artifact's
+source list does. The gate's output is a contract — its module docstring says
+"stable enough to diff" — so keep it line-oriented and keep the column
+alignment: a URL is long, so put it on the row rather than in the aligned
+filename column if alignment would collapse, and say which choice you made in
+the docstring. `Document.meta` is already carried by `Registry.documents()` and
+`Registry.document()`, so no registry change is needed. Do not touch the slug,
+the token, or anything a citation resolves through — this is display, and the
+2026-08-05 row's "provenance, never identity" governs.
+
+**Acceptance.** In a registry holding one file and one fetched page, `backdraft
+read` shows the file by its filename and the page by its URL; `backdraft read
+<slug>` for the fetched page carries the URL in its headline; `backdraft ls`
+matches. A registry of files prints exactly what it printed before — pin that
+as a test, the way the artifact's byte-identity is pinned. `README.md`, the
+docs page and `skills/backdraft/SKILL.md` drop the detour through `ls` for a
+fact `read` now carries.
+
+**Size.** Two days.
+
+### 7. A fetched page's slug is decided, not defaulted
+
+**Intent.** DESIGN.md's Open list has carried "slug assignment/collision rules"
+since the first field trial, and URL sources sharpened it into a real failure:
+`fetch.filename_for` takes the URL's last path segment, so
+`https://a.example/reports/2025/index.html` and
+`https://b.example/docs/index.html` both stage as `index.html` and become slugs
+`index` and `index-2`. An agent then cites `bd:index-2:p1.c3:...` with no way to
+tell which site that is, and a slug is the handle every token in every authored
+document carries — it is stable once assigned, so a bad one is permanent. The
+same collapse hits any site whose pages are `index.html`, `page`, `view`, or a
+bare numeric id.
+
+**Shape.** `fetch.filename_for`, and a decision row that closes the Open
+question for files and URLs together. For a URL, build the stem from enough of
+the address to distinguish it — the host plus the last meaningful path segment
+is the obvious candidate, with the registry's existing `slug_for` slugification
+doing the rest — and keep `_dedupe`'s `-2` as the collision *backstop* rather
+than the normal outcome. `store._assign_slug` and `_dedupe` do not need to
+change; this is about giving them a stem worth deduping. Note the constraint
+that makes this delicate: continuity across a re-fetch is matched on the URL
+(see `_find_document`), not on the slug, so changing the stem rule does not
+break an existing registry's documents — but it does mean two registries built
+on either side of this change disagree about a page's slug, which is a
+compatibility statement the decision row has to make out loud.
+
+**Acceptance.** The two `index.html` URLs above ingest as two slugs that each
+name their site. `https://example.com/reports/q4-2025` still ingests as
+`q4-2025` — the common case does not get uglier to fix the collision case. A
+URL with an empty path still falls back to the host. Tests for each, plus one
+that two pages colliding even after the new rule still dedupe rather than
+error. DESIGN.md gains the decision row and the Open list loses the line.
+
+**Size.** Two days.
+
+### 8. Ingest says what it did and what it got
+
+**Intent.** Two things `ingest` knows and does not say. First, it prints the
+same line whether it created a document, created a *new generation* of one
+whose bytes changed, or did nothing at all because the bytes and config were
+identical — so an agent re-ingesting after a fix cannot tell whether anything
+happened, and the moment a new generation appears is exactly the moment
+existing bindings may start reporting `drifted`. Second, it never says how much
+text came out. `skills/backdraft/SKILL.md` instructs the agent that a
+JavaScript-rendered page or one behind a login "will come back thin or empty,
+and if it does, say so to the user rather than citing the shell of it" — and
+gives it no signal to notice that with. A login wall extracts as a few dozen
+characters, exits 0, and prints `1 page` like any success. The same silence
+covers a scanned PDF with no text layer.
+
+**Shape.** `ingest` in `cli.py`, output only — no registry or format change.
+`Registry.ingest` already distinguishes the three outcomes internally
+(`_find_document`, `_is_noop`, `_upsert_document`); surface which one happened
+rather than re-deriving it in the CLI, which may mean returning it alongside
+the `Document` or exposing it on the returned value. Print the extracted
+character count beside the page count, and when it falls under a threshold the
+module declares as a named constant, add one line naming the likely cause and
+what to do — the shape the poppler and `pdf-text` notes already use, which is a
+note at exit 0 and never a failure, because a thin page is still a real
+snapshot and failures here are data. A new generation gets its own line saying
+that citations into the previous one may now report `drifted`, and that `bind`
+is what will say so.
+
+**Acceptance.** Ingesting a file twice unchanged says so the second time;
+editing it and re-ingesting says a new generation was made and names drift;
+both still exit 0. A near-empty HTML file ingests, exits 0, and prints the thin
+-source note; a normal source does not. `backdraft ingest` on a fresh document
+prints what it prints today plus the character count. Tests for all five
+branches. `demo/walkthrough.md`, `README.md` and `site/docs.html` show the real
+new output, and `skills/backdraft/SKILL.md` points at the note instead of
+asking the agent to judge thinness unaided.
+
+**Size.** Two days.
+
+### 9. `backdraft verify <artifact>`: checking a receipt without the registry
+
+**Intent.** `skills/backdraft-artifact/SKILL.md` exists because there is no
+command: it walks an agent through opening a `.backdraft.json` or
+`.backdraft.html`, recomputing each `snippet_sha256`, and reporting claim
+statuses by hand. That is a deterministic check over a self-describing file,
+which is precisely the kind of thing that should not be a prose procedure an
+agent re-implements every time — and doing it by hand is how a recipient's
+check ends up weaker than the producer's. The artifact is the product; nothing in the
+tool reads one back.
+
+**Shape.** A new command in `render/cli.py` (which already owns the artifact's
+reader half through `sidecar.read`), taking the artifact or its sidecar.
+Two tiers, and the output must be explicit about which ran. Tier one needs
+nothing but the file: parse it against `kernel/artifact.py`'s format, recompute
+every `snippet_sha256` from the snippet the file carries, and confirm the
+`$format` and the claim/citation counts — this is the check a recipient with
+only the file can make, and it catches an edited artifact. Tier two runs only
+when a registry is discoverable: re-resolve each token through the same path
+`bind` uses and report the closed status set. Exit 0 when everything checked
+passed, 1 on a usage error, and — matching `bind` — 2 when something did not
+verify, so a hook can gate on it. Read-only: it opens no session and mints
+nothing, which is what distinguishes it from `read` and from queued item 3's
+`show`.
+
+**Acceptance.** `backdraft verify demo/memo.backdraft.html` from outside
+`demo/` reports tier one passing and says plainly that no registry was found,
+exiting 0. From inside `demo/` it also re-resolves and reports the one
+unresolved citation, exiting 2. A file with one snippet byte changed fails by
+naming the claim and the hash that did not match. A file that is not an
+artifact exits 1 saying so. `skills/backdraft-artifact/SKILL.md` is rewritten
+around the command, keeping the prose procedure only as the fallback for an
+agent that has no backdraft install.
+
+**Size.** Three days.
+
+### 10. `spec/registry.md`: the export format is normative, or it is not a format
+
+**Intent.** `backdraft export` writes `"$format": "backdraft/registry-v1"`, a
+version string that promises a specification and does not have one. `spec/`
+holds `artifact.md`, `tokens.md` and `chunking.md`, and the repo's own rule is
+that another implementation reads those and nothing else — the export is the
+only declared format outside that set. It is also the only complete, portable
+representation of a registry, so it is what a second implementation, a
+migration, or an audit would read. The gap is not theoretical: the 2026-08-05
+work added a conditional `meta` key to every exported document, a format change
+to a format with nothing to change.
+
+**Shape.** A new `spec/registry.md` in the voice of `spec/artifact.md`:
+normative prose, MUST/OPTIONAL where it means them, and written to be readable
+without the code. Cover the top-level shape, the document entry including the
+`meta` key and its `url`/`fetched_at` (OPTIONAL, present only for a fetched
+source — the same conditional the artifact spec already states, for the same
+compatibility reason), every extraction generation with `is_current`, pages
+and cells, and anchors with their receipts. State what identity is and what it
+is not, matching the concept table in `SPEC.md`. Say what a conforming reader
+must do with a key it does not recognize. Pin it the way the artifact format is
+pinned: a golden-file test over the demo registry's export, so the next
+conditional key is a test failure rather than an undocumented change.
+
+**Acceptance.** `spec/registry.md` describes every key `Registry.export`
+actually emits — check that mechanically, with a test that walks the exported
+JSON and fails on a key the spec does not name. `SPEC.md`'s file map and
+`README.md`'s spec list gain it. Exporting the demo registry and reading only
+the spec is enough to say what each field means.
+
+**Size.** Two days.
+
 ## Parked
 
 Deliberately not queued, each with the reason, so picking one up starts from
