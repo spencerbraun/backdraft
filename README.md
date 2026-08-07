@@ -41,7 +41,7 @@ documents: 0
 
 $ backdraft ingest sources/t12-summary.pdf sources/underwriting-model.xlsx
 t12-summary  t12-summary.pdf  pdf  3 pages
-underwriting-model  underwriting-model.xlsx  xlsx  2 pages
+underwriting-model  underwriting-model.xlsx  xlsx  2 sheets
 note: extracted with pdf-text (the embedded text layer). Glossy or scanned PDFs extract better through a vision model: set BACKDRAFT_VLM_API_KEY in .backdraft/env.
 ```
 
@@ -198,10 +198,10 @@ address.
 
 ```console
 $ backdraft ingest https://example.com/reports/q4-2025
-q4-2025  q4-2025.html  html  1 pages
+q4-2025  q4-2025.html  html  1 page
 
 $ backdraft ls
-q4-2025	q4-2025.html	html	1 pages	https://example.com/reports/q4-2025
+q4-2025	q4-2025.html	html	1 page	https://example.com/reports/q4-2025
 ```
 
 The origin travels into the artifact too. A claim citing a fetched page shows

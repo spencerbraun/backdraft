@@ -104,11 +104,36 @@ def test_ingest_then_ls(project: Path, note: Path) -> None:
 
     listed = runner.invoke(cli.app, ["ls"])
     assert listed.exit_code == 0
-    assert "quarterly-notes\tquarterly-notes.md\ttext\t1 pages" in listed.stdout
+    assert "quarterly-notes\tquarterly-notes.md\ttext\t1 page" in listed.stdout
 
 
 def test_ls_says_so_when_empty(project: Path) -> None:
     assert "no documents ingested" in runner.invoke(cli.app, ["ls"]).stdout
+
+
+def test_ls_and_read_count_a_workbook_in_the_same_words(
+    project: Path, workbook: Path
+) -> None:
+    """One registry, one vocabulary.
+
+    `ls` said `2 pages` where the gate's list said `2 sheets`, which reads as
+    two commands describing two different registries. Both now go through
+    `reader.unit`; this pins them together rather than pinning either string.
+    """
+    runner.invoke(cli.app, ["ingest", str(workbook)])
+    listed = runner.invoke(cli.app, ["ls"]).stdout
+    read = runner.invoke(cli.app, ["read"]).stdout
+    assert "2 sheets" in listed and "2 sheets" in read
+    assert "2 pages" not in listed
+
+
+def test_a_single_page_source_is_counted_in_the_singular(
+    project: Path, note: Path
+) -> None:
+    """`1 pages` is the common case for one-page sources, and it was ungrammatical."""
+    ingested = runner.invoke(cli.app, ["ingest", str(note)]).stdout
+    assert "1 page" in ingested and "1 pages" not in ingested
+    assert "1 pages" not in runner.invoke(cli.app, ["ls"]).stdout
 
 
 def test_ingest_accepts_an_explicit_slug(project: Path, note: Path) -> None:
@@ -187,7 +212,7 @@ def test_export_to_a_file(project: Path, note: Path, tmp_path: Path) -> None:
 def test_ingesting_a_workbook_through_the_cli(project: Path, workbook: Path) -> None:
     result = runner.invoke(cli.app, ["ingest", str(workbook)])
     assert result.exit_code == 0
-    assert "model" in result.stdout and "2 pages" in result.stdout
+    assert "model" in result.stdout and "2 sheets" in result.stdout
 
 
 def test_help_lists_the_commands_w1_owns() -> None:

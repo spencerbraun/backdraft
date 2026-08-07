@@ -40,6 +40,11 @@ from .cli_context import (
     resolve_session,
 )
 from .extract import snapshots, vlm_ready
+# The gate owns the word for a collection of pages, and `ingest`/`ls` print the
+# same count its document list does — see `gate.unit`. A downward import, which
+# SPEC § Dependency rule spells "`cli` imports everything"; the mount guard
+# below is about sub-*apps*, and `gate` itself does not need typer.
+from .gate import unit
 from .kernel.model import Document, Page
 from .registry import DIRECTORY, Registry
 
@@ -153,7 +158,7 @@ def ingest(
                     pages = registry.pages(document.slug)
                     typer.echo(
                         f"{document.slug}  {document.filename}  "
-                        f"{document.media_type}  {len(pages)} pages"
+                        f"{document.media_type}  {len(pages)} {unit(pages)}"
                     )
                     nudge_vlm = nudge_vlm or (
                         extractor == "auto"
@@ -359,7 +364,7 @@ def list_documents() -> None:
             origin = (document.meta or {}).get("url")
             typer.echo(
                 f"{document.slug}\t{document.filename}\t{document.media_type}\t"
-                f"{len(pages)} pages" + (f"\t{origin}" if origin else "")
+                f"{len(pages)} {unit(pages)}" + (f"\t{origin}" if origin else "")
             )
 
 

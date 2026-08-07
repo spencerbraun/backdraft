@@ -39,7 +39,7 @@ backdraft ingest sources/t12-summary.pdf sources/underwriting-model.xlsx
 
 ```
 t12-summary  t12-summary.pdf  pdf  3 pages
-underwriting-model  underwriting-model.xlsx  xlsx  2 pages
+underwriting-model  underwriting-model.xlsx  xlsx  2 sheets
 note: extracted with pdf-text (the embedded text layer). Glossy or scanned PDFs extract better through a vision model: set BACKDRAFT_VLM_API_KEY in .backdraft/env.
 ```
 

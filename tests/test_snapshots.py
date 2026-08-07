@@ -294,7 +294,7 @@ def test_ingest_without_poppler_succeeds_and_names_the_backfill(
     _make_pdf(project / "t12.pdf", [["Occupancy closed at 91.4%"]])
     result = runner.invoke(cli.app, ["ingest", "t12.pdf"])
     assert result.exit_code == 0, result.output
-    assert "t12  t12.pdf  pdf  1 pages" in result.output
+    assert "t12  t12.pdf  pdf  1 page" in result.output
     assert "snapshot-pages" in result.output
     assert "brew install poppler" in result.output
     assert "t12" in result.output.split("Backfill later")[1]

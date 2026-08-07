@@ -45,6 +45,7 @@ __all__ = [
     "render_toc",
     "render_page_read",
     "select_pages",
+    "unit",
 ]
 
 
@@ -201,7 +202,7 @@ def render_documents(registry: Registry) -> str:
                 slug.ljust(slug_width),
                 filename.ljust(file_width),
                 media.ljust(media_width),
-                f"{len(pages):>{count_width}} {_unit(pages)}",
+                f"{len(pages):>{count_width}} {unit(pages)}",
             )
         )
         for slug, filename, media, pages in rows
@@ -593,12 +594,18 @@ def _require_document(registry: Registry, slug: str) -> Document:
 def _document_headline(document: Document, pages: Sequence[Page]) -> str:
     return (
         f"{document.slug}  ({document.filename}, {document.media_type}, "
-        f"{len(pages)} {_unit(pages)})"
+        f"{len(pages)} {unit(pages)})"
     )
 
 
-def _unit(pages: Sequence[Page]) -> str:
-    """`sheets` when every page is one, else `pages`. Singular when there is one."""
+def unit(pages: Sequence[Page]) -> str:
+    """`sheets` when every page is one, else `pages`. Singular when there is one.
+
+    Public because the top-level CLI's `ingest` and `ls` print the same count and
+    must print the same noun: a workbook the gate calls `2 sheets` was `2 pages`
+    in `ls`, which reads as two commands describing two different registries.
+    One owner is the only way that stays true as page kinds are added.
+    """
     word = "sheet" if pages and all(page.kind == "sheet" for page in pages) else "page"
     return word if len(pages) == 1 else f"{word}s"
 

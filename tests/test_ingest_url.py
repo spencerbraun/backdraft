@@ -78,7 +78,7 @@ def test_a_url_ingests_as_a_document_named_by_its_path(project: Path, serve) -> 
     base = serve(_page_routes())
     result = runner.invoke(cli.app, ["ingest", f"{base}/q4"])
     assert result.exit_code == 0, result.output
-    assert "q4  q4.html  html  1 pages" in result.output
+    assert "q4  q4.html  html  1 page" in result.output
 
 
 def test_the_origin_and_the_fetch_time_are_stored_as_document_meta(
@@ -224,7 +224,7 @@ def test_a_pdf_served_from_a_url_takes_the_pdf_path(project: Path, tmp_path: Pat
     base = serve({"/download": (200, "application/pdf", pdf.read_bytes())})
     result = runner.invoke(cli.app, ["ingest", f"{base}/download"])
     assert result.exit_code == 0, result.output
-    assert "download  download.pdf  pdf  1 pages" in result.output
+    assert "download  download.pdf  pdf  1 page" in result.output
     assert _document(project, "download")["extractions"][0]["extractor"] == "pdf-text"
 
 
