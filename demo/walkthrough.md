@@ -339,7 +339,7 @@ bound 15 claim(s), 16 citation(s) [frontwalk]
   unresolved: 1
   overlap: pass 11, skip 4
   value-trace: pass 15
-  ! unresolved: bd:t12-summary:p4.c1:1a2b
+  ! unresolved: bd:t12-summary:p4.c1:1a2b — replacement reserve of $250 per unit per year @2900
 wrote .backdraft/records/memo.backdraft.json
 exit: 2
 ```
@@ -350,6 +350,13 @@ Read that report line by line.
 the current extraction of their source. One did not, and it is named. Bind did
 not delete it, did not warn-and-continue, and did not quietly attach it to
 something nearby.
+
+**The line item names the sentence, not just the token.** Exit 2 sends you back
+into `memo.md` to fix something, and `bd:t12-summary:p4.c1:1a2b` is the one
+thing you already had. The claim's own words follow it, then `@2900` — the
+claim's character offset into the authored document, which is what tells two
+line items carrying the same token apart when one token is cited from several
+sentences.
 
 **Exit code 2 means unresolved citations.** Not a failed check — a citation that
 does not point at anything. It is the code a `Stop` hook or a CI job gates on.

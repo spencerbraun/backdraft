@@ -109,7 +109,7 @@ bound 15 claim(s), 16 citation(s) [frontwalk]
   unresolved: 1
   overlap: pass 11, skip 4
   value-trace: pass 15
-  ! unresolved: bd:t12-summary:p4.c1:1a2b
+  ! unresolved: bd:t12-summary:p4.c1:1a2b — replacement reserve of $250 per unit per year @2900
 wrote .backdraft/records/memo.backdraft.json
 
 $ echo $?

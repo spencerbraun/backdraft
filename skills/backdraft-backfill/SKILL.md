@@ -123,6 +123,11 @@ of them. Your own searches in step 3 are still the real work.
 Exit code 2 is expected here whenever anything is unmatched. It is not a failure
 of the run.
 
+A backfill report carries the other line items too, for tokens you attached that
+did not resolve: `! unresolved: <token> — <the claim's own words> @<offset>`.
+Both kinds name their claim, so step 6's open list can be read straight off the
+report without searching the draft.
+
 ## 6. Report the open list
 
 Give the user, explicitly:

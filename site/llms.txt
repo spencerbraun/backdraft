@@ -77,12 +77,14 @@ backdraft render memo.md --to html          # -> memo.backdraft.html
 ## Exit codes (bind)
 
 0 every citation resolved · 1 usage/environment error · 2 something did not
-resolve, act on it. Statuses: unresolved (token names nothing: search, fix,
-re-bind, or state "not supported by the ingested sources"), not_shown (real
-anchor you were never shown: read it, re-bind), drifted (source changed:
-re-read, confirm), malformed (fix the href). NEVER fix exit 2 by deleting the
-token; a kept failure is the honest outcome. Show the user the bind report
-verbatim.
+resolve, act on it. Each line item reads
+  ! <status>: <token> — <the claim's own words> @<character offset>
+so the report names the sentence to fix; don't grep for the token. Statuses:
+unresolved (token names nothing: search, fix, re-bind, or state "not supported
+by the ingested sources"), not_shown (real anchor you were never shown: read
+it, re-bind), drifted (source changed: re-read, confirm), malformed (fix the
+href). NEVER fix exit 2 by deleting the token; a kept failure is the honest
+outcome. Show the user the bind report verbatim.
 
 ## Files
 

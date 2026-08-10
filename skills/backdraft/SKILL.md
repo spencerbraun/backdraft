@@ -134,7 +134,7 @@ artifact matters more.
 bound 15 claim(s), 16 citation(s) [frontwalk]
   resolved: 15
   unresolved: 1
-  ! unresolved: bd:t12-summary:p4.c1:1a2b
+  ! unresolved: bd:t12-summary:p4.c1:1a2b — replacement reserve of $250 per unit per year @2900
 wrote .backdraft/records/memo.backdraft.json
 ```
 
@@ -153,6 +153,11 @@ evidence, never gates — a `partial` is not a problem to fix.
 | 1 | usage or environment error | fix the command |
 | 2 | something did not resolve | **act on it** |
 
+Each line item is `<status>: <token> — <the claim's own words> @<offset>`, so
+the report already tells you which sentence to go fix and where it sits in the
+document. Do not grep for the token; the offset is what distinguishes two line
+items carrying the same one.
+
 On exit 2, for each line item:
 
 - `unresolved` — the token names nothing. `search` for the fact, use the real
@@ -167,4 +172,4 @@ On exit 2, for each line item:
 **Never resolve exit 2 by deleting the token.** A claim with its citation removed
 looks supported and is not; an unresolved citation is a visible, honest failure
 that both the report and the artifact carry. If you cannot fix one, leave it in
-and tell the user which claim it belongs to.
+and tell the user which claim it belongs to — the line item names it.

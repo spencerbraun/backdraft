@@ -32,40 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. Bind's failure lines name the claim, not just the token
-
-**Intent.** Exit 2 tells a calling agent that a citation did not resolve and
-prints the token: `! unresolved: bd:t12-summary:p4.c1:1a2b`. It does not say
-which sentence that token was on. `skills/backdraft/SKILL.md` then instructs
-the agent to "tell the user which claim it belongs to" — the one fact the
-report withheld — so the agent's next move is to grep its own document for a
-token string. Meanwhile the `! unmatched:` line, three lines below, already
-prints its claim text. The two line-items should carry the same weight.
-
-**Shape.** `_print_report` in `bind/cli.py`, CLI output only — the record JSON
-is a pinned format and already carries the claim/citation nesting, so nothing
-in `spec/artifact.md` moves. `BindReport.claims` holds each claim's `text`,
-`start` and `end` alongside its citations, so the mapping from a reported
-citation back to its claim exists in memory; report the citation line as the
-token, then the claim text truncated the way the `unmatched` line already
-truncates it (80 chars), then the offset. Repeats matter here: the same token
-cited on four claims currently prints four identical lines, which reads as four
-problems — print one line per (token, claim) pair, which is what the offset
-makes legible. Applies to every non-resolved status, `not_shown` and `drifted`
-included, not only `unresolved`.
-
-**Acceptance.** In `demo/`, `backdraft bind memo.md --session s-bridgeview
---check value-trace,overlap` prints the unresolved line with the replacement-
-reserve claim text and its offset on it. A bind whose session was never read
-into prints one line per distinct claim rather than one per citation
-occurrence. Tests cover `unresolved`, `not_shown`, `drifted` and `malformed`.
-Every doc that shows a bind report — `README.md`, `demo/walkthrough.md`,
-`site/llms.txt`, `skills/backdraft/SKILL.md`,
-`skills/backdraft-backfill/SKILL.md` — is updated to the real new output.
-
-**Size.** One day.
-
-### 2. `--config` keys are declared, validated, and listed
+### 1. `--config` keys are declared, validated, and listed
 
 **Intent.** `backdraft ingest x.pdf --config dpy=300` exits 0, ingests, and
 does nothing about the typo. No output names the mistake, and nothing anywhere
@@ -95,7 +62,7 @@ page's `ingest` row and `site/llms.txt` list the keys.
 
 **Size.** Two days.
 
-### 3. `backdraft show <token>`: the inverse of minting
+### 2. `backdraft show <token>`: the inverse of minting
 
 **Intent.** An agent handed a token — out of someone's artifact, a half-written
 draft, a colleague's message — cannot ask what it says. The gate mints tokens
@@ -125,7 +92,7 @@ the docs page's command table, `site/llms.txt` and
 
 **Size.** Two days.
 
-### 4. Ingest finishes the list, then reports what it could not read
+### 3. Ingest finishes the list, then reports what it could not read
 
 **Intent.** `backdraft ingest a.md broken.pdf c.md` ingests `a.md`, fails on
 `broken.pdf`, and never attempts `c.md`. The registry is left half-built, the
@@ -154,7 +121,7 @@ Tests for all three.
 
 **Size.** One day.
 
-### 5. The demo cites a web page, so the feature is visible
+### 4. The demo cites a web page, so the feature is visible
 
 **Intent.** URL sources ship complete — `ingest` fetches and snapshots, the
 registry keeps `url` and `fetched_at`, and as of 2026-08-06 the artifact links
@@ -200,7 +167,7 @@ that the permanent link did its job.
 
 **Size.** One day.
 
-### 6. The gate names a fetched source by its page, not by its staging filename
+### 5. The gate names a fetched source by its page, not by its staging filename
 
 **Intent.** A fetched page's `filename` is `q4-2025.html`, a name invented by
 `fetch.filename_for` for a temporary file that no longer exists. The
@@ -237,7 +204,7 @@ fact `read` now carries.
 
 **Size.** Two days.
 
-### 7. A fetched page's slug is decided, not defaulted
+### 6. A fetched page's slug is decided, not defaulted
 
 **Intent.** DESIGN.md's Open list has carried "slug assignment/collision rules"
 since the first field trial, and URL sources sharpened it into a real failure:
@@ -272,7 +239,7 @@ error. DESIGN.md gains the decision row and the Open list loses the line.
 
 **Size.** Two days.
 
-### 8. Ingest says what it did and what it got
+### 7. Ingest says what it did and what it got
 
 **Intent.** Two things `ingest` knows and does not say. First, it prints the
 same line whether it created a document, created a *new generation* of one
@@ -311,7 +278,7 @@ asking the agent to judge thinness unaided.
 
 **Size.** Two days.
 
-### 9. `backdraft verify <artifact>`: checking a receipt without the registry
+### 8. `backdraft verify <artifact>`: checking a receipt without the registry
 
 **Intent.** `skills/backdraft-artifact/SKILL.md` exists because there is no
 command: it walks an agent through opening a `.backdraft.json` or
@@ -347,7 +314,7 @@ agent that has no backdraft install.
 
 **Size.** Three days.
 
-### 10. `spec/registry.md`: the export format is normative, or it is not a format
+### 9. `spec/registry.md`: the export format is normative, or it is not a format
 
 **Intent.** `backdraft export` writes `"$format": "backdraft/registry-v1"`, a
 version string that promises a specification and does not have one. `spec/`

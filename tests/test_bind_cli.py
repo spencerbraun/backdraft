@@ -112,6 +112,106 @@ def test_no_registry_is_a_usage_error(tmp_path, monkeypatch) -> None:
     assert ".backdraft" in result.output
 
 
+# --- line items ------------------------------------------------------------
+#
+# Exit 2 sends the caller back into the document to edit a sentence, so every
+# line item names the sentence. The token alone is the one thing the caller
+# already has.
+
+
+def test_an_unresolved_line_item_names_its_claim_and_offset(tmp_path, fake_bind_registry) -> None:
+    doc = write(tmp_path, "The memo says [NOI was $4.12M](bd:ghost:p1.c1:0000).\n")
+    result = run(str(doc), "--session", "s1")
+    assert "! unresolved: bd:ghost:p1.c1:0000 — NOI was $4.12M @14" in result.output
+
+
+def test_a_not_shown_line_item_names_its_claim(tmp_path, fake_bind_registry) -> None:
+    doc = write(tmp_path, f"[NOI was $4.12M]({token(fake_bind_registry)}).\n")
+    result = run(str(doc), "--session", "s1")
+    assert "! not_shown: " in result.output
+    assert "— NOI was $4.12M @0" in result.output
+
+
+def test_a_drifted_line_item_names_its_claim(tmp_path, fake_bind_registry) -> None:
+    stale = fake_bind_registry.add_anchor(
+        "t12-audit", "p9.c1", "Net operating income was 3,980,000.", current=False, page_number=9
+    )
+    fake_bind_registry.show("s1", stale.token)
+    doc = write(tmp_path, f"[NOI was $3.98M]({stale.token}).\n")
+    result = run(str(doc), "--session", "s1")
+    assert f"! drifted: {stale.token} — NOI was $3.98M @0" in result.output
+
+
+def test_a_malformed_line_item_keeps_its_error_and_gains_its_claim(
+    tmp_path, fake_bind_registry
+) -> None:
+    """The error explains the token, so it stays next to it; the claim follows."""
+    doc = write(tmp_path, "[the sum of both lines](bd:calc(a+b)).\n")
+    result = run(str(doc), "--session", "s1")
+    assert result.exit_code == bind_cli.EXIT_UNRESOLVED
+    line = next(row for row in result.output.splitlines() if "! malformed:" in row)
+    assert line.index("bd:calc") < line.index("the sum of both lines")
+    assert line.endswith("the sum of both lines @0")
+
+
+def test_one_token_on_two_claims_is_two_line_items(tmp_path, fake_bind_registry) -> None:
+    """Two sentences to go fix, told apart by their claims and their offsets."""
+    doc = write(tmp_path, "[first claim](bd:ghost:p1.c1:0000) then [second claim](bd:ghost:p1.c1:0000).\n")
+    result = run(str(doc), "--session", "s1")
+    items = [row for row in result.output.splitlines() if "! unresolved:" in row]
+    assert len(items) == 2
+    assert items[0].endswith("first claim @0")
+    assert items[1].endswith("second claim @40")
+
+
+def test_one_token_written_twice_on_one_claim_is_one_line_item(
+    tmp_path, fake_bind_registry
+) -> None:
+    """One place in the document is one line item — the counts still say two."""
+    doc = write(tmp_path, "[a claim](bd:ghost:p1.c1:0000;bd:ghost:p1.c1:0000).\n")
+    result = run(str(doc), "--session", "s1")
+    assert "unresolved: 2" in result.output
+    assert len([row for row in result.output.splitlines() if "! unresolved:" in row]) == 1
+
+
+def test_two_tokens_on_one_claim_are_two_line_items(tmp_path, fake_bind_registry) -> None:
+    """Never drop a citation: distinct tokens each get their own line."""
+    doc = write(tmp_path, "[a claim](bd:ghost:p1.c1:0000;bd:ghost:p1.c2:1111).\n")
+    result = run(str(doc), "--session", "s1")
+    items = [row for row in result.output.splitlines() if "! unresolved:" in row]
+    assert len(items) == 2
+    assert all(row.endswith("a claim @0") for row in items)
+
+
+def test_a_claim_spanning_lines_still_prints_one_line(tmp_path, fake_bind_registry) -> None:
+    doc = write(tmp_path, "[NOI was\n  $4.12M](bd:ghost:p1.c1:0000).\n")
+    result = run(str(doc), "--session", "s1")
+    assert "— NOI was $4.12M @0" in result.output
+
+
+def test_a_long_claim_is_truncated_like_the_unmatched_line(tmp_path, fake_bind_registry) -> None:
+    words = "Replacement reserves are underwritten at two hundred and fifty dollars per unit per year"
+    doc = write(tmp_path, f"[{words}](bd:ghost:p1.c1:0000).\n")
+    result = run(str(doc), "--session", "s1")
+    assert f"— {words[:bind_cli.CLAIM_WIDTH]} @0" in result.output
+    assert words not in result.output
+
+
+def test_a_citation_with_no_claim_text_says_so(tmp_path, fake_bind_registry) -> None:
+    """`[](bd:…)` is a token with nothing to attribute it to; say that plainly
+    rather than printing a line that trails off into an offset."""
+    doc = write(tmp_path, "[](bd:ghost:p1.c1:0000)\n")
+    result = run(str(doc), "--session", "s1")
+    assert "! unresolved: bd:ghost:p1.c1:0000 — (no claim text) @0" in result.output
+
+
+def test_an_unmatched_line_item_is_unchanged(tmp_path, fake_bind_registry) -> None:
+    """The line the unresolved item was brought up to match; it does not move."""
+    doc = write(tmp_path, "Net operating income was 4,120,000 last year.\n")
+    result = run(str(doc), "--mode", "backfill")
+    assert "  ! unmatched: Net operating income was 4,120,000 last year." in result.output
+
+
 # --- behavior --------------------------------------------------------------
 
 
