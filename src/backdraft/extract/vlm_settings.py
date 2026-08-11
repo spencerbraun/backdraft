@@ -8,6 +8,9 @@ it next to the extractor that uses it.
 
 from __future__ import annotations
 
+from types import MappingProxyType
+from typing import Mapping
+
 from ..credentials import setting
 from .base import ExtractionError
 
@@ -16,6 +19,7 @@ __all__ = [
     "DEFAULT_RETRIES",
     "DEFAULT_TIMEOUT_SECONDS",
     "MAX_IMAGE_HEIGHT",
+    "PROVIDER_KEYS",
     "SNAPSHOT_QUALITY",
     "DEFAULT_MODEL",
     "OPENROUTER_BASE_URL",
@@ -91,6 +95,19 @@ SNAPSHOT_QUALITY = 85
 here rather than vlm.py so `snapshot-pages` can import it without pulling in
 the openai client. Overridden with `BACKDRAFT_SNAPSHOT_QUALITY` via
 `snapshot_quality`."""
+
+PROVIDER_KEYS: Mapping[str, str] = MappingProxyType({
+    "api_key": "provider key (or BACKDRAFT_VLM_API_KEY; ambient keys are never read)",
+    "base_url": f"OpenAI-compatible endpoint (default {OPENROUTER_BASE_URL})",
+    "model": f"vision model to read pages with (default {DEFAULT_MODEL})",
+    "timeout": f"per-page request timeout in seconds (default {DEFAULT_TIMEOUT_SECONDS})",
+    "retries": f"attempts per page before the error propagates (default {DEFAULT_RETRIES})",
+})
+"""The `--config` surface every vision path answers for: whatever
+`client_settings`, `timeout_seconds` and `retries` resolve. Declared here, next
+to the readers, so a key cannot be added to one without the other. `concurrency`
+is deliberately absent — only the PDF path transcribes pages concurrently, and
+it declares that key itself."""
 
 
 def _int_setting(name: str, config: dict, config_key: str, default: int) -> int:

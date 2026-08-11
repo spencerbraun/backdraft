@@ -32,6 +32,7 @@ import base64
 import sys
 import tempfile
 from pathlib import Path
+from types import MappingProxyType
 from typing import Iterator
 
 from openai import OpenAI
@@ -40,14 +41,17 @@ from pdf2image import convert_from_path
 from .base import ExtractedPage, Extractor, ExtractionError, PageImage, register
 from .snapshots import (  # noqa: F401  (DEFAULT_DPI re-exported)
     DEFAULT_DPI,
+    PAGE_RENDER_KEYS,
     dpi_for,
     encode,
     fit,
 )
 from .vlm_settings import (  # noqa: F401  (re-exported)
+    DEFAULT_CONCURRENCY,
     DEFAULT_MODEL,
     MAX_IMAGE_HEIGHT,
     OPENROUTER_BASE_URL,
+    PROVIDER_KEYS,
     SNAPSHOT_QUALITY,
     client_settings,
     concurrency,
@@ -88,6 +92,14 @@ class VlmExtractor:
     name = "vlm"
     version = "1"
     deterministic = False
+    # The provider surface, plus the page-render budget it shares with the
+    # text-layer path, plus the one knob only this path has: it is the only
+    # extractor that transcribes pages concurrently.
+    config_keys = MappingProxyType({
+        **PROVIDER_KEYS,
+        "concurrency": f"pages transcribed at once (default {DEFAULT_CONCURRENCY})",
+        **PAGE_RENDER_KEYS,
+    })
 
     def can_handle(self, path: Path, media_type: str) -> bool:
         return media_type == "pdf"
@@ -95,8 +107,9 @@ class VlmExtractor:
     def extract(self, path: Path, config: dict) -> Iterator[ExtractedPage]:
         """Yield one page per PDF page, transcribed by the model.
 
-        Config keys (all optional): `model`, `base_url`, `api_key`, `dpi`.
-        Provider resolution is `client_settings`; OpenRouter is first-class.
+        Every key is optional and every one is declared in `config_keys`, which
+        is what `--config` is validated against. Provider resolution is
+        `client_settings`; OpenRouter is first-class.
         """
         model, api_key, base_url = client_settings(config)
         client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout_seconds(config))

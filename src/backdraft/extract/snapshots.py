@@ -18,6 +18,10 @@ this unprompted and a 200-page PDF at 200 dpi is a couple of gigabytes of
 decoded bitmap held at once; the VLM extractor renders the document in one call
 because it needs every page in hand to transcribe them concurrently.
 
+Owning the budget means owning its `--config` surface, so `PAGE_RENDER_KEYS` is
+declared here too and both PDF extractors declare it by reference rather than by
+copy — one place says what `dpi` means and one place says which paths take it.
+
 **The renderer lives here, not in `pdf-text`.** `pdf-text` is
 `deterministic = True`, and an extractor whose output varied with whether
 poppler happened to be installed would not be: the same bytes would extract to
@@ -32,16 +36,28 @@ from __future__ import annotations
 
 import io
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, Iterator
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any, Iterable, Iterator, Mapping
 
 from ..kernel.errors import BackdraftError
 from .base import PageImage
+# The two encoding defaults live with the settings readers that resolve them
+# (`vlm_settings` is stdlib-only, so this costs nothing); the keys are declared
+# here, with the rest of the page-render budget.
+from .vlm_settings import (
+    MAX_IMAGE_HEIGHT,
+    SNAPSHOT_QUALITY,
+    snapshot_max_height,
+    snapshot_quality,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - the registry imports this package
     from ..registry.store import Registry
 
 __all__ = [
     "DEFAULT_DPI",
+    "ENCODE_KEYS",
+    "PAGE_RENDER_KEYS",
     "SnapshotError",
     "capture",
     "dpi_for",
@@ -53,6 +69,26 @@ __all__ = [
 DEFAULT_DPI = 200
 """Render resolution, for every path that rasterizes a PDF page. dpi buys
 legibility; `snapshot_max_height` is what caps the stored weight."""
+
+ENCODE_KEYS: Mapping[str, str] = MappingProxyType({
+    "snapshot_quality": f"WebP quality of the stored page image (default {SNAPSHOT_QUALITY})",
+    "snapshot_max_height": (
+        f"stored page images are downscaled to this height (default {MAX_IMAGE_HEIGHT}px)"
+    ),
+})
+"""What every path that *stores* a page image reads — the PDF paths and the
+image extractor, which fits and encodes a photo it never rasterized."""
+
+PAGE_RENDER_KEYS: Mapping[str, str] = MappingProxyType({
+    "dpi": f"resolution PDF pages are rasterized at (default {DEFAULT_DPI})",
+    **ENCODE_KEYS,
+})
+"""The declared `--config` surface of rasterizing a PDF page, owned here because
+this module owns the resolution and the encoding budget. Both PDF paths accept
+all three: they rasterize alike by construction (`vlm.py` imports `dpi_for`,
+`fit` and `encode` from here), and `pdf-text` accepts them because the capture
+that runs beside it in `cli.ingest` is what reads them — one flag, one ingest,
+one answer about whether a key applies."""
 
 POPPLER_HINT = (
     "poppler is not installed, so PDF pages cannot be rendered here "
@@ -121,7 +157,6 @@ def render(
             "the PDF rendering dependencies are missing — "
             f"reinstall backdraft to restore them ({error})"
         ) from error
-    from .vlm_settings import snapshot_max_height, snapshot_quality
 
     resolution = dpi if dpi is not None else dpi_for(config)
     max_height = snapshot_max_height(config)

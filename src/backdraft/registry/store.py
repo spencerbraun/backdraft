@@ -228,7 +228,10 @@ class Registry:
 
         `extractor` names one (`None` or `"auto"` picks the first that can handle
         the file). `slug` is honoured only when the document is new — a slug is
-        stable once assigned. `config` is hashed into the generation's identity.
+        stable once assigned. `config` is hashed into the generation's identity,
+        and is validated against the chosen extractor's declared keys first, so
+        a key that extractor never reads raises rather than silently hashing
+        into a generation nothing asked for.
 
         `url` says the file at `path` is a snapshot staged from the web: the
         document then records the URL as its path and carries `{url,
@@ -252,6 +255,10 @@ class Registry:
             else extract_base.get(extractor)
         )
         settings = dict(config or {})
+        # After selection, never before: `auto` picks per file, so only the
+        # chosen extractor can say whether `dpi` is a setting or a typo. Before
+        # the no-op check, so a misspelled key fails on a re-ingest too.
+        extract_base.check_config(chosen, settings)
         settings_hash = config_hash(settings)
 
         existing = self._find_document(sha256=sha256, path=path, url=url)

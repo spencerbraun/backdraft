@@ -86,9 +86,16 @@ def test_a_different_extractor_makes_a_new_generation(
     assert [generation["is_current"] for generation in generations] == [False, True]
 
 
-def test_a_different_config_makes_a_new_generation(registry: Registry, note: Path) -> None:
-    registry.ingest(note)
-    registry.ingest(note, config={"mode": "loud"})
+def test_a_different_config_makes_a_new_generation(
+    registry: Registry, note: Path, scripted: type
+) -> None:
+    scripted(
+        "tunable",
+        [ExtractedPage(number=1, kind="page", text="one page, however it was tuned")],
+        config_keys={"mode": "how loudly to read"},
+    )
+    registry.ingest(note, extractor="tunable")
+    registry.ingest(note, extractor="tunable", config={"mode": "loud"})
     assert len(_generations(registry, "quarterly-notes")) == 2
 
 

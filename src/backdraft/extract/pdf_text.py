@@ -31,6 +31,7 @@ from typing import Any, Iterator
 import pdfplumber
 
 from .base import ExtractedPage, Extractor, ExtractionError, register
+from .snapshots import PAGE_RENDER_KEYS
 
 __all__ = ["PARAGRAPH_GAP_RATIO", "PdfTextExtractor", "EXTRACTOR", "page_text"]
 
@@ -57,6 +58,11 @@ class PdfTextExtractor:
     name = "pdf-text"
     version = "1"
     deterministic = True
+    # This extractor reads none of these — it never touches the pixels, which is
+    # what keeps it deterministic. It declares them because the page-snapshot
+    # capture that runs beside it at ingest does read them, and a user passing
+    # `--config dpi=300` to a text-layer ingest means the images, not the text.
+    config_keys = PAGE_RENDER_KEYS
 
     def can_handle(self, path: Path, media_type: str) -> bool:
         return media_type == "pdf"

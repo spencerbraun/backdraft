@@ -16,6 +16,16 @@ Extractors are registered in a plain dict keyed by name. Modules register
 themselves on import and `get` imports the module that owns a name on demand, so
 neither pdfplumber nor openpyxl — nor the openai SDK — is imported until an
 extractor that needs it is asked for.
+
+**Config keys are declared, not discovered.** `--config key=value` is the one
+per-ingest knob, and an extractor declares the keys it reads in `config_keys`
+(key -> one-line meaning). `check_config` validates a parsed config against the
+extractor that was *selected*, since `auto` picks per file and `dpi` is a real
+key for a PDF and a typo for a Markdown note. An undeclared key is an error
+naming the keys that do apply — this repo's rule is that failures are data, and
+a config boundary that silently ignored `dpy=300` was the one place it did not
+hold. Declaring nothing is the default and means reading nothing, which is the
+truth for most of the built-ins.
 """
 
 from __future__ import annotations
@@ -23,7 +33,7 @@ from __future__ import annotations
 import importlib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, Protocol, runtime_checkable
+from typing import Iterator, Mapping, Protocol, runtime_checkable
 
 from ..kernel.errors import BackdraftError
 from ..kernel.model import CellValue, PageKind
@@ -36,6 +46,8 @@ __all__ = [
     "Extractor",
     "ExtractionError",
     "PageImage",
+    "check_config",
+    "declared_config_keys",
     "get",
     "names",
     "register",
@@ -88,11 +100,18 @@ class ExtractedPage:
 
 @runtime_checkable
 class Extractor(Protocol):
-    """Turns a file into pages. Stateless: one instance serves every ingest."""
+    """Turns a file into pages. Stateless: one instance serves every ingest.
+
+    `config_keys` is the `--config` surface this extractor answers for: key ->
+    one-line meaning, read by `check_config` and by the CLI's help. It is
+    optional — an extractor that declares nothing accepts nothing, which is the
+    honest default for a format with no knobs.
+    """
 
     name: str
     version: str
     deterministic: bool
+    config_keys: Mapping[str, str]
 
     def can_handle(self, path: Path, media_type: str) -> bool:
         """True if this extractor claims the file."""
@@ -153,6 +172,38 @@ def get(name: str) -> Extractor:
     if name not in EXTRACTORS:  # pragma: no cover - a module that forgot to register
         raise ExtractionError(f"extractor module for {name!r} registered nothing")
     return EXTRACTORS[name]
+
+
+def declared_config_keys(extractor: Extractor) -> Mapping[str, str]:
+    """The `--config` keys `extractor` reads, key -> one-line meaning.
+
+    Empty for an extractor that declares none: the attribute is optional, so a
+    format with no knobs stays three lines long and still gets validated.
+    """
+    return getattr(extractor, "config_keys", {})
+
+
+def check_config(extractor: Extractor, config: Mapping[str, object] | None) -> None:
+    """Raise unless every key in `config` is one `extractor` declares.
+
+    Called after selection, never before: `auto` picks per file, so the same
+    `--config dpi=300` is a legitimate render setting for a PDF and a typo for a
+    Markdown note, and only the chosen extractor can say which. Raises
+    `ExtractionError` naming every unknown key and the ones that would have
+    worked — the shape `get`'s unknown-name error already uses.
+    """
+    known = declared_config_keys(extractor)
+    unknown = [key for key in (config or {}) if key not in known]
+    if not unknown:
+        return
+    named = ", ".join(repr(key) for key in unknown)
+    noun = "config key" if len(unknown) == 1 else "config keys"
+    accepts = (
+        f"known: {', '.join(sorted(known))}"
+        if known
+        else f"{extractor.name} reads no config keys"
+    )
+    raise ExtractionError(f"unknown {noun} {named} for {extractor.name}; {accepts}")
 
 
 def select(path: Path, media_type: str, config: dict | None = None) -> Extractor:

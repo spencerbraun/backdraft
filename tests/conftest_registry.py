@@ -90,10 +90,20 @@ def scripted() -> type:
     """A test extractor factory: hand it pages, register it under a name."""
 
     class Scripted:
-        def __init__(self, name: str, pages: list[ExtractedPage], *, deterministic: bool = True):
+        def __init__(
+            self,
+            name: str,
+            pages: list[ExtractedPage],
+            *,
+            deterministic: bool = True,
+            config_keys: dict[str, str] | None = None,
+        ):
             self.name = name
             self.version = "1"
             self.deterministic = deterministic
+            # Declared like a real extractor's, so a test that passes `--config`
+            # to this one is testing config, not the validator that guards it.
+            self.config_keys = dict(config_keys or {})
             self.pages = pages
             register(self)
 

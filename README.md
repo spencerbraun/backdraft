@@ -244,7 +244,11 @@ explicit, backdraft-scoped consent: `BACKDRAFT_VLM_API_KEY` (env or
 `OPENAI_API_KEY`/`OPENROUTER_API_KEY` are deliberately never read; a generic
 key in the environment is not consent to send documents to its provider. The
 default provider is OpenRouter running Gemini 3.1 Flash Lite; direct OpenAI is
-base_url + model, set explicitly. Without a scoped key, `auto` falls back to
+base_url + model, set explicitly (`--config base_url=...` and `--config
+model=...`, one key per flag). Every `--config` key is declared by the extractor
+that reads it and checked against the one `ingest` chose, so a misspelled key
+fails and names the keys that apply rather than being silently ignored.
+Without a scoped key, `auto` falls back to
 the keyless text layer and says so — still storing each page's image, which it
 renders locally. PDF page rendering needs poppler, installed separately; without
 it ingest succeeds without the images and names `snapshot-pages` as the backfill.

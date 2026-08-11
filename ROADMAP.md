@@ -32,37 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. `--config` keys are declared, validated, and listed
-
-**Intent.** `backdraft ingest x.pdf --config dpy=300` exits 0, ingests, and
-does nothing about the typo. No output names the mistake, and nothing anywhere
-— help, docs, `llms.txt` — lists what keys exist; today the only way to learn
-`dpi`, `model`, `base_url`, `api_key`, `snapshot_quality` or
-`snapshot_max_height` is to read `extract/vlm.py` and `extract/snapshots.py`.
-This repo's rule is that failures are data and never warn-and-drop, and the
-config boundary is where that rule does not hold.
-
-**Shape.** Give the `Extractor` protocol in `extract/base.py` a
-`config_keys: Mapping[str, str]` (key → one-line meaning), defaulting to empty
-so no extractor is forced to declare. `vlm` declares its provider and retry
-keys; the page-render keys (`dpi`, `snapshot_quality`, `snapshot_max_height`)
-are declared once by `extract/snapshots.py`, which already owns them, and are
-accepted for every PDF path since both rasterize. `ingest` validates the parsed
-config against the selected extractor's declared set *after* selection, since
-`auto` picks per file, and raises `UsageError` in the shape the unknown-name
-errors already use: `unknown config key 'dpy' for pdf-text; known: dpi,
-snapshot_max_height, snapshot_quality`. A key that is valid for one extractor
-and not another must fail only where it does not apply.
-
-**Acceptance.** The typo above exits 1 and names both the key and the valid
-ones; `--config dpi=300` still works on both the `vlm` and the text-layer path;
-`--config model=...` fails on `pdf-text` and passes on `vlm`. Tests for each
-branch, including a declaration-free extractor rejecting any key. The docs
-page's `ingest` row and `site/llms.txt` list the keys.
-
-**Size.** Two days.
-
-### 2. `backdraft show <token>`: the inverse of minting
+### 1. `backdraft show <token>`: the inverse of minting
 
 **Intent.** An agent handed a token — out of someone's artifact, a half-written
 draft, a colleague's message — cannot ask what it says. The gate mints tokens
@@ -92,7 +62,7 @@ the docs page's command table, `site/llms.txt` and
 
 **Size.** Two days.
 
-### 3. Ingest finishes the list, then reports what it could not read
+### 2. Ingest finishes the list, then reports what it could not read
 
 **Intent.** `backdraft ingest a.md broken.pdf c.md` ingests `a.md`, fails on
 `broken.pdf`, and never attempts `c.md`. The registry is left half-built, the
@@ -121,7 +91,7 @@ Tests for all three.
 
 **Size.** One day.
 
-### 4. The demo cites a web page, so the feature is visible
+### 3. The demo cites a web page, so the feature is visible
 
 **Intent.** URL sources ship complete — `ingest` fetches and snapshots, the
 registry keeps `url` and `fetched_at`, and as of 2026-08-06 the artifact links
@@ -167,7 +137,7 @@ that the permanent link did its job.
 
 **Size.** One day.
 
-### 5. The gate names a fetched source by its page, not by its staging filename
+### 4. The gate names a fetched source by its page, not by its staging filename
 
 **Intent.** A fetched page's `filename` is `q4-2025.html`, a name invented by
 `fetch.filename_for` for a temporary file that no longer exists. The
@@ -204,7 +174,7 @@ fact `read` now carries.
 
 **Size.** Two days.
 
-### 6. A fetched page's slug is decided, not defaulted
+### 5. A fetched page's slug is decided, not defaulted
 
 **Intent.** DESIGN.md's Open list has carried "slug assignment/collision rules"
 since the first field trial, and URL sources sharpened it into a real failure:
@@ -239,7 +209,7 @@ error. DESIGN.md gains the decision row and the Open list loses the line.
 
 **Size.** Two days.
 
-### 7. Ingest says what it did and what it got
+### 6. Ingest says what it did and what it got
 
 **Intent.** Two things `ingest` knows and does not say. First, it prints the
 same line whether it created a document, created a *new generation* of one
@@ -278,7 +248,7 @@ asking the agent to judge thinness unaided.
 
 **Size.** Two days.
 
-### 8. `backdraft verify <artifact>`: checking a receipt without the registry
+### 7. `backdraft verify <artifact>`: checking a receipt without the registry
 
 **Intent.** `skills/backdraft-artifact/SKILL.md` exists because there is no
 command: it walks an agent through opening a `.backdraft.json` or
@@ -300,8 +270,9 @@ when a registry is discoverable: re-resolve each token through the same path
 `bind` uses and report the closed status set. Exit 0 when everything checked
 passed, 1 on a usage error, and — matching `bind` — 2 when something did not
 verify, so a hook can gate on it. Read-only: it opens no session and mints
-nothing, which is what distinguishes it from `read` and from queued item 3's
-`show`.
+nothing, which is what distinguishes it from `read` and from the queued
+`backdraft show <token>` — a number here shifts every time an item lands, so
+name the item, not its position.
 
 **Acceptance.** `backdraft verify demo/memo.backdraft.html` from outside
 `demo/` reports tier one passing and says plainly that no registry was found,
@@ -314,7 +285,7 @@ agent that has no backdraft install.
 
 **Size.** Three days.
 
-### 9. `spec/registry.md`: the export format is normative, or it is not a format
+### 8. `spec/registry.md`: the export format is normative, or it is not a format
 
 **Intent.** `backdraft export` writes `"$format": "backdraft/registry-v1"`, a
 version string that promises a specification and does not have one. `spec/`

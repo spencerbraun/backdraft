@@ -9,6 +9,7 @@ import pytest
 from typer.testing import CliRunner
 
 from backdraft import cli
+from backdraft.extract.base import ExtractedPage
 from backdraft.registry import DIRECTORY, Registry
 
 runner = CliRunner()
@@ -185,9 +186,44 @@ def test_ingest_rejects_a_malformed_config_pair(project: Path, note: Path) -> No
     assert "key=value" in result.stderr
 
 
-def test_ingest_passes_config_through(project: Path, note: Path) -> None:
-    first = runner.invoke(cli.app, ["ingest", str(note)])
-    second = runner.invoke(cli.app, ["ingest", str(note), "--config", "mode=loud"])
+def test_ingest_rejects_a_key_the_chosen_extractor_never_reads(
+    project: Path, note: Path
+) -> None:
+    """A markdown note goes through `text`, which reads nothing — so the typo
+    that motivated this and the key that is real elsewhere fail the same way."""
+    result = runner.invoke(cli.app, ["ingest", str(note), "--config", "dpi=300"])
+    assert result.exit_code == cli.EXIT_USAGE
+    assert "unknown config key 'dpi' for text" in result.stderr
+    assert "reads no config keys" in result.stderr
+    with Registry.open(project) as registry:
+        assert registry.documents() == []
+
+
+def test_a_rejected_config_key_names_the_ones_that_would_have_worked(
+    project: Path, note: Path, scripted: type
+) -> None:
+    scripted(
+        "tunable",
+        [ExtractedPage(number=1, kind="page", text="one page, however it was tuned")],
+        config_keys={"mode": "how loudly to read", "voice": "whose voice to read in"},
+    )
+    result = runner.invoke(
+        cli.app, ["ingest", str(note), "--extractor", "tunable", "--config", "mdoe=loud"]
+    )
+    assert result.exit_code == cli.EXIT_USAGE
+    assert "unknown config key 'mdoe' for tunable; known: mode, voice" in result.stderr
+
+
+def test_ingest_passes_config_through(project: Path, note: Path, scripted: type) -> None:
+    scripted(
+        "tunable",
+        [ExtractedPage(number=1, kind="page", text="one page, however it was tuned")],
+        config_keys={"mode": "how loudly to read"},
+    )
+    first = runner.invoke(cli.app, ["ingest", str(note), "--extractor", "tunable"])
+    second = runner.invoke(
+        cli.app, ["ingest", str(note), "--extractor", "tunable", "--config", "mode=loud"]
+    )
     assert (first.exit_code, second.exit_code) == (0, 0)
     with Registry.open(project) as registry:
         generations = registry.export_json()["documents"][0]["extractions"]

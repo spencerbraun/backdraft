@@ -359,6 +359,20 @@ def test_ingest_carries_the_render_budget_into_the_capture(
         registry.close()
 
 
+def test_a_misspelled_render_key_fails_before_anything_is_rendered(
+    project: Path, renderer: _Renderer
+) -> None:
+    """The case this exists for: `dpy=300` used to exit 0 and change nothing."""
+    _make_pdf(project / "t12.pdf", [["Occupancy closed at 91.4%"]])
+    result = runner.invoke(cli.app, ["ingest", "t12.pdf", "--config", "dpy=300"])
+    assert result.exit_code == cli.EXIT_USAGE
+    assert (
+        "unknown config key 'dpy' for pdf-text; "
+        "known: dpi, snapshot_max_height, snapshot_quality" in result.stderr
+    )
+    assert renderer.calls == []
+
+
 def test_a_non_pdf_ingest_never_renders(project: Path, renderer: _Renderer) -> None:
     (project / "memo.md").write_text("Occupancy closed at 91.4%.\n", encoding="utf-8")
     result = runner.invoke(cli.app, ["ingest", "memo.md"])

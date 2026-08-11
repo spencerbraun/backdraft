@@ -130,7 +130,13 @@ def ingest(
     ] = None,
     config: Annotated[
         list[str] | None,
-        typer.Option("--config", help="Extractor config as `key=value`. Repeatable."),
+        typer.Option(
+            "--config",
+            help=(
+                "Extractor config as `key=value`. Repeatable. Keys are declared "
+                "per extractor; an unknown one fails and names the valid ones."
+            ),
+        ),
     ] = None,
 ) -> None:
     """Snapshot files or web pages into the registry, minting their anchors.
@@ -141,6 +147,14 @@ def ingest(
     since changed makes a new generation and the citations on the old one report
     `drifted`. JavaScript-rendered pages and pages behind a login are out of
     reach: what is fetched is what the server sends unauthenticated.
+
+    `--config` keys are checked against the extractor that was chosen, which for
+    `auto` is per file. Both PDF paths (`pdf-text`, `vlm`) take `dpi`; every path
+    that stores a page image — those two and `image` — takes `snapshot_quality`
+    and `snapshot_max_height`. The vision paths (`vlm`, `image`) also take
+    `api_key`, `base_url`, `model`, `timeout` and `retries`, and `concurrency` is
+    `vlm`'s alone. Every other format reads no config at all, so a key there is a
+    typo and is reported as one.
     """
     nudge_vlm = False
     note_pptx = False

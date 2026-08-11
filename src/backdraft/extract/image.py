@@ -16,14 +16,17 @@ from __future__ import annotations
 import io
 import tempfile
 from pathlib import Path
+from types import MappingProxyType
 from typing import Iterator
 
 from openai import OpenAI
 from PIL import Image
 
 from .base import ExtractedPage, Extractor, ExtractionError, PageImage, register
+from .snapshots import ENCODE_KEYS
 from .vlm import _transcribe
 from .vlm_settings import (
+    PROVIDER_KEYS,
     client_settings,
     retries,
     snapshot_max_height,
@@ -43,6 +46,9 @@ class ImageExtractor:
     name = "image"
     version = "1"
     deterministic = False
+    # No `dpi`: the file already is the page, so there is nothing to rasterize —
+    # this path only fits and encodes what it was handed.
+    config_keys = MappingProxyType({**PROVIDER_KEYS, **ENCODE_KEYS})
 
     def can_handle(self, path: Path, media_type: str) -> bool:
         return media_type == "image" or path.suffix.lower() in _SUFFIXES
@@ -50,8 +56,9 @@ class ImageExtractor:
     def extract(self, path: Path, config: dict) -> Iterator[ExtractedPage]:
         """Yield the single page, transcribed by the model.
 
-        Config keys (all optional): `model`, `base_url`, `api_key`. Provider
-        resolution is `client_settings` — the same consent rules as PDFs.
+        Every key is optional and every one is declared in `config_keys`.
+        Provider resolution is `client_settings` — the same consent rules as
+        PDFs.
         """
         model, api_key, base_url = client_settings(config)
         client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout_seconds(config))

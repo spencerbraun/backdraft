@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from backdraft.extract import ExtractionError, base
+from backdraft.extract import ExtractionError, base, snapshots
 from backdraft.extract.xlsx import MAX_COLS, MAX_ROWS
 
 # ---- selection --------------------------------------------------------------
@@ -72,6 +72,95 @@ def test_every_built_in_reports_itself() -> None:
         assert extractor.name == name
         assert extractor.version
         assert extractor.deterministic is (name != "image")
+
+
+# ---- declared config keys ---------------------------------------------------
+
+
+class _Undeclared:
+    """An extractor that never declared `config_keys`. Most of them look like this."""
+
+    name = "undeclared"
+    version = "1"
+    deterministic = True
+
+    def can_handle(self, path, media_type):  # pragma: no cover - validation only
+        return True
+
+    def extract(self, path, config):  # pragma: no cover - validation only
+        return iter(())
+
+
+def test_an_unknown_key_names_the_key_and_the_ones_that_work() -> None:
+    with pytest.raises(ExtractionError) as raised:
+        base.check_config(base.get("pdf-text"), {"dpy": "300"})
+    assert str(raised.value) == (
+        "unknown config key 'dpy' for pdf-text; "
+        "known: dpi, snapshot_max_height, snapshot_quality"
+    )
+
+
+def test_every_unknown_key_is_named_not_just_the_first() -> None:
+    """Failures are data: reporting one typo per run makes fixing three a loop."""
+    with pytest.raises(ExtractionError, match=r"unknown config keys 'dpy', 'quality'"):
+        base.check_config(base.get("pdf-text"), {"dpy": "300", "quality": "90"})
+
+
+def test_both_pdf_paths_take_the_page_render_keys() -> None:
+    """One flag means one thing: both rasterize, so both accept the budget."""
+    for name in ("pdf-text", "vlm"):
+        base.check_config(base.get(name), dict.fromkeys(snapshots.PAGE_RENDER_KEYS, "1"))
+
+
+def test_a_provider_key_applies_only_where_there_is_a_provider() -> None:
+    base.check_config(base.get("vlm"), {"model": "some/model"})
+    with pytest.raises(ExtractionError, match=r"unknown config key 'model' for pdf-text"):
+        base.check_config(base.get("pdf-text"), {"model": "some/model"})
+
+
+def test_the_image_path_takes_the_encoding_budget_but_not_dpi() -> None:
+    """It fits and encodes a photo; there is no page to rasterize."""
+    base.check_config(base.get("image"), {"snapshot_quality": "70", "api_key": "k"})
+    with pytest.raises(ExtractionError, match=r"unknown config key 'dpi' for image"):
+        base.check_config(base.get("image"), {"dpi": "300"})
+
+
+def test_an_extractor_declaring_nothing_rejects_everything() -> None:
+    assert base.declared_config_keys(_Undeclared()) == {}
+    with pytest.raises(ExtractionError, match=r"undeclared reads no config keys"):
+        base.check_config(_Undeclared(), {"dpi": "300"})
+
+
+def test_no_config_is_always_fine() -> None:
+    for config in ({}, None):
+        base.check_config(_Undeclared(), config)
+        base.check_config(base.get("text"), config)
+
+
+def test_every_declared_key_carries_its_meaning() -> None:
+    """The declaration is the documentation, so an empty gloss is a bug."""
+    for name in base.names():
+        try:
+            extractor = base.get(name)
+        except ExtractionError:
+            continue  # optional extra not installed in this environment
+        for key, meaning in base.declared_config_keys(extractor).items():
+            assert key and meaning.strip(), f"{name} declares {key!r} with no meaning"
+
+
+def test_the_ingest_help_lists_every_declared_key() -> None:
+    """The one place a user looks before running anything. Pinned so a new key
+    cannot be declared in code and left out of the help that lists them."""
+    from backdraft import cli
+
+    help_text = cli.ingest.__doc__ or ""
+    for name in base.names():
+        try:
+            extractor = base.get(name)
+        except ExtractionError:
+            continue
+        for key in base.declared_config_keys(extractor):
+            assert f"`{key}`" in help_text, f"{key} is declared by {name} but unlisted"
 
 
 # ---- text -------------------------------------------------------------------
