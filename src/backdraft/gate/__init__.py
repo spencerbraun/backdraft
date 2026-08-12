@@ -1,10 +1,10 @@
 """The gate: the only way source text reaches a writer's context.
 
-`read` lists, tables-of-contents and pages; `search` queries the FTS index. Both
-mint what they emit into the session ledger, which is what makes the design's
-central claim true — the set of citable tokens is exactly the set the gate
-emitted, and bind can tell a cited-what-you-saw token from a token the writer
-never had.
+`read` lists, tables-of-contents and pages; `search` queries the FTS index;
+`show` runs a token back to the snippet it names. All three mint what they emit
+into the session ledger, which is what makes the design's central claim true —
+the set of citable tokens is exactly the set the gate emitted, and bind can tell
+a cited-what-you-saw token from a token the writer never had.
 
 `gate.cli` is mounted by the top-level CLI (SPEC Addendum B) and is imported
 separately, so this package stays importable without typer.

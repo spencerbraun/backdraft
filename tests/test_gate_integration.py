@@ -10,13 +10,23 @@ rendered a headerless table.
 So this walks one workbook the whole way: real ingest, real anchors, real page
 text, real `gate.reader.read`. What it pins is SPEC § Gate's sheet rule —
 "sheets paginate by rows, never mid-row, header row repeated".
+
+`show` is here for the same reason twice over: drift is a property of holding two
+extraction generations, which only the real registry has, and the integration
+invariant it exists to satisfy — a token the gate emits binds `resolved` in the
+same session — is only true end to end.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from backdraft.gate.reader import read
+import pytest
+from conftest_registry import PAGE_BREAK
+
+from backdraft.bind.binder import bind
+from backdraft.gate.reader import read, show
+from backdraft.kernel.model import CitationStatus
 from backdraft.registry import Registry
 
 
@@ -89,3 +99,113 @@ def test_a_whole_sheet_read_is_the_extractor_s_page_text(
     assert page is not None
     output = read(registry, document.slug, "p1", session="s")
     assert output.endswith(page.text)
+
+
+# ---------------------------------------------------------------------------
+# show
+# ---------------------------------------------------------------------------
+
+
+PAGE_ONE = "Page one holds the covenant language and nothing else worth quoting."
+PAGE_TWO = "Page two carries the debt service coverage ratio of 1.42x for the quarter."
+PAGE_TWO_EDITED = "Page two now carries a debt service coverage ratio of 1.19x instead."
+
+
+@pytest.fixture
+def book(tmp_path: Path, paged: object) -> Path:
+    """A two-page file the `paged` extractor splits, editable between ingests."""
+    path = tmp_path / "quarterly-notes.md"
+    _write(path, [PAGE_ONE, PAGE_TWO])
+    return path
+
+
+def _write(path: Path, pages: list[str]) -> None:
+    path.write_text(PAGE_BREAK.join(pages), encoding="utf-8")
+
+
+def _token(registry: Registry, slug: str, locator: str) -> str:
+    return next(
+        anchor.token
+        for page in registry.pages(slug)
+        for anchor in registry.anchors_for_page(slug, page.number)
+        if str(anchor.locator) == locator
+    )
+
+
+def test_a_shown_token_binds_resolved_rather_than_not_shown(
+    registry: Registry, tmp_path: Path, book: Path
+) -> None:
+    """The acceptance test for `show` minting, run the whole way.
+
+    `not_shown` is the status a token gets when it resolves but the session never
+    saw it, so a session that has only ever run `show` is the sharpest possible
+    check that showing records.
+    """
+    registry.ingest(book, extractor="paged")
+    token = _token(registry, "quarterly-notes", "p2.c1")
+    memo = tmp_path / "memo.md"
+    memo.write_text(f"The [coverage ratio is 1.42x]({token}).\n", encoding="utf-8")
+
+    before = bind(memo, registry, session_id="s-unshown", write=False)
+    assert before.claims[0].citations[0].status is CitationStatus.NOT_SHOWN
+
+    show(registry, [token], session="s-shown")
+
+    after = bind(memo, registry, session_id="s-shown", write=False)
+    assert after.claims[0].citations[0].status is CitationStatus.RESOLVED
+
+
+def test_show_reports_drift_with_both_snippets_and_mints_the_current_one(
+    registry: Registry, book: Path
+) -> None:
+    registry.ingest(book, extractor="paged")
+    cited = _token(registry, "quarterly-notes", "p2.c1")
+
+    _write(book, [PAGE_ONE, PAGE_TWO_EDITED])
+    registry.ingest(book, extractor="paged")
+    current = _token(registry, "quarterly-notes", "p2.c1")
+
+    shown = show(registry, [cited], session="s")
+
+    assert shown.complete is True, "drift showed text; whether it still holds is bind's call"
+    assert shown.text.splitlines()[:3] == [
+        f"[{cited}]  drifted  quarterly-notes p2.c1",
+        "cited:",
+        PAGE_TWO,
+    ]
+    assert f"now [{current}]:" in shown.text
+    assert PAGE_TWO_EDITED in shown.text
+    # The anchor standing there now is the one worth citing, so it is minted.
+    assert registry.was_shown("s", current) is True
+
+
+def test_show_says_so_when_the_locator_itself_is_gone(
+    registry: Registry, book: Path
+) -> None:
+    """The other drift branch: the token resolves, but nothing stands there now."""
+    registry.ingest(book, extractor="paged")
+    cited = _token(registry, "quarterly-notes", "p2.c1")
+
+    _write(book, [PAGE_ONE])
+    registry.ingest(book, extractor="paged")
+
+    shown = show(registry, [cited])
+
+    assert "drifted" in shown.text
+    assert PAGE_TWO in shown.text
+    assert "now: nothing stands at that locator in the current extraction" in shown.text
+
+
+def test_show_resolves_a_cell_token_off_a_real_workbook(
+    registry: Registry, workbook: Path
+) -> None:
+    """Every locator form goes through one path; the cell form is the one with a
+    sheetref, and a sheet name is sanitized at ingest."""
+    registry.ingest(workbook)
+    token = _token(registry, "model", "rent-roll-2025!C2")
+
+    shown = show(registry, [token], session="s")
+
+    assert shown.complete is True
+    assert shown.text.splitlines()[0] == f"[{token}]  resolved  model rent-roll-2025!C2"
+    assert registry.was_shown("s", token) is True

@@ -1,9 +1,14 @@
-"""The gate's CLI surface: `read`, `search`, `session`.
+"""The gate's CLI surface: `read`, `cell`, `search`, `show`, `session`.
 
 Mounted by the top-level `cli.py` (SPEC Addendum B), which owns the typer app.
 This module holds no logic of its own — it parses flags, calls `reader`/
 `searcher`, prints, and lets `cli_context.guard` map a `GateError` to exit code 1
 (usage/env error).
+
+`show` is the one command here that decides an exit code from what it found
+rather than from an error: a token it could not resolve leaves as exit 1 with
+the reason on stdout, the shape `bind` already uses for a run that completed and
+failed. The block is data, so it is never swallowed onto stderr.
 
 Discovery and session resolution come from `backdraft.cli_context`, imported at
 module level: that module deliberately knows nothing about the sub-apps, so the
@@ -17,9 +22,10 @@ from typing import Annotated
 
 import typer
 
-from ..cli_context import SESSION_ENV, opened_registry, resolve_session
+from ..cli_context import EXIT_USAGE, SESSION_ENV, opened_registry, resolve_session
 from .reader import cells as mint_cells
 from .reader import read as read_pages
+from .reader import show as show_tokens
 from .searcher import search as run_search
 
 __all__ = ["app", "session_app"]
@@ -90,6 +96,31 @@ def cell(
     session_id = resolve_session(session)
     with opened_registry() as registry:
         typer.echo(mint_cells(registry, slug, refs, session=session_id))
+
+
+@app.command()
+def show(
+    tokens: Annotated[
+        list[str], typer.Argument(help="Citation tokens, like bd:t12:p1.c1:c2e8. Repeatable.")
+    ],
+    session: _SessionOption = None,
+) -> None:
+    """Show what a token says: its status, where it points, the verbatim snippet.
+
+    The inverse of minting — for a token out of an artifact, a draft, or someone
+    else's message, when the question is what it actually cites. Statuses are
+    bind's: `resolved`, `drifted` (both snippets print), `unresolved`,
+    `malformed`. Showing is minting, so a snippet shown here is citable.
+
+    Exit 1 if any token was unresolved or malformed; the reasons print like every
+    other result.
+    """
+    session_id = resolve_session(session)
+    with opened_registry() as registry:
+        shown = show_tokens(registry, tokens, session=session_id)
+        typer.echo(shown.text)
+    if not shown.complete:
+        raise typer.Exit(EXIT_USAGE)
 
 
 @app.command()

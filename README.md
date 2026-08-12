@@ -92,6 +92,25 @@ $ backdraft cell underwriting-model "assumptions!B10"
 [bd:underwriting-model:assumptions!B10:964a]  24850000
 ```
 
+And a token you were handed — out of an artifact, a draft, someone else's
+message — runs backwards to what it actually says:
+
+```console
+$ backdraft show bd:t12-summary:p1.c1:c2e8
+[bd:t12-summary:p1.c1:c2e8]  resolved  t12-summary p1.c1
+Bridgeview Commons — Trailing Twelve Month Summary
+
+Property: Bridgeview Commons, 4400 Halsted Avenue, Columbus, OH 43214. 128 units across four three-story
+garden buildings on 6.2 acres, built in 1998 and substantially renovated between 2019 and 2021. …
+
+[Read the page: backdraft read t12-summary p1]
+```
+
+`show` is the gate too, so what it shows is minted and citable. A token whose
+source has changed since prints both snippets, the one that was cited and the
+one standing there now; a token that names nothing exits 1 and says whether the
+slug or the locator is the wrong half.
+
 **Cite** by writing the token as the href of a markdown link on the claim span.
 Multiple citations are `;`-separated in one href.
 

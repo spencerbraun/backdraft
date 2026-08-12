@@ -1,4 +1,4 @@
-"""The read side of the gate: document list, table of contents, page read.
+"""The read side of the gate: document list, table of contents, page read, show.
 
 The gate is the mechanism the whole design rests on: *the set of citable tokens
 is exactly the set the gate emitted*. Two consequences shape every function here.
@@ -24,9 +24,11 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from ..kernel.claims import parse_citation
 from ..kernel.errors import BackdraftError
 from ..kernel.hashing import normalize
-from ..kernel.tokens import CellLocator, ChunkLocator
+from ..kernel.model import CitationStatus
+from ..kernel.tokens import CellLocator, ChunkLocator, format_locator, parse as parse_token
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -37,14 +39,17 @@ if TYPE_CHECKING:
 __all__ = [
     "GateError",
     "cells",
+    "GRAMMAR_HINT",
     "LIST_HINT",
     "TOC_PREVIEW_CHARS",
     "Selection",
+    "Shown",
     "read",
     "render_documents",
     "render_toc",
     "render_page_read",
     "select_pages",
+    "show",
     "unit",
 ]
 
@@ -57,6 +62,16 @@ LIST_HINT = "run `backdraft read` to list what is ingested"
 """Appended wherever a slug names nothing. An agent that guessed a slug has no
 way to discover the real one from the error alone, and would otherwise spend a
 turn finding out. Shared with `searcher.py` so both spellings stay one."""
+
+GRAMMAR_HINT = (
+    "[Token grammar: bd:<slug>:<locator>:<hash>, locators p8, p8.c3 and "
+    "sheet!B10. Copy tokens from gate output rather than editing them by hand.]"
+)
+"""Closes a `show` that met a token which does not parse.
+
+A malformed token is the one failure where the reason alone does not say what to
+do — the kernel names the segment that broke, and this names the shape it broke
+from."""
 
 TOC_PREVIEW_CHARS = 120
 """How much of a page's text stands in for a missing summary (SPEC § Gate)."""
@@ -565,6 +580,160 @@ def cells(
             minted.append(found.id)
     _mint(registry, session, minted)
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# show
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Shown:
+    """One `show` run: the rendered block, and whether every token landed.
+
+    `complete` is False when any token came back `unresolved` or `malformed` —
+    the two statuses where there was nothing to show — and is what the CLI turns
+    into exit 1. `drifted` leaves it True: drift showed text, and whether that
+    text still supports a claim is bind's question, not a lookup's.
+    """
+
+    text: str
+    complete: bool
+
+
+def show(
+    registry: Registry, tokens: Sequence[str], *, session: str | None = None
+) -> Shown:
+    """The inverse of minting: what does this token say?
+
+    Resolution is the path bind takes, not a second reading of what a token
+    means. `kernel.claims.parse_citation` decides `malformed` — the same call
+    bind's kernel step makes, so the reserved `bd:calc(...)` form lands the same
+    way here as there — and `Registry.resolve` decides the rest, so a status
+    printed here is the status bind would print for the same token.
+
+    Four of bind's five statuses can appear. `not_shown` cannot, by
+    construction: this is the gate, so an anchor it prints is an anchor it mints,
+    and a token shown here is a token the writer may cite. That is what makes
+    `show` a citation surface rather than a debugging aid — the receipt an agent
+    reads out of somebody's artifact becomes citable in its own document.
+
+    Blocks print in argument order, one per token, in `read`'s shape: the token
+    on its own line, the snippet verbatim underneath. A drifted token prints
+    both sides of the diff and mints the anchor standing at the locator now,
+    since that token is the one worth citing.
+    """
+    blocks: list[str] = []
+    minted: list[int] = []
+    read_hints: list[str] = []
+    toc_hints: list[str] = []
+    unknown_slug = False
+    malformed = False
+    complete = True
+
+    for text in tokens:
+        citation = parse_citation(text)
+        if citation.status is CitationStatus.MALFORMED:
+            blocks.append(f"[{text}]  {CitationStatus.MALFORMED}\n{citation.error}")
+            complete = False
+            malformed = True
+            continue
+        resolution = registry.resolve(text)
+        if resolution is None:
+            slug = parse_token(text).slug  # parses by construction: not malformed
+            known = registry.document(slug) is not None
+            reason = _nothing_named(slug, known)
+            blocks.append(f"[{text}]  {CitationStatus.UNRESOLVED}\n{reason}")
+            complete = False
+            if known:
+                _remember(toc_hints, f"[Table of contents: backdraft read {slug}]")
+            else:
+                unknown_slug = True
+            continue
+        anchor = resolution.anchor
+        shown: tuple[Anchor | None, ...]
+        if resolution.current:
+            headline = _headline(anchor, CitationStatus.RESOLVED)
+            blocks.append(f"{headline}\n{anchor.receipt.snippet}")
+            shown = (anchor,)
+        else:
+            current = _current_at(registry, anchor)
+            blocks.append(_drift_block(anchor, current))
+            shown = (anchor, current)
+        # Emitting is minting: every anchor whose token reached the output.
+        minted += [a.id for a in shown if a is not None and a.id is not None]
+        if anchor.page_number is not None:
+            _remember(
+                read_hints,
+                f"[Read the page: backdraft read {anchor.slug} p{anchor.page_number}]",
+            )
+
+    _mint(registry, session, minted)
+
+    lines = "\n\n".join(blocks).split("\n") if blocks else ["(no tokens)"]
+    hints = [*read_hints, *toc_hints]
+    if unknown_slug:
+        hints.append("[List documents: backdraft read]")
+    if malformed:
+        hints.append(GRAMMAR_HINT)
+    return Shown(text=_block([*lines, "", *hints]), complete=complete)
+
+
+def _headline(anchor: Anchor, status: CitationStatus) -> str:
+    """A shown anchor's first line: the token, its status, where it lives."""
+    return f"[{anchor.token}]  {status}  {anchor.slug} {format_locator(anchor.locator)}"
+
+
+def _drift_block(anchor: Anchor, current: Anchor | None) -> str:
+    """A drifted token as both sides of the diff, labelled.
+
+    `anchor` is the superseded receipt the token names — what the writer saw —
+    and `current` is what stands at that locator in the current extraction. The
+    labels are the whole point: two snippets under one token, unlabelled, is a
+    reader guessing which one is the evidence.
+    """
+    lines = [_headline(anchor, CitationStatus.DRIFTED), "cited:", anchor.receipt.snippet]
+    if current is None:
+        lines.append("now: nothing stands at that locator in the current extraction")
+    else:
+        lines += [f"now [{current.token}]:", current.receipt.snippet]
+    return "\n".join(lines)
+
+
+def _current_at(registry: Registry, anchor: Anchor) -> Anchor | None:
+    """The current generation's anchor at `anchor`'s locator, if it survived.
+
+    NOTE: `bind.binder` holds the same four-line lookup, because the dependency
+    rule forbids a sideways import between gate and bind. Neither is a second
+    definition of drift — both read `anchors_for_page` off the pinned registry
+    surface, which is where the answer actually lives.
+    """
+    if anchor.page_number is None:
+        return None
+    for candidate in registry.anchors_for_page(anchor.slug, anchor.page_number):
+        if candidate.locator == anchor.locator:
+            return candidate
+    return None
+
+
+def _nothing_named(slug: str, known: bool) -> str:
+    """Why a well-formed token resolved to nothing — the two cases differ.
+
+    A slug that names no document and a slug that does are different mistakes
+    with different next steps, and `unresolved` alone says neither.
+    """
+    if not known:
+        return f"no document with slug {slug!r}; {LIST_HINT}"
+    return (
+        f"{slug} carries no anchor named by this token, in any extraction; "
+        "the locator or the hash is wrong"
+    )
+
+
+def _remember(hints: list[str], hint: str) -> None:
+    """Append a hint once, keeping first-seen order."""
+    if hint not in hints:
+        hints.append(hint)
 
 
 # ---------------------------------------------------------------------------

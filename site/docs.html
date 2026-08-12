@@ -222,6 +222,7 @@ backdraft read report              <span class="dim"># table of contents</span>
 backdraft read report p4-6         <span class="dim"># pages, ranges, sheet names</span>
 backdraft search "24850000"        <span class="dim"># hits are citable directly</span>
 backdraft cell model "rent-roll!B10"
+backdraft show bd:report:p4.c2:7f11 <span class="dim"># what does this token say?</span>
 
 <span class="dim"># write claims as links, then bind and render</span>
 backdraft bind memo.md --check value-trace,overlap
@@ -243,6 +244,7 @@ skill</a> imposes the gate, and you receive the artifact.</div>
 <tr><td><code>read [slug] [selector]</code></td><td>The gate: document list, table of contents, or a token-marked page/range/sheet read. Mints what it shows.</td></tr>
 <tr><td><code>search &lt;query&gt;</code></td><td>Full-text search over every anchor; hits are citable. <code>--in slug</code>, <code>--limit</code>.</td></tr>
 <tr><td><code>cell &lt;slug&gt; &lt;sheet!REF&gt;…</code></td><td>Mint specific cells' tokens directly: token plus verbatim value.</td></tr>
+<tr><td><code>show &lt;token&gt;…</code></td><td>The inverse of minting: what a token says. Per token, its bind status, its locator and the verbatim snippet, in argument order. <code>drifted</code> prints the cited snippet and what stands there now; <code>unresolved</code> says whether the slug or the locator is wrong; <code>malformed</code> names the grammar. This is the gate, so what it shows is minted and citable. Exit 1 if any token was unresolved or malformed.</td></tr>
 <tr><td><code>session start|show</code></td><td>Ledger sessions; export <code>BACKDRAFT_SESSION</code> to enable <code>not_shown</code> detection.</td></tr>
 <tr><td><code>bind &lt;doc.md&gt;</code></td><td>Resolve every citation, run <code>--check</code> verifiers, assemble evidence, write the record. <code>--session</code>, <code>--mode frontwalk|backfill</code>, <code>--lean</code> (skip page images), <code>--bound</code> (also write the markdown projection).</td></tr>
 <tr><td><code>render &lt;doc.md&gt;</code></td><td>The artifact. <code>--to html|footnotes|json</code>, <code>-o</code>, <code>--theme</code> (see <a href="#theming">Theming</a>).</td></tr>

@@ -51,9 +51,9 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 ## The contract
 
 Read source documents ONLY through `backdraft read` / `backdraft search` /
-`backdraft cell`. Never Read/cat/grep a source file directly: text obtained
-outside the gate has no receipt and cannot be cited. Never construct or edit a
-token by hand; copy it from gate output.
+`backdraft cell` / `backdraft show`. Never Read/cat/grep a source file directly:
+text obtained outside the gate has no receipt and cannot be cited. Never
+construct or edit a token by hand; copy it from gate output.
 
 ## Workflow
 
@@ -69,6 +69,11 @@ backdraft read <slug> p3                    # page/range/sheet; chunks arrive
                                             # with tokens: [bd:slug:p3.c2:7f11]
 backdraft search "24850000"                 # hits are citable directly
 backdraft cell <slug> "sheet!D24"           # mint a specific cell's token
+backdraft show bd:slug:p3.c2:7f11 ...       # the inverse: what a token says.
+                                            # Status + locator + verbatim
+                                            # snippet, in argument order; also
+                                            # mints, so a shown token is citable.
+                                            # Exit 1 if any named nothing.
 
 Write claims as links; multiple tokens are ;-separated in one href:
   [net operating income of $1,429,600](bd:t12:p1.c3:f10b)
@@ -89,8 +94,11 @@ so the report names the sentence to fix; don't grep for the token. Statuses:
 unresolved (token names nothing: search, fix, re-bind, or state "not supported
 by the ingested sources"), not_shown (real anchor you were never shown: read
 it, re-bind), drifted (source changed: re-read, confirm), malformed (fix the
-href). NEVER fix exit 2 by deleting the token; a kept failure is the honest
-outcome. Show the user the bind report verbatim.
+href). `backdraft show <token>` is the first move on any of them: it says which
+half of an unresolved token is wrong, prints both snippets for a drifted one,
+and mints a not_shown one so the next bind resolves. NEVER fix exit 2 by
+deleting the token; a kept failure is the honest outcome. Show the user the bind
+report verbatim.
 
 ## Files
 

@@ -141,6 +141,48 @@ def test_search_in_unknown_document_is_exit_1(
 
 
 # ---------------------------------------------------------------------------
+# show
+# ---------------------------------------------------------------------------
+
+
+def test_show_prints_the_snippet_and_mints_it(
+    runner: CliRunner, wired: FakeDocumentRegistry
+) -> None:
+    result = runner.invoke(
+        cli.app, ["show", "bd:t12-audit:p2.c1:50bd", "--session", "run-c"]
+    )
+    assert result.exit_code == 0
+    assert "The portfolio comprises 14 assets across three markets." in result.output
+    assert wired.shown_tokens("run-c") == {"bd:t12-audit:p2.c1:50bd"}
+
+
+def test_show_of_a_token_naming_nothing_is_exit_1(
+    runner: CliRunner, wired: FakeDocumentRegistry
+) -> None:
+    """The reason is on stdout, not stderr: a status is a result, not a crash."""
+    result = runner.invoke(cli.app, ["show", "bd:t12-audit:p9.c1:1a2b"])
+    assert result.exit_code == 1
+    assert "unresolved" in result.output
+    assert result.stderr == ""
+
+
+def test_show_of_a_malformed_token_is_exit_1(
+    runner: CliRunner, wired: FakeDocumentRegistry
+) -> None:
+    result = runner.invoke(cli.app, ["show", "bd:t12-audit:p2c1:50bd"])
+    assert result.exit_code == 1
+    assert "malformed" in result.output
+    assert "bd:<slug>:<locator>:<hash>" in result.output
+
+
+def test_show_closes_the_registry_on_the_failing_path(
+    runner: CliRunner, wired: FakeDocumentRegistry
+) -> None:
+    runner.invoke(cli.app, ["show", "bd:nope:p1.c1:1a2b"])
+    assert wired.closed
+
+
+# ---------------------------------------------------------------------------
 # session
 # ---------------------------------------------------------------------------
 

@@ -89,6 +89,17 @@ backdraft cell the-model "rent-roll!B10" "capitalization!D24"
 Each line is the cell's token and verbatim value; `search` also works when you
 know the value but not the cell.
 
+Going the other way — you have a token and want to know what it says — is
+`backdraft show`:
+
+```bash
+backdraft show bd:t12-summary:p1.c3:f10b
+```
+
+It prints the token's status, its locator and the verbatim snippet. This is the
+gate as well, so a snippet it shows is minted and citable: a token copied out of
+an existing artifact or an earlier draft becomes yours to cite by showing it.
+
 ## Write claims as links
 
 Every factual span is a markdown link whose href is the token, copied exactly:
@@ -158,16 +169,22 @@ the report already tells you which sentence to go fix and where it sits in the
 document. Do not grep for the token; the offset is what distinguishes two line
 items carrying the same one.
 
-On exit 2, for each line item:
+On exit 2, `backdraft show <token>` is the first move on any line item: it runs
+the token back to what it names, and its answer is the same status bind just
+printed, with the reason attached.
 
-- `unresolved` — the token names nothing. `search` for the fact, use the real
-  token, re-bind. If no anchor supports the claim, **say so in the text** ("not
-  supported by the ingested sources") or cut the claim.
-- `not_shown` — a real anchor you were never shown. Read or search it, then
-  re-bind.
-- `drifted` — the source changed after you wrote. Re-read the location and
-  confirm the claim still holds.
-- `malformed` — the href is not a token. Fix the syntax.
+- `unresolved` — the token names nothing. `show` says which half is wrong: an
+  unknown slug or a locator/hash that names no anchor. Then `search` for the
+  fact, use the real token, re-bind. If no anchor supports the claim, **say so
+  in the text** ("not supported by the ingested sources") or cut the claim.
+- `not_shown` — a real anchor you were never shown. `show` it (or read or search
+  it) and re-bind: showing is minting, so that alone clears the status.
+- `drifted` — the source changed after you wrote. `show` prints both snippets,
+  the one you cited and the one standing at that locator now, plus the token for
+  the new one. Confirm the claim still holds against the new text, and cite the
+  new token if it does.
+- `malformed` — the href is not a token. `show` names the segment that broke and
+  the grammar. Fix the syntax.
 
 **Never resolve exit 2 by deleting the token.** A claim with its citation removed
 looks supported and is not; an unresolved citation is a visible, honest failure

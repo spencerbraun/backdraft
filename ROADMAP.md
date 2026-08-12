@@ -32,37 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. `backdraft show <token>`: the inverse of minting
-
-**Intent.** An agent handed a token — out of someone's artifact, a half-written
-draft, a colleague's message — cannot ask what it says. The gate mints tokens
-and `bind` resolves them, but only as part of binding a whole document, so
-there is no way to answer "what is `bd:t12-summary:p1.c4:410d`?" without
-reconstructing the slug and selector by hand and re-reading a whole page.
-`skills/backdraft-artifact/SKILL.md` names exactly this gap when it says only
-one check needs the outside world.
-
-**Shape.** A new command in `gate/cli.py` — `show <token> [<token> ...]` —
-because this is the gate showing source text and must mint what it shows,
-exactly as `read` and `search` do; an anchor shown here is an anchor the writer
-may cite, and `not_shown` stays true by construction. Parse with
-`kernel.tokens`, resolve through the same path `bind` uses rather than a second
-implementation of what a token means, and print the closed status set bind
-reports: `resolved` (locator + verbatim snippet), `drifted` (the snippet then
-and the snippet now), `unresolved`, `malformed`. Output follows the gate's
-line-oriented shape and ends with the usual bracketed next-step hint.
-
-**Acceptance.** In `demo/`, `backdraft show bd:t12-summary:p1.c1:c2e8` prints
-the snippet, and a subsequent `bind` of a document citing it reports `resolved`
-rather than `not_shown` — that is the test that proves it minted. A
-well-formed token naming nothing exits 1 saying so; a malformed one names the
-grammar. Several tokens in one invocation print in argument order. `README.md`,
-the docs page's command table, `site/llms.txt` and
-`skills/backdraft-artifact/SKILL.md` gain it.
-
-**Size.** Two days.
-
-### 2. Ingest finishes the list, then reports what it could not read
+### 1. Ingest finishes the list, then reports what it could not read
 
 **Intent.** `backdraft ingest a.md broken.pdf c.md` ingests `a.md`, fails on
 `broken.pdf`, and never attempts `c.md`. The registry is left half-built, the
@@ -91,7 +61,7 @@ Tests for all three.
 
 **Size.** One day.
 
-### 3. The demo cites a web page, so the feature is visible
+### 2. The demo cites a web page, so the feature is visible
 
 **Intent.** URL sources ship complete — `ingest` fetches and snapshots, the
 registry keeps `url` and `fetched_at`, and as of 2026-08-06 the artifact links
@@ -137,7 +107,7 @@ that the permanent link did its job.
 
 **Size.** One day.
 
-### 4. The gate names a fetched source by its page, not by its staging filename
+### 3. The gate names a fetched source by its page, not by its staging filename
 
 **Intent.** A fetched page's `filename` is `q4-2025.html`, a name invented by
 `fetch.filename_for` for a temporary file that no longer exists. The
@@ -174,7 +144,7 @@ fact `read` now carries.
 
 **Size.** Two days.
 
-### 5. A fetched page's slug is decided, not defaulted
+### 4. A fetched page's slug is decided, not defaulted
 
 **Intent.** DESIGN.md's Open list has carried "slug assignment/collision rules"
 since the first field trial, and URL sources sharpened it into a real failure:
@@ -209,7 +179,7 @@ error. DESIGN.md gains the decision row and the Open list loses the line.
 
 **Size.** Two days.
 
-### 6. Ingest says what it did and what it got
+### 5. Ingest says what it did and what it got
 
 **Intent.** Two things `ingest` knows and does not say. First, it prints the
 same line whether it created a document, created a *new generation* of one
@@ -248,7 +218,7 @@ asking the agent to judge thinness unaided.
 
 **Size.** Two days.
 
-### 7. `backdraft verify <artifact>`: checking a receipt without the registry
+### 6. `backdraft verify <artifact>`: checking a receipt without the registry
 
 **Intent.** `skills/backdraft-artifact/SKILL.md` exists because there is no
 command: it walks an agent through opening a `.backdraft.json` or
@@ -270,9 +240,9 @@ when a registry is discoverable: re-resolve each token through the same path
 `bind` uses and report the closed status set. Exit 0 when everything checked
 passed, 1 on a usage error, and — matching `bind` — 2 when something did not
 verify, so a hook can gate on it. Read-only: it opens no session and mints
-nothing, which is what distinguishes it from `read` and from the queued
-`backdraft show <token>` — a number here shifts every time an item lands, so
-name the item, not its position.
+nothing, which is what distinguishes it from `read` and from `backdraft show`
+(landed 2026-08-12), whose whole point is that showing mints — an audit must not
+make its subject citable.
 
 **Acceptance.** `backdraft verify demo/memo.backdraft.html` from outside
 `demo/` reports tier one passing and says plainly that no registry was found,
@@ -285,7 +255,7 @@ agent that has no backdraft install.
 
 **Size.** Three days.
 
-### 8. `spec/registry.md`: the export format is normative, or it is not a format
+### 7. `spec/registry.md`: the export format is normative, or it is not a format
 
 **Intent.** `backdraft export` writes `"$format": "backdraft/registry-v1"`, a
 version string that promises a specification and does not have one. `spec/`

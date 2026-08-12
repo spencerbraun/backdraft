@@ -244,6 +244,7 @@ CLI-facing behavior contract:
 - `read` with no args → document list (slug, filename, media, pages). `read <slug>` → TOC (page/sheet, name, summary-or-first-120-chars). `read <slug> p3` / `p3-5` / `rent-roll` → token-marked content.
 - PDF pages render as chunks: `[bd:slug:p3.c1:a7f3]` on its own line above each chunk's text. Sheets render the markdown table as-is with a header line carrying the page token; cell tokens are NOT inlined per-cell (the `[B10]` refs are already in-band; bind composes `bd:slug:sheet!B10:hash` from the registry).
 - `search "<query>"` → FTS5 over anchors; each result: token, slug, page, snippet. Results are minted (ledger-recorded) — a searched snippet is citable without a page read.
+- `show <token>...` → the inverse of minting: per token, its bind status, its slug and locator, and the verbatim snippet, in argument order. `resolved` prints the snippet; `drifted` prints both the cited snippet and what stands at the locator now (and mints that anchor too, since it is the one worth citing); `unresolved` says whether the slug or the locator is what named nothing; `malformed` carries the kernel's reason and the grammar. Statuses and resolution are bind's, reached through `kernel.claims.parse_citation` and `Registry.resolve` rather than a second reading of what a token means; `not_shown` cannot occur, because showing mints. Exit 1 if any token was `unresolved` or `malformed`, with the block still on stdout.
 - Every emitted token is recorded to the ledger under the session (`--session` flag or `BACKDRAFT_SESSION` env; auto-created default session otherwise).
 - Long pages: `--offset/--limit` on chars for PDFs; sheets paginate by rows, never mid-row, header row repeated.
 
@@ -294,6 +295,7 @@ backdraft ingest <sources...> [--extractor auto] [--slug S] [--config k=v]
                                     # a source is a path or an http(s) URL
 backdraft ls | backdraft read ...   # gate, above
 backdraft search "<query>" [--in slug]
+backdraft show <token>...           # gate: what does this token say?
 backdraft bind <doc.md> [--session S] [--check ...] [--mode ...]
 backdraft render <doc.md> [--to html|footnotes|json] [-o out] [--theme name|file]
 backdraft theme [list|show <name|file>]

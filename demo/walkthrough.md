@@ -499,7 +499,29 @@ backdraft theme show default > ~/.config/backdraft/theme.toml
 
 ## 10. Fixing the failure
 
-The memo's broken token was a typo for a real anchor. Find it the same way you
+Start by asking the token itself. `show` is the inverse of minting: hand it a
+token from anywhere — a bind report, an artifact, a draft — and it says what
+that token names.
+
+```bash
+backdraft show bd:t12-summary:p4.c1:1a2b
+echo "exit: $?"
+```
+
+```
+[bd:t12-summary:p4.c1:1a2b]  unresolved
+t12-summary carries no anchor named by this token, in any extraction; the locator or the hash is wrong
+
+[Table of contents: backdraft read t12-summary]
+exit: 1
+```
+
+The slug is real — that document was ingested — so what was invented is the page
+or the hash. (A token whose source had *changed* rather than never existed would
+come back `drifted`, printing both the snippet that was cited and the snippet
+standing at that locator now.)
+
+So the broken token was a typo for a real anchor. Find it the same way you
 found everything else:
 
 ```bash
@@ -519,8 +541,26 @@ backdraft search "replacement reserve"
 [Read the page: backdraft read t12-summary p3]
 ```
 
-`bd:t12-summary:p3.c4:6f0f` is the snippet that actually says it. Swapping it in
-and re-binding would take the run to `resolved: 16` and exit 0.
+`bd:t12-summary:p3.c4:6f0f` is the snippet that actually says it — and `show`
+confirms that before the edit, rather than after the re-bind:
+
+```bash
+backdraft show bd:t12-summary:p3.c4:6f0f
+```
+
+```
+[bd:t12-summary:p3.c4:6f0f]  resolved  t12-summary p3.c4
+Capital expenditures of $317,000 were incurred outside the operating statement and are not deducted in arriving at
+net operating income. The largest items were roof replacement on the A and B buildings ($186,000) and parking
+lot resurfacing ($64,500). A replacement reserve of $250 per unit per year, or $32,000 annually, would be
+customary for an asset of this vintage and is not reflected in the figures above.
+
+[Read the page: backdraft read t12-summary p3]
+```
+
+`show` is the gate like `read` and `search` are, so that snippet is now minted
+into the session and the token is citable. Swapping it in and re-binding would
+take the run to `resolved: 16` and exit 0.
 
 **This demo deliberately does not make that fix.** The checked-in `memo.md`
 and `memo.backdraft.html` both carry the unresolved citation, because an
