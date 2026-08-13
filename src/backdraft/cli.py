@@ -33,6 +33,7 @@ from .cli_context import (
     HOME_ENV,
     SESSION_ENV,
     UsageError,
+    fail,
     find_root,
     guard,
     open_registry,
@@ -45,6 +46,7 @@ from .extract import snapshots, vlm_ready
 # SPEC § Dependency rule spells "`cli` imports everything"; the mount guard
 # below is about sub-*apps*, and `gate` itself does not need typer.
 from .gate import unit
+from .kernel.errors import BackdraftError
 from .kernel.model import Document, Page
 from .registry import DIRECTORY, Registry
 
@@ -148,6 +150,11 @@ def ingest(
     `drifted`. JavaScript-rendered pages and pages behind a login are out of
     reach: what is fetched is what the server sends unauthenticated.
 
+    A source that cannot be read does not end the run: the rest of the list is
+    ingested anyway, every failure is named at the end with its reason, and the
+    command exits 1. Re-running the same list after a fix re-ingests nothing that
+    already landed unchanged.
+
     `--config` keys are checked against the extractor that was chosen, which for
     `auto` is per file. Both PDF paths (`pdf-text`, `vlm`) take `dpi`; every path
     that stores a page image — those two and `image` — takes `snapshot_quality`
@@ -159,39 +166,48 @@ def ingest(
     nudge_vlm = False
     note_pptx = False
     unsnapshot: dict[str, list[str]] = {}  # why it failed -> which documents
+    unread: list[tuple[str, str]] = []  # which source -> why it never landed
     with guard():
         if slug is not None and len(sources) > 1:
             raise UsageError("--slug names one document; pass one source")
         settings = _parse_config(config or [])
         with opened_registry() as registry:
             for source in sources:
-                with _staged(source) as (path, origin):
-                    document = registry.ingest(
-                        path, extractor=extractor, slug=slug, config=settings, **origin
-                    )
-                    pages = registry.pages(document.slug)
-                    typer.echo(
-                        f"{document.slug}  {document.filename}  "
-                        f"{document.media_type}  {len(pages)} {unit(pages)}"
-                    )
-                    nudge_vlm = nudge_vlm or (
-                        extractor == "auto"
-                        and document.media_type == "pdf"
-                        and not vlm_ready(settings)
-                    )
-                    note_pptx = note_pptx or document.media_type == "pptx"
-                    # Page images: the VLM extractor stores them itself, so this
-                    # only ever fires for the text-layer path (and for a re-ingest
-                    # that landed before this machine had poppler). Display only,
-                    # hence best-effort — a failure notes itself and ingest stands.
-                    if _wants_snapshots(registry, document, pages):
-                        try:
-                            for _ in snapshots.capture(
-                                registry, document.slug, path, config=settings
-                            ):
-                                pass
-                        except snapshots.SnapshotError as error:
-                            unsnapshot.setdefault(str(error), []).append(document.slug)
+                # One unreadable source is data, not the end of the run: the rest
+                # of the list is still ingested and every failure is named below,
+                # so ingesting a folder never leaves an agent guessing which half
+                # landed. `guard` stays the only place a BackdraftError becomes an
+                # exit code — nothing caught here is re-raised.
+                try:
+                    with _staged(source) as (path, origin):
+                        document = registry.ingest(
+                            path, extractor=extractor, slug=slug, config=settings, **origin
+                        )
+                        pages = registry.pages(document.slug)
+                        typer.echo(
+                            f"{document.slug}  {document.filename}  "
+                            f"{document.media_type}  {len(pages)} {unit(pages)}"
+                        )
+                        nudge_vlm = nudge_vlm or (
+                            extractor == "auto"
+                            and document.media_type == "pdf"
+                            and not vlm_ready(settings)
+                        )
+                        note_pptx = note_pptx or document.media_type == "pptx"
+                        # Page images: the VLM extractor stores them itself, so this
+                        # only ever fires for the text-layer path (and for a re-ingest
+                        # that landed before this machine had poppler). Display only,
+                        # hence best-effort — a failure notes itself and ingest stands.
+                        if _wants_snapshots(registry, document, pages):
+                            try:
+                                for _ in snapshots.capture(
+                                    registry, document.slug, path, config=settings
+                                ):
+                                    pass
+                            except snapshots.SnapshotError as error:
+                                unsnapshot.setdefault(str(error), []).append(document.slug)
+                except BackdraftError as error:
+                    unread.append((source, str(error)))
     # One line per distinct reason — which is one line, unless a machine
     # without poppler is somehow also holding an unrenderable PDF.
     for reason, slugs in unsnapshot.items():
@@ -212,6 +228,9 @@ def ingest(
             "not captured; exporting the deck to PDF and ingesting it through "
             "the vision extractor captures them."
         )
+    if unread:
+        # Last, and it carries the exit code: everything above is what landed.
+        fail(_unread_report(unread, len(sources)))
 
 
 SKILLS = ("backdraft", "backdraft-backfill", "backdraft-artifact")
@@ -431,6 +450,32 @@ def _wants_snapshots(registry: Registry, document: Document, pages: list[Page]) 
         and bool(pages)
         and registry.page_image(document.slug, pages[0].number) is None
     )
+
+
+def _unread_report(unread: list[tuple[str, str]], total: int) -> str:
+    """What `ingest` could not read, as one message: the count, each source, the fix.
+
+    One line per *source* rather than per reason — the mirror image of the
+    snapshot note above, which groups because one missing poppler explains every
+    document at once. Here the source is the thing the caller has to act on, and
+    two files rarely fail for the same reason; a reason that does repeat (a
+    config key no extractor reads) repeats cheaply.
+
+    The closing line says re-running the whole list is safe, because the
+    alternative is an agent hand-diffing `ls` against its own arguments to
+    rebuild the half that failed.
+    """
+    landed = total - len(unread)
+    noun = "source" if total == 1 else "sources"
+    # The two counts add up to the whole list, which is the fact the old
+    # abandon-on-first-failure behaviour could not state: nothing was skipped.
+    lines = [f"{landed} of {total} {noun} ingested; {len(unread)} failed:"]
+    lines += [f"  ! {source} — {reason}" for source, reason in unread]
+    lines.append(
+        "fix these and re-run the same command: a source already in the registry "
+        "re-ingests as a no-op when its bytes, extractor and config are unchanged."
+    )
+    return "\n".join(lines)
 
 
 def _vlm_gap() -> str:

@@ -28,6 +28,11 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # Formats: pdf, xlsx/xlsm, xls (via [xls]), csv/tsv, docx, pptx,
 # png/jpeg/tiff, html/htm, txt/md. pptx is slide text only; export visual-heavy
 # decks to PDF and ingest via the vision extractor.
+# ingest attempts every source named. One that cannot be read does not stop the
+# rest: the command exits 1 printing "N of M sources ingested" and one `!` line
+# per failure with its reason; every source not named there is in the registry.
+# Re-run the same list after a fix — a source already ingested and unchanged
+# re-ingests as a no-op.
 # `--config k=v` (repeatable) is checked against the extractor that was chosen,
 # so an unknown key exits 1 naming the ones that apply — it is never ignored.
 # Keys: PDFs (pdf-text, vlm) take dpi, snapshot_quality, snapshot_max_height;

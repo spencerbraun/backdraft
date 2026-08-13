@@ -27,6 +27,13 @@ backdraft session start --id s-<short-name>       # optional; enables not_shown
 export BACKDRAFT_SESSION=s-<short-name>
 ```
 
+Name every source in one `ingest`; it attempts all of them. If one cannot be
+read the command exits 1 and prints `N of M sources ingested` followed by one
+`!` line per failure with its reason — everything not named there is in the
+registry already. Fix or drop the named sources and re-run the same command:
+one already ingested and unchanged re-ingests as a no-op. Tell the user which
+sources are missing before you write, rather than quietly writing around them.
+
 For real PDFs (glossy layouts, info boxes, scans) the VLM extractor produces the
 best receipts; `auto` prefers it when `BACKDRAFT_VLM_API_KEY` is set (env or `.backdraft/env`; ambient provider keys
 are never read) — the default model is Gemini 3.1 Flash Lite through OpenRouter. If ingest prints a note about falling back to the text

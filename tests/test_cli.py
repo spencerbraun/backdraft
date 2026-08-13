@@ -156,6 +156,84 @@ def test_ingest_reports_an_extractor_failure(project: Path, tmp_path: Path) -> N
     assert "broken.pdf" in result.stderr
 
 
+# ---- ingest finishes its list -----------------------------------------------
+
+
+def _sources(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """Two readable markdown files with an unreadable PDF between them."""
+    first = tmp_path / "a.md"
+    first.write_text("Occupancy closed at 91.4% in Q3.\n", encoding="utf-8")
+    broken = tmp_path / "broken.pdf"
+    broken.write_bytes(b"%PDF-1.4 nonsense")
+    last = tmp_path / "c.md"
+    last.write_text("Debt service coverage was 1.28x.\n", encoding="utf-8")
+    return first, broken, last
+
+
+def test_a_failed_source_does_not_stop_the_ones_behind_it(
+    project: Path, tmp_path: Path
+) -> None:
+    """The case this exists for: `c.md` used never to be attempted at all."""
+    first, broken, last = _sources(tmp_path)
+    result = runner.invoke(cli.app, ["ingest", str(first), str(broken), str(last)])
+    assert result.exit_code == cli.EXIT_USAGE
+    assert "a-doc" in result.stdout and "c-doc" in result.stdout
+    failures = [line for line in result.stderr.splitlines() if line.startswith("  ! ")]
+    assert len(failures) == 1
+    assert "broken.pdf" in failures[0] and "PDF" in failures[0]
+    assert "2 of 3 sources ingested; 1 failed" in result.stderr
+    listed = runner.invoke(cli.app, ["ls"]).stdout
+    assert "a-doc" in listed and "c-doc" in listed
+
+
+def test_the_failure_report_says_re_running_the_list_is_safe(
+    project: Path, tmp_path: Path
+) -> None:
+    """Without this the caller has to diff `ls` against its own arguments to
+    work out which half to pass again."""
+    first, broken, last = _sources(tmp_path)
+    result = runner.invoke(cli.app, ["ingest", str(first), str(broken), str(last)])
+    assert "re-run the same command" in result.stderr
+    assert "no-op" in result.stderr
+
+
+def test_every_source_failing_still_exits_one_and_names_each(
+    project: Path, tmp_path: Path
+) -> None:
+    broken = tmp_path / "broken.pdf"
+    broken.write_bytes(b"%PDF-1.4 nonsense")
+    also = tmp_path / "also-broken.pdf"
+    also.write_bytes(b"%PDF-1.4 nonsense either way")
+    result = runner.invoke(cli.app, ["ingest", str(broken), str(also)])
+    assert result.exit_code == cli.EXIT_USAGE
+    assert "0 of 2 sources ingested; 2 failed" in result.stderr
+    assert "broken.pdf" in result.stderr and "also-broken.pdf" in result.stderr
+    with Registry.open(project) as registry:
+        assert registry.documents() == []
+
+
+def test_one_source_failing_alone_counts_in_the_singular(
+    project: Path, tmp_path: Path
+) -> None:
+    broken = tmp_path / "broken.pdf"
+    broken.write_bytes(b"%PDF-1.4 nonsense")
+    result = runner.invoke(cli.app, ["ingest", str(broken)])
+    assert "0 of 1 source ingested; 1 failed" in result.stderr
+    assert "1 sources" not in result.stderr
+
+
+def test_a_run_where_nothing_fails_prints_what_it_always_printed(
+    project: Path, tmp_path: Path
+) -> None:
+    """Byte-identical to the old behaviour: the report is failure-only, so a
+    clean ingest gained no line, no prefix and no trailing note."""
+    first, _, last = _sources(tmp_path)
+    result = runner.invoke(cli.app, ["ingest", str(first), str(last)])
+    assert result.exit_code == 0
+    assert result.stdout == "a-doc  a.md  text  1 page\nc-doc  c.md  text  1 page\n"
+    assert result.stderr == ""
+
+
 def test_ingesting_a_deck_notes_the_text_only_gap(project: Path, tmp_path: Path) -> None:
     """The note a calling agent relays when the deck is visual-heavy."""
     from pptx import Presentation

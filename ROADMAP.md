@@ -32,36 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. Ingest finishes the list, then reports what it could not read
-
-**Intent.** `backdraft ingest a.md broken.pdf c.md` ingests `a.md`, fails on
-`broken.pdf`, and never attempts `c.md`. The registry is left half-built, the
-message names only the first failure, and nothing says which files landed and
-which were never tried — so an agent ingesting a folder must re-run and infer
-the state. This is the same warn-and-drop shape the page-snapshot capture
-already avoids: it collects failures, names them, and lets the rest of the run
-stand.
-
-**Shape.** `ingest` in `cli.py`. Move the per-file work inside a try that
-catches `BackdraftError` and records `(path, reason)` instead of propagating,
-so the loop always reaches the end of the list. After the loop, print one line
-per failure naming the file and the reason, grouped the way the snapshot note
-already groups by reason, and exit 1 if anything failed — the exit code is
-unchanged, only the coverage and the reporting improve. Re-ingest is idempotent
-for deterministic extractors, so re-running after a fix costs nothing, and the
-message should say that rather than leaving the agent to guess. Keep the guard
-in `cli_context` as the only place `BackdraftError` becomes an exit code:
-ingest catches per file and re-raises nothing, printing failures as data.
-
-**Acceptance.** The three-file example above ingests `a.md` and `c.md`, prints
-one failure line for `broken.pdf` naming why, and exits 1; `backdraft ls`
-afterwards shows both good documents. A run where every file fails still exits
-1 and names each. A run where none fail is byte-identical to today's output.
-Tests for all three.
-
-**Size.** One day.
-
-### 2. The demo cites a web page, so the feature is visible
+### 1. The demo cites a web page, so the feature is visible
 
 **Intent.** URL sources ship complete — `ingest` fetches and snapshots, the
 registry keeps `url` and `fetched_at`, and as of 2026-08-06 the artifact links
@@ -107,7 +78,7 @@ that the permanent link did its job.
 
 **Size.** One day.
 
-### 3. The gate names a fetched source by its page, not by its staging filename
+### 2. The gate names a fetched source by its page, not by its staging filename
 
 **Intent.** A fetched page's `filename` is `q4-2025.html`, a name invented by
 `fetch.filename_for` for a temporary file that no longer exists. The
@@ -144,7 +115,7 @@ fact `read` now carries.
 
 **Size.** Two days.
 
-### 4. A fetched page's slug is decided, not defaulted
+### 3. A fetched page's slug is decided, not defaulted
 
 **Intent.** DESIGN.md's Open list has carried "slug assignment/collision rules"
 since the first field trial, and URL sources sharpened it into a real failure:
@@ -179,7 +150,7 @@ error. DESIGN.md gains the decision row and the Open list loses the line.
 
 **Size.** Two days.
 
-### 5. Ingest says what it did and what it got
+### 4. Ingest says what it did and what it got
 
 **Intent.** Two things `ingest` knows and does not say. First, it prints the
 same line whether it created a document, created a *new generation* of one
@@ -218,7 +189,7 @@ asking the agent to judge thinness unaided.
 
 **Size.** Two days.
 
-### 6. `backdraft verify <artifact>`: checking a receipt without the registry
+### 5. `backdraft verify <artifact>`: checking a receipt without the registry
 
 **Intent.** `skills/backdraft-artifact/SKILL.md` exists because there is no
 command: it walks an agent through opening a `.backdraft.json` or
@@ -255,7 +226,7 @@ agent that has no backdraft install.
 
 **Size.** Three days.
 
-### 7. `spec/registry.md`: the export format is normative, or it is not a format
+### 6. `spec/registry.md`: the export format is normative, or it is not a format
 
 **Intent.** `backdraft export` writes `"$format": "backdraft/registry-v1"`, a
 version string that promises a specification and does not have one. `spec/`
