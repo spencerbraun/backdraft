@@ -43,9 +43,7 @@ or the hash is wrong
 
 UNKNOWN_SLUG = """\
 [bd:nope:p1.c1:1a2b]  unresolved
-no document with slug 'nope'; run `backdraft read` to list what is ingested
-
-[List documents: backdraft read]"""
+no document with slug 'nope'; run `backdraft read` to list what is ingested"""
 
 
 def test_a_resolved_token_prints_its_locator_and_verbatim_snippet(
@@ -93,6 +91,15 @@ def test_an_unknown_slug_is_named_as_such(fake_gate_registry: FakeDocumentRegist
     assert shown.complete is False
 
 
+def test_an_unknown_slug_says_where_to_look_once(
+    fake_gate_registry: FakeDocumentRegistry,
+) -> None:
+    """The reason already ends in `LIST_HINT`; a bracketed hint saying the same
+    thing three lines down is the reader deciding which of two to trust."""
+    text = show(fake_gate_registry, ["bd:nope:p1.c1:1a2b"]).text
+    assert text.count("backdraft read") == 1
+
+
 def test_a_malformed_token_names_the_reason_and_the_grammar(
     fake_gate_registry: FakeDocumentRegistry,
 ) -> None:
@@ -126,9 +133,8 @@ def test_a_failure_never_swallows_the_tokens_beside_it(
     lines = shown.text.split("\n")
     assert lines[0].endswith("unresolved")
     assert "The portfolio comprises 14 assets across three markets." in lines
-    assert lines[-3:] == [
+    assert lines[-2:] == [
         "[Read the page: backdraft read t12-audit p2]",
-        "[List documents: backdraft read]",
         GRAMMAR_HINT,
     ]
     assert shown.complete is False

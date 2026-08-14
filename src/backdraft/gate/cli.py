@@ -6,9 +6,11 @@ This module holds no logic of its own — it parses flags, calls `reader`/
 (usage/env error).
 
 `show` is the one command here that decides an exit code from what it found
-rather than from an error: a token it could not resolve leaves as exit 1 with
-the reason on stdout, the shape `bind` already uses for a run that completed and
-failed. The block is data, so it is never swallowed onto stderr.
+rather than from an error: a token it could not resolve leaves as exit 1, and
+the reason prints on stdout with the rest of the block, never swallowed onto
+stderr, because it is an answer and not a diagnostic. It is 1 and not `bind`'s
+2 — the other code for a run that completed and failed — because 2 is what a
+`Stop` hook gates a document on, and a lookup must not trip it.
 
 Discovery and session resolution come from `backdraft.cli_context`, imported at
 module level: that module deliberately knows nothing about the sub-apps, so the

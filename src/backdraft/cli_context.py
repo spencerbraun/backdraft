@@ -53,7 +53,14 @@ DEFAULT_SESSION = "default"
 """The auto-created session. Stable across invocations, so reads accumulate."""
 
 EXIT_USAGE = 1
-"""Usage or environment error."""
+"""Usage or environment error — and everything else that is not exit 2.
+
+`gate.cli`'s `show` also leaves through this code when a token it was handed
+named nothing, which is not a usage error: the command ran and answered. It is
+still 1 rather than 2 because 2 is `bind`'s alone (below), and a `Stop` hook
+gating on 2 must not be tripped by a lookup. `show` prints its reasons on stdout
+either way, so the caller reads the answer, not the code.
+"""
 
 EXIT_UNRESOLVED = 2
 """`bind` completed and something did not resolve. Owned by `bind`; hooks gate on it."""

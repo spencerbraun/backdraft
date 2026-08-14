@@ -628,7 +628,6 @@ def show(
     minted: list[int] = []
     read_hints: list[str] = []
     toc_hints: list[str] = []
-    unknown_slug = False
     malformed = False
     complete = True
 
@@ -646,10 +645,12 @@ def show(
             reason = _nothing_named(slug, known)
             blocks.append(f"[{text}]  {CitationStatus.UNRESOLVED}\n{reason}")
             complete = False
+            # A known slug earns a hint the reason does not already carry; an
+            # unknown one does not, because `_nothing_named` closed that reason
+            # with `LIST_HINT` — and the same next step twice in one block is a
+            # reader deciding which of two to trust.
             if known:
                 _remember(toc_hints, f"[Table of contents: backdraft read {slug}]")
-            else:
-                unknown_slug = True
             continue
         anchor = resolution.anchor
         shown: tuple[Anchor | None, ...]
@@ -673,8 +674,6 @@ def show(
 
     lines = "\n\n".join(blocks).split("\n") if blocks else ["(no tokens)"]
     hints = [*read_hints, *toc_hints]
-    if unknown_slug:
-        hints.append("[List documents: backdraft read]")
     if malformed:
         hints.append(GRAMMAR_HINT)
     return Shown(text=_block([*lines, "", *hints]), complete=complete)
