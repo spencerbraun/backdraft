@@ -15,7 +15,7 @@ import pytest
 from conftest_registry import PAGE_BREAK
 
 from backdraft.extract.base import ExtractedPage
-from backdraft.registry import Registry
+from backdraft.registry import Registry, current_at
 
 
 def _tokens(registry: Registry, slug: str) -> dict[str, str]:
@@ -165,6 +165,51 @@ def test_a_token_whose_page_changed_resolves_against_the_old_generation(
     assert resolution is not None
     assert resolution.current is False
     assert "1.42x" in resolution.anchor.receipt.snippet  # what the writer saw
+
+
+# ---- the other half of drift ------------------------------------------------
+#
+# `resolve` finds what the writer saw; `current_at` finds what stands at the same
+# locator now. Both `bind` and the gate's `show` need the pair, and neither may
+# import the other, so the lookup is the registry's and this is where it is
+# pinned.
+
+
+def test_current_at_finds_what_replaced_a_superseded_anchor(
+    registry: Registry, book: Path
+) -> None:
+    registry.ingest(book, extractor="paged")
+    token = _tokens(registry, "quarterly-notes")["p2.c1"]
+
+    _write(book, [PAGE_ONE, PAGE_TWO_EDITED, PAGE_THREE])
+    registry.ingest(book, extractor="paged")
+
+    cited = registry.resolve(token).anchor
+    standing = current_at(registry, cited)
+    assert standing is not None
+    assert standing.locator == cited.locator
+    assert standing.token != cited.token
+    assert "1.19x" in standing.receipt.snippet  # what stands there now
+
+
+def test_current_at_is_the_anchor_itself_when_nothing_moved(
+    registry: Registry, book: Path
+) -> None:
+    registry.ingest(book, extractor="paged")
+    anchor = registry.anchors_for_page("quarterly-notes", 1)[0]
+    assert current_at(registry, anchor) == anchor
+
+
+def test_current_at_is_none_when_the_locator_is_gone(registry: Registry, book: Path) -> None:
+    """A page deleted between ingests: drift with only one side to show."""
+    registry.ingest(book, extractor="paged")
+    token = _tokens(registry, "quarterly-notes")["p3.c1"]
+
+    _write(book, [PAGE_ONE, PAGE_TWO])
+    registry.ingest(book, extractor="paged")
+
+    cited = registry.resolve(token).anchor
+    assert current_at(registry, cited) is None
 
 
 def test_search_follows_the_current_generation(registry: Registry, book: Path) -> None:

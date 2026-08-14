@@ -330,6 +330,8 @@ Integration invariants (every workstream's tests must respect): any token the ga
 
 `registry/store.py` exposes exactly this surface. W1 implements it; W2/W3 consume it and MUST NOT implement anything under `registry/`; their tests use a lightweight fake implementing these names.
 
+Beside the class, `registry` exports one module function, `current_at(registry, anchor) -> Anchor | None`: the current generation's anchor at `anchor`'s locator, or None if the locator is gone. It is the other half of drift — `resolve` finds what the writer saw, this finds what stands there now — and it lives here because both `bind` and the gate's `show` need it and the dependency rule forbids either importing the other. A function rather than a method so it composes the surface above without widening it, and so the fakes keep working unchanged.
+
 ```python
 class Registry:
     @classmethod

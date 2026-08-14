@@ -59,6 +59,7 @@ from ..kernel.model import (
     Claim,
 )
 from ..kernel.tokens import format_locator
+from ..registry import current_at
 from . import evidence as evidence_module
 from .verify.base import Verifier, selected
 from .verify.value_trace import extract_values
@@ -278,16 +279,6 @@ def _resolve_claim(
     )
 
 
-def _current_counterpart(registry: Registry, anchor: Anchor) -> Anchor | None:
-    """The current generation's anchor at `anchor`'s locator, if it survived."""
-    if anchor.page_number is None:
-        return None
-    for candidate in registry.anchors_for_page(anchor.slug, anchor.page_number):
-        if candidate.locator == anchor.locator:
-            return candidate
-    return None
-
-
 def _resolve_citation(
     citation: Citation, registry: Registry, *, mode: BindMode, session_id: str | None
 ) -> Citation:
@@ -305,11 +296,11 @@ def _resolve_citation(
     if not resolution.current:
         # The drift contract (kernel fixture, spec/artifact.md): `drifted_from`
         # is the snippet the writer cited; `anchor` is what stands at that
-        # locator now, found via `anchors_for_page` on the current generation.
-        # When the locator itself is gone, the cited anchor stands in and the
-        # two sides of the diff agree — still `drifted`, because the token no
-        # longer resolves against the current generation.
-        current = _current_counterpart(registry, anchor)
+        # locator now, which `registry.current_at` answers off the current
+        # generation. When the locator itself is gone, the cited anchor stands
+        # in and the two sides of the diff agree — still `drifted`, because the
+        # token no longer resolves against the current generation.
+        current = current_at(registry, anchor)
         return Citation(
             token=citation.token,
             status=CitationStatus.DRIFTED,

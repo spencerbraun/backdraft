@@ -49,6 +49,7 @@ __all__ = [
     "Resolution",
     "SearchHit",
     "SearchResults",
+    "current_at",
     "media_type_for",
     "sanitize_sheet_name",
     "slug_for",
@@ -165,6 +166,34 @@ def sanitize_sheet_name(name: str) -> str:
     """
     reduced = _NON_SLUG.sub("-", unicodedata.normalize("NFC", name).lower()).strip("-")
     return reduced or "sheet"
+
+
+def current_at(registry: "Registry", anchor: Anchor) -> Anchor | None:
+    """The current generation's anchor at `anchor`'s locator, if it survived.
+
+    The other half of drift. `Registry.resolve` finds the anchor a token names in
+    whichever generation holds it and says whether that generation is current;
+    when it is not, this is what stands at the same locator now. Two callers need
+    exactly that — `bind` to fill a `drifted` citation's two sides, the gate to
+    print them under `show` — and the dependency rule forbids either importing
+    the other, so the answer lives with `anchors_for_page`, which is where it
+    was always read from.
+
+    A module function rather than a `Registry` method on purpose: it composes the
+    pinned surface and adds nothing to it, so the fakes W2 and W3 test against
+    (SPEC § Addendum A) keep working unchanged. Takes anything with
+    `anchors_for_page` for the same reason.
+
+    None when the locator is gone from the current extraction — a page that lost
+    a chunk, or lost the page. Callers differ on what to do with that, which is
+    why this answers the lookup and stops there.
+    """
+    if anchor.page_number is None:
+        return None
+    for candidate in registry.anchors_for_page(anchor.slug, anchor.page_number):
+        if candidate.locator == anchor.locator:
+            return candidate
+    return None
 
 
 class Registry:

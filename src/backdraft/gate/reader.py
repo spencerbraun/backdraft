@@ -29,6 +29,7 @@ from ..kernel.errors import BackdraftError
 from ..kernel.hashing import normalize
 from ..kernel.model import CitationStatus
 from ..kernel.tokens import CellLocator, ChunkLocator, format_locator, parse as parse_token
+from ..registry import current_at
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -657,7 +658,7 @@ def show(
             blocks.append(f"{headline}\n{anchor.receipt.snippet}")
             shown = (anchor,)
         else:
-            current = _current_at(registry, anchor)
+            current = current_at(registry, anchor)
             blocks.append(_drift_block(anchor, current))
             shown = (anchor, current)
         # Emitting is minting: every anchor whose token reached the output.
@@ -698,22 +699,6 @@ def _drift_block(anchor: Anchor, current: Anchor | None) -> str:
     else:
         lines += [f"now [{current.token}]:", current.receipt.snippet]
     return "\n".join(lines)
-
-
-def _current_at(registry: Registry, anchor: Anchor) -> Anchor | None:
-    """The current generation's anchor at `anchor`'s locator, if it survived.
-
-    NOTE: `bind.binder` holds the same four-line lookup, because the dependency
-    rule forbids a sideways import between gate and bind. Neither is a second
-    definition of drift — both read `anchors_for_page` off the pinned registry
-    surface, which is where the answer actually lives.
-    """
-    if anchor.page_number is None:
-        return None
-    for candidate in registry.anchors_for_page(anchor.slug, anchor.page_number):
-        if candidate.locator == anchor.locator:
-            return candidate
-    return None
 
 
 def _nothing_named(slug: str, known: bool) -> str:
