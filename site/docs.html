@@ -160,9 +160,19 @@ a new generation of the same document and citations into the old one report
 <code>drifted</code>, exactly as an edited PDF does. <code>backdraft ls</code>
 shows the origin URL for anything fetched.</p>
 <p>The origin reaches the artifact as well: a receipt on a fetched page carries
-the URL as a link and the date the bytes were taken, and the source list names
-the page instead of the staged filename. The receipt says what the page said;
-the link is how a reader asks whether it still says it.</p>
+the URL as a link and the date the bytes were taken, and the source list shows
+the URL rather than the staged filename, under the slug you gave the document
+rather than the name the fetch invented for it. The receipt says what the page
+said; the link is how a reader asks whether it still says it.</p>
+<p><strong>Ingest a stable address where the site offers one.</strong> A page
+that is edited will report <code>drifted</code> on the next bind — correct
+behavior, and useless as a citation, because the sentence quoted is no longer
+the sentence there. Wikipedia's permanent link (<code>?oldid=</code>), a DOI, a
+dated press release, an archived snapshot: each serves one revision's bytes for
+good. Pair it with <code>--slug</code>, because a slug taken from a URL ending
+<code>/index.php</code> or <code>/view</code> names the site no better than it
+names the page, and a slug is permanent once tokens carry it. The
+<a href="demo.html">demo</a> cites a Wikipedia article this way.</p>
 <p>What this does not do, said plainly rather than worked around:
 JavaScript-rendered pages give you whatever the server returns to a plain GET,
 pages behind a login are out of reach, and the extractor is a parse rather than

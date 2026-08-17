@@ -32,53 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. The demo cites a web page, so the feature is visible
-
-**Intent.** URL sources ship complete — `ingest` fetches and snapshots, the
-registry keeps `url` and `fetched_at`, and as of 2026-08-06 the artifact links
-back to the page with its fetch date. None of it appears at
-`backdraft.dev/demo.html`, because both demo sources are local files
-(`t12-summary.pdf`, `underwriting-model.xlsx`). The one artifact anybody
-actually looks at does not show the capability, and the byte-identity test that
-proved the change was safe is the same fact that keeps it invisible. A reader
-evaluating backdraft cannot see that a web citation is a citation like any
-other.
-
-**Shape.** Add a third source to `demo/`: the Wikipedia article for the county
-the property sits in, cited for market context — population, median household
-income, the kind of external figure a screening memo genuinely leans on and
-cannot get from a T12. Bridgeview Commons is fictional and says so in its own
-first line, so give it a real county and let the memo name it; one new
-paragraph under "The asset" or a short "Market" section, with one or two
-claims. Cite Wikipedia's **permanent link** (`?oldid=<rev>`), not the bare
-article URL: an article is edited constantly, a citation into the live URL
-would report `drifted` within days, and a front-page demo that permanently
-shows drift teaches that the tool is broken rather than that the source moved.
-An immutable revision plus the rendered "as of" date is also what a careful
-analyst cites. Write the tradeoff as a DESIGN row, naming the thing given up —
-the demo no longer shows a live page changing under a citation, which is the
-better story and belongs in a `drifted` walkthrough, not the shop window.
-
-Practical notes for whoever builds this: `demo/.backdraft/` is gitignored, so
-the fetch happens once on the implementer's machine and the snapshot then
-travels in the local registry; `demo/generate_sources.py` builds the two
-fixture files and is *not* where this goes, since the page is fetched rather
-than generated. Re-bind and re-render (`bind memo.md --session s-bridgeview
---check value-trace,overlap`, then `render memo.md --to html`), and copy the
-result over `site/demo.html` — the two are byte-identical by convention.
-`demo/walkthrough.md` shows real CLI output and its `ls` and `bind` blocks both
-move.
-
-**Acceptance.** `backdraft.dev/demo.html` shows three sources, one of them a
-clickable Wikipedia link with a fetch date, on both the resting rail and the
-end-matter list; the claim citing it opens a card whose source line carries the
-same link. `demo/walkthrough.md` matches what the commands now print. A re-bind
-some weeks later still reports `resolved`, not `drifted` — that is the check
-that the permanent link did its job.
-
-**Size.** One day.
-
-### 2. The gate names a fetched source by its page, not by its staging filename
+### 1. The gate names a fetched source by its page, not by its staging filename
 
 **Intent.** A fetched page's `filename` is `q4-2025.html`, a name invented by
 `fetch.filename_for` for a temporary file that no longer exists. The
@@ -115,7 +69,7 @@ fact `read` now carries.
 
 **Size.** Two days.
 
-### 3. A fetched page's slug is decided, not defaulted
+### 2. A fetched page's slug is decided, not defaulted
 
 **Intent.** DESIGN.md's Open list has carried "slug assignment/collision rules"
 since the first field trial, and URL sources sharpened it into a real failure:
@@ -150,7 +104,7 @@ error. DESIGN.md gains the decision row and the Open list loses the line.
 
 **Size.** Two days.
 
-### 4. Ingest says what it did and what it got
+### 3. Ingest says what it did and what it got
 
 **Intent.** Two things `ingest` knows and does not say. First, it prints the
 same line whether it created a document, created a *new generation* of one
@@ -189,7 +143,7 @@ asking the agent to judge thinness unaided.
 
 **Size.** Two days.
 
-### 5. `backdraft verify <artifact>`: checking a receipt without the registry
+### 4. `backdraft verify <artifact>`: checking a receipt without the registry
 
 **Intent.** `skills/backdraft-artifact/SKILL.md` exists because there is no
 command: it walks an agent through opening a `.backdraft.json` or
@@ -226,7 +180,7 @@ agent that has no backdraft install.
 
 **Size.** Three days.
 
-### 6. `spec/registry.md`: the export format is normative, or it is not a format
+### 5. `spec/registry.md`: the export format is normative, or it is not a format
 
 **Intent.** `backdraft export` writes `"$format": "backdraft/registry-v1"`, a
 version string that promises a specification and does not have one. `spec/`
@@ -258,7 +212,7 @@ the spec is enough to say what each field means.
 
 **Size.** Two days.
 
-### 7. `search` says when it stopped short
+### 6. `search` says when it stopped short
 
 **Intent.** `backdraft search "the"` prints `20 results for "the"` whether there
 are twenty or two hundred: `--limit` defaults to 20, and the count line reports
@@ -295,7 +249,7 @@ than settle when the line says it was capped.
 
 **Size.** One day.
 
-### 8. The bind report says why a verifier skipped
+### 7. The bind report says why a verifier skipped
 
 **Intent.** A bind report prints `overlap: pass 11, skip 4` and stops. Four
 citations were not checked and the report does not say why, so a reader cannot
@@ -328,7 +282,7 @@ output, and the skill says a skip with a reason is not a hole to fix.
 
 **Size.** One day.
 
-### 9. `session show` says what the ledger holds
+### 8. `session show` says what the ledger holds
 
 **Intent.** The ledger is the mechanism the design rests on — the set of citable
 tokens is exactly the set the gate emitted — and nothing reads it back.
@@ -365,7 +319,7 @@ a stated tradeoff.
 
 **Size.** Two days.
 
-### 10. An unreadable source says what to do, not what errno it was
+### 9. An unreadable source says what to do, not what errno it was
 
 **Intent.** `ingest` now finishes its list and names each failure (2026-08-13),
 which turned the reason string into something a calling agent actually reads —
@@ -386,7 +340,7 @@ worth distinguishing (missing, a directory, unreadable, empty, and the fetch
 side's own) and let anything unmapped keep the underlying text rather than
 guessing — an unknown cause reported plainly beats a wrong suggestion. Say the
 source once: the `!` line already leads with it, so the reason should not repeat
-it. This is *not* roadmap item 4, which is about what a successful ingest says
+it. This is *not* roadmap item 3, which is about what a successful ingest says
 (no-op, new generation, character count); this is the failure half, and the two
 should not be merged.
 
@@ -400,7 +354,7 @@ actionable so an agent surfaces them to the user rather than paraphrasing.
 
 **Size.** One day.
 
-### 11. A registry can forget a source
+### 10. A registry can forget a source
 
 **Intent.** Ingest is one-way. An agent working unattended over a folder — which
 is now the normal case, since `ingest` finishes its list — will ingest something
@@ -423,7 +377,7 @@ nothing: reuse `unresolved` and let the *reason* say withdrawn, since adding a
 status is an artifact-format change and this does not need one. Storage is a
 flag on `documents`, not a DELETE, for the same reason. Require confirmation or
 an explicit flag, since this is the one command that takes something away.
-Interacts with queued item 6 (`spec/registry.md`): whichever lands second
+Interacts with queued item 5 (`spec/registry.md`): whichever lands second
 documents the flag in the export.
 
 **Acceptance.** Ingest two documents, `forget` one: `read`, `ls` and `search`

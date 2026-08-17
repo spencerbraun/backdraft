@@ -44,10 +44,14 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # bytes, so re-ingesting a changed page is a new generation and old citations
 # report drifted; the URL + fetched_at ride along as provenance, show in
 # `backdraft ls`, and reach the artifact — a receipt on a fetched page links to
-# it with the fetch date, and the source list names the page rather than the
-# staged filename. JavaScript-rendered pages and anything behind a login are out
-# of reach — you get what a plain GET returns. No boilerplate stripping: nav
-# and footers are part of the page.
+# it with the fetch date, and the source list shows the URL rather than the
+# staged filename. Prefer an address that serves one fixed revision (Wikipedia's
+# ?oldid= permanent link, a DOI, an archived snapshot): a citation into a page
+# that gets edited reports drifted, correctly and uselessly. Pass --slug with
+# it — a URL ending /index.php or /view yields a slug naming nothing, and a slug
+# is permanent once tokens carry it. JavaScript-rendered pages and anything
+# behind a login are out of reach — you get what a plain GET returns. No
+# boilerplate stripping: nav and footers are part of the page.
 # Sandboxes usually cannot reach model providers: if VLM ingest fails on
 # network, continue with the text layer and say so. The registry travels
 # with the project folder (.backdraft/), so a registry ingested with the
@@ -64,7 +68,7 @@ construct or edit a token by hand; copy it from gate output.
 
 backdraft init                              # once per project
 backdraft ingest report.pdf model.xlsx      # every source up front
-backdraft ingest https://example.com/q4     # a URL is a source too
+backdraft ingest <url> --slug <name>        # a URL is a source too
 backdraft session start --id s-<name>       # enables not_shown detection
 export BACKDRAFT_SESSION=s-<name>
 

@@ -1,7 +1,8 @@
 # Bridgeview Commons — Investment Committee Memo
 
 Prepared 2026-03-31. Bridgeview Commons is fictional and every figure below comes
-from the two documents in `demo/sources/`.
+from the two documents in `demo/sources/` or from the public page cited for
+market context.
 
 ## Recommendation
 
@@ -15,6 +16,18 @@ Bridgeview Commons is [128 units across four three-story garden buildings, built
 in 1998 and substantially renovated between 2019 and
 2021](bd:t12-summary:p1.c1:c2e8). Unit mix runs from one-bedroom through
 three-bedroom, and the property has no rent-restricted units.
+
+## Market
+
+The property sits in Franklin County, Ohio — [the most populous county in the
+state, 1,323,807 residents at the 2020 census, with Columbus as its county
+seat](bd:franklin-county:p1.c11:0d4d) — which is also the county whose board of
+revision is hearing the tax appeal described under Risks. [Among occupied
+housing units in the county, 48.7% are renter-occupied and the rental vacancy
+rate is 7.9%](bd:franklin-county:p1.c24:5678). Neither figure comes from the
+sponsor's file: a renter base that deep is what the rent-growth assumption
+rests on, and the property's own occupancy should be read against the county's
+vacancy rather than against the sponsor's forecast.
 
 ## Trailing performance
 

@@ -81,11 +81,18 @@ def source_title(slug: str, docs: dict) -> str:
     machine identifier where a reader expects a name, so it is title-cased
     through the same fixed-caps table sheet names use. A stem with its own
     casing is somebody's chosen name and passes through untouched.
+
+    A fetched page has no filename anybody chose — `fetch.filename_for` names
+    the staging file, so a Wikipedia article arrives as `index.html` and would
+    title itself "Index". The slug is the chosen handle there, so where a
+    document carries a URL the slug is the name, for the same reason the source
+    list shows the URL in the filename's place: the invented name must not be
+    the one a reader trusts.
     """
     entry = docs.get(slug)
     base = (
         str(entry.get("filename", slug)).rsplit(".", 1)[0].replace("_", " ")
-        if entry
+        if entry and not entry.get("url")
         else slug
     )
     if re.fullmatch(r"[a-z0-9][a-z0-9 \-]*", base):

@@ -520,7 +520,7 @@ def test_the_source_list_shows_the_origin_in_place_of_the_staged_filename(
     )
     listing = page.split('<ul class="srclist">', 1)[1].split("</ul>", 1)[0]
     assert re.search(
-        r'<li><span class="doc">Q4 2025</span>'
+        r'<li><span class="doc">T12 Audit</span>'
         rf'<span class="filemeta"><a class="origin" href="{re.escape(URL)}">{re.escape(URL)}'
         r"</a> &middot; fetched 2026-08-05 &middot; \d+ citations?</span></li>",
         listing,
@@ -528,9 +528,21 @@ def test_the_source_list_shows_the_origin_in_place_of_the_staged_filename(
     assert "q4-2025.html" not in listing
 
 
+def test_a_fetched_source_is_titled_by_its_slug_not_its_staging_filename(
+    demo_doc: str, demo: BindReport
+) -> None:
+    """`fetch.filename_for` invents the staging name — a Wikipedia article stages
+    as `index.html` and would title itself "Index". The slug is the handle
+    somebody chose, so it is the name."""
+    page = html.render(demo_doc, _with_origin(demo, url=URL, filename="index.html"))
+    assert '<span class="doc">T12 Audit</span>' in page
+    assert "Index" not in page.split('<ul class="srclist">', 1)[1].split("</ul>", 1)[0]
+
+
 def test_a_file_source_still_shows_its_filename(demo_doc: str, demo: BindReport) -> None:
     page = html.render(demo_doc, _with_origin(demo))
     assert "q4-2025.html &middot;" in page
+    assert '<span class="doc">Q4 2025</span>' in page
     assert 'class="origin"' not in page
 
 

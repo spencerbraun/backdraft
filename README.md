@@ -45,7 +45,15 @@ $ backdraft ingest sources/t12-summary.pdf sources/underwriting-model.xlsx
 t12-summary  t12-summary.pdf  pdf  3 pages
 underwriting-model  underwriting-model.xlsx  xlsx  2 sheets
 note: extracted with pdf-text (the embedded text layer). Glossy or scanned PDFs extract better through a vision model: set BACKDRAFT_VLM_API_KEY in .backdraft/env.
+
+$ backdraft ingest "https://en.wikipedia.org/w/index.php?title=Franklin_County,_Ohio&oldid=1367935775" --slug franklin-county
+franklin-county  index.html  html  1 page
 ```
+
+The demo cites that page for market context. It is Wikipedia's *permanent
+link* — `?oldid=` serves one revision's bytes forever — because a citation into
+a live article reports `drifted` the moment somebody edits it, and the quoted
+sentence would no longer be the sentence there.
 
 **Read.** The page arrives with a citable name over each chunk. This is the whole
 mechanism: what you can cite is exactly what you were shown.
@@ -125,12 +133,12 @@ Multiple citations are `;`-separated in one href.
 
 ```console
 $ backdraft bind memo.md --session s-bridgeview --check value-trace,overlap
-bound 15 claim(s), 16 citation(s) [frontwalk]
-  resolved: 15
+bound 17 claim(s), 18 citation(s) [frontwalk]
+  resolved: 17
   unresolved: 1
-  overlap: pass 11, skip 4
-  value-trace: pass 15
-  ! unresolved: bd:t12-summary:p4.c1:1a2b — replacement reserve of $250 per unit per year @2900
+  overlap: pass 13, skip 4
+  value-trace: pass 17
+  ! unresolved: bd:t12-summary:p4.c1:1a2b — replacement reserve of $250 per unit per year @3629
 wrote .backdraft/records/memo.backdraft.json
 
 $ echo $?

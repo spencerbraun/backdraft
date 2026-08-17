@@ -22,7 +22,7 @@ agent config directories; installs from PyPI need no special permissions.
 ```bash
 backdraft init                                    # once per project
 backdraft ingest report.pdf model.xlsx notes.md   # every source, up front
-backdraft ingest https://example.com/q4-results   # a URL is a source too
+backdraft ingest <url> --slug <name>              # a URL is a source too
 backdraft session start --id s-<short-name>       # optional; enables not_shown
 export BACKDRAFT_SESSION=s-<short-name>
 ```
@@ -52,6 +52,16 @@ fetched page links back to it with the fetch date, so you do not need to repeat
 the URL in the prose for the reader to have it. What you get is what a plain unauthenticated GET returns:
 a JavaScript-rendered page or one behind a login will come back thin or empty,
 and if it does, say so to the user rather than citing the shell of it.
+
+Two habits make a web citation last. **Ingest a fixed revision when the site
+offers one** — Wikipedia's `?oldid=` permanent link, a DOI, an archived
+snapshot — because a page that gets edited makes every citation into it report
+`drifted`, which is true and unhelpful: the sentence quoted is no longer the
+sentence there. **Pass `--slug` with the URL.** The default slug is the URL's
+last path segment, so anything ending `/index.php`, `/view` or a bare number
+becomes a slug that names neither the site nor the page, and a slug is
+permanent once your tokens carry it. Quote the URL in the shell — `&` in a
+query string backgrounds the command otherwise.
 
 Ingest also stores each PDF page's image — both paths, since the text-layer
 path renders the pages locally through poppler — so the artifact can show the
@@ -149,10 +159,10 @@ strays from older runs. `bind --lean` skips the page images when a small
 artifact matters more.
 
 ```
-bound 15 claim(s), 16 citation(s) [frontwalk]
-  resolved: 15
+bound 17 claim(s), 18 citation(s) [frontwalk]
+  resolved: 17
   unresolved: 1
-  ! unresolved: bd:t12-summary:p4.c1:1a2b — replacement reserve of $250 per unit per year @2900
+  ! unresolved: bd:t12-summary:p4.c1:1a2b — replacement reserve of $250 per unit per year @3629
 wrote .backdraft/records/memo.backdraft.json
 ```
 
