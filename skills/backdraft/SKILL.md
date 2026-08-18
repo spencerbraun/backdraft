@@ -45,11 +45,13 @@ vision model on their own machine travels with the project folder
 
 If the user points you at a web page, ingest the URL rather than fetching it
 yourself: text you fetched outside the gate has no receipt and cannot be cited.
-The page is snapshotted at that moment and the URL is stored with it, so
-`backdraft ls` tells you where each source came from — use that when the prose
-should name the page. The artifact carries the origin itself: a receipt on a
-fetched page links back to it with the fetch date, so you do not need to repeat
-the URL in the prose for the reader to have it. What you get is what a plain unauthenticated GET returns:
+The page is snapshotted at that moment and the URL is stored with it, and
+every surface names the source by that URL — `backdraft read`'s list, its table
+of contents and `ingest`'s own line all print the page rather than a filename,
+so you know which sources came off the web without a second command. The
+artifact carries the origin itself: a receipt on a fetched page links back to
+it with the fetch date, so you do not need to repeat the URL in the prose for
+the reader to have it. What you get is what a plain unauthenticated GET returns:
 a JavaScript-rendered page or one behind a login will come back thin or empty,
 and if it does, say so to the user rather than citing the shell of it.
 

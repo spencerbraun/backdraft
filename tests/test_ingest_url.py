@@ -78,7 +78,20 @@ def test_a_url_ingests_as_a_document_named_by_its_path(project: Path, serve) -> 
     base = serve(_page_routes())
     result = runner.invoke(cli.app, ["ingest", f"{base}/q4"])
     assert result.exit_code == 0, result.output
-    assert "q4  q4.html  html  1 page" in result.output
+    assert f"q4  {base}/q4  html  1 page" in result.output
+
+
+def test_ingest_names_a_fetched_page_by_its_url_not_its_staging_file(
+    project: Path, serve
+) -> None:
+    """`q4.html` is a name `fetch.filename_for` invented for a temporary file.
+
+    It is the first thing an agent sees about a fetched source, so it is the
+    first place the fictional name must not appear.
+    """
+    base = serve(_page_routes())
+    output = runner.invoke(cli.app, ["ingest", f"{base}/q4"]).output
+    assert "q4.html" not in output
 
 
 def test_the_origin_and_the_fetch_time_are_stored_as_document_meta(
@@ -103,14 +116,29 @@ def test_the_document_records_the_url_as_its_path_not_the_staging_file(
 def test_ls_shows_where_a_fetched_source_came_from(project: Path, serve) -> None:
     base = serve(_page_routes())
     runner.invoke(cli.app, ["ingest", f"{base}/q4"])
-    assert f"\t{base}/q4" in runner.invoke(cli.app, ["ls"]).output
+    listed = runner.invoke(cli.app, ["ls"]).output
+    assert f"q4\t{base}/q4\thtml\t1 page" in listed
+    assert "q4.html" not in listed
+
+
+def test_ls_and_read_name_a_fetched_source_the_same_way(project: Path, serve) -> None:
+    """One registry, one name. `ls` and the gate's list both go through
+    `gate.source_name`; this pins them together rather than pinning either."""
+    base = serve(_page_routes())
+    runner.invoke(cli.app, ["ingest", f"{base}/q4"])
+    listed = runner.invoke(cli.app, ["ls"]).output
+    read = runner.invoke(cli.app, ["read"]).output
+    assert f"{base}/q4" in listed and f"{base}/q4" in read
+    assert "q4.html" not in listed and "q4.html" not in read
 
 
 def test_a_file_ingest_prints_the_ls_line_it_always_did(project: Path, note: Path) -> None:
-    """The URL field appears only where there is a URL."""
+    """A registry of files prints what it always did: four fields, filename
+    second. The origin replaces that field where there is one; it never joins
+    it as a fifth."""
     runner.invoke(cli.app, ["ingest", str(note)])
     line = runner.invoke(cli.app, ["ls"]).output.strip()
-    assert line.count("\t") == 3
+    assert line == "quarterly-notes\tquarterly-notes.md\ttext\t1 page"
 
 
 def test_an_exported_file_document_carries_no_meta_key(project: Path, note: Path) -> None:
@@ -212,7 +240,7 @@ def test_the_served_content_type_selects_the_extractor(project: Path, serve) -> 
     """A URL with no file extension serving CSV still lands on the csv path."""
     base = serve({"/rent-roll": (200, "text/csv", CSV)})
     result = runner.invoke(cli.app, ["ingest", f"{base}/rent-roll"])
-    assert "rent-roll  rent-roll.csv  csv" in result.output
+    assert f"rent-roll  {base}/rent-roll  csv" in result.output
     assert _document(project, "rent-roll")["extractions"][0]["extractor"] == "csv"
 
 
@@ -224,7 +252,7 @@ def test_a_pdf_served_from_a_url_takes_the_pdf_path(project: Path, tmp_path: Pat
     base = serve({"/download": (200, "application/pdf", pdf.read_bytes())})
     result = runner.invoke(cli.app, ["ingest", f"{base}/download"])
     assert result.exit_code == 0, result.output
-    assert "download  download.pdf  pdf  1 page" in result.output
+    assert f"download  {base}/download  pdf  1 page" in result.output
     assert _document(project, "download")["extractions"][0]["extractor"] == "pdf-text"
 
 

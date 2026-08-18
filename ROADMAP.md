@@ -32,44 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. The gate names a fetched source by its page, not by its staging filename
-
-**Intent.** A fetched page's `filename` is `q4-2025.html`, a name invented by
-`fetch.filename_for` for a temporary file that no longer exists. The
-2026-08-06 decision row ruled on this for the artifact — the URL *replaces* the
-filename there, because "showing both would give a reader two names for one
-thing and let the fictional one look authoritative" — but the same fictional
-name is still what `backdraft read` prints in its document list, what its table
-of contents headline prints, and what `ls` prints in column two. The gate is
-where a writing agent actually lives, and there it learns nothing about
-provenance at all: `skills/backdraft/SKILL.md` has to send it to `ls` for a
-fact the surface it is already using could tell it. One rule, applied in one
-place, is the fix.
-
-**Shape.** `gate/reader.py`'s `render_documents` and `_document_headline`, plus
-`cli.py`'s `ls` (which now shares the gate's page-count vocabulary through
-`gate.unit` and should share this too). For a document whose `meta` carries a
-`url`, show the origin in place of the filename, exactly as the artifact's
-source list does. The gate's output is a contract — its module docstring says
-"stable enough to diff" — so keep it line-oriented and keep the column
-alignment: a URL is long, so put it on the row rather than in the aligned
-filename column if alignment would collapse, and say which choice you made in
-the docstring. `Document.meta` is already carried by `Registry.documents()` and
-`Registry.document()`, so no registry change is needed. Do not touch the slug,
-the token, or anything a citation resolves through — this is display, and the
-2026-08-05 row's "provenance, never identity" governs.
-
-**Acceptance.** In a registry holding one file and one fetched page, `backdraft
-read` shows the file by its filename and the page by its URL; `backdraft read
-<slug>` for the fetched page carries the URL in its headline; `backdraft ls`
-matches. A registry of files prints exactly what it printed before — pin that
-as a test, the way the artifact's byte-identity is pinned. `README.md`, the
-docs page and `skills/backdraft/SKILL.md` drop the detour through `ls` for a
-fact `read` now carries.
-
-**Size.** Two days.
-
-### 2. A fetched page's slug is decided, not defaulted
+### 1. A fetched page's slug is decided, not defaulted
 
 **Intent.** DESIGN.md's Open list has carried "slug assignment/collision rules"
 since the first field trial, and URL sources sharpened it into a real failure:
@@ -104,7 +67,7 @@ error. DESIGN.md gains the decision row and the Open list loses the line.
 
 **Size.** Two days.
 
-### 3. Ingest says what it did and what it got
+### 2. Ingest says what it did and what it got
 
 **Intent.** Two things `ingest` knows and does not say. First, it prints the
 same line whether it created a document, created a *new generation* of one
@@ -143,7 +106,7 @@ asking the agent to judge thinness unaided.
 
 **Size.** Two days.
 
-### 4. `backdraft verify <artifact>`: checking a receipt without the registry
+### 3. `backdraft verify <artifact>`: checking a receipt without the registry
 
 **Intent.** `skills/backdraft-artifact/SKILL.md` exists because there is no
 command: it walks an agent through opening a `.backdraft.json` or
@@ -180,7 +143,7 @@ agent that has no backdraft install.
 
 **Size.** Three days.
 
-### 5. `spec/registry.md`: the export format is normative, or it is not a format
+### 4. `spec/registry.md`: the export format is normative, or it is not a format
 
 **Intent.** `backdraft export` writes `"$format": "backdraft/registry-v1"`, a
 version string that promises a specification and does not have one. `spec/`
@@ -212,7 +175,7 @@ the spec is enough to say what each field means.
 
 **Size.** Two days.
 
-### 6. `search` says when it stopped short
+### 5. `search` says when it stopped short
 
 **Intent.** `backdraft search "the"` prints `20 results for "the"` whether there
 are twenty or two hundred: `--limit` defaults to 20, and the count line reports
@@ -249,7 +212,7 @@ than settle when the line says it was capped.
 
 **Size.** One day.
 
-### 7. The bind report says why a verifier skipped
+### 6. The bind report says why a verifier skipped
 
 **Intent.** A bind report prints `overlap: pass 11, skip 4` and stops. Four
 citations were not checked and the report does not say why, so a reader cannot
@@ -282,7 +245,7 @@ output, and the skill says a skip with a reason is not a hole to fix.
 
 **Size.** One day.
 
-### 8. `session show` says what the ledger holds
+### 7. `session show` says what the ledger holds
 
 **Intent.** The ledger is the mechanism the design rests on — the set of citable
 tokens is exactly the set the gate emitted — and nothing reads it back.
@@ -319,7 +282,7 @@ a stated tradeoff.
 
 **Size.** Two days.
 
-### 9. An unreadable source says what to do, not what errno it was
+### 8. An unreadable source says what to do, not what errno it was
 
 **Intent.** `ingest` now finishes its list and names each failure (2026-08-13),
 which turned the reason string into something a calling agent actually reads —
@@ -340,7 +303,7 @@ worth distinguishing (missing, a directory, unreadable, empty, and the fetch
 side's own) and let anything unmapped keep the underlying text rather than
 guessing — an unknown cause reported plainly beats a wrong suggestion. Say the
 source once: the `!` line already leads with it, so the reason should not repeat
-it. This is *not* roadmap item 3, which is about what a successful ingest says
+it. This is *not* the queued "Ingest says what it did and what it got" item, which is about what a successful ingest says
 (no-op, new generation, character count); this is the failure half, and the two
 should not be merged.
 
@@ -354,7 +317,7 @@ actionable so an agent surfaces them to the user rather than paraphrasing.
 
 **Size.** One day.
 
-### 10. A registry can forget a source
+### 9. A registry can forget a source
 
 **Intent.** Ingest is one-way. An agent working unattended over a folder — which
 is now the normal case, since `ingest` finishes its list — will ingest something
@@ -377,7 +340,7 @@ nothing: reuse `unresolved` and let the *reason* say withdrawn, since adding a
 status is an artifact-format change and this does not need one. Storage is a
 flag on `documents`, not a DELETE, for the same reason. Require confirmation or
 an explicit flag, since this is the one command that takes something away.
-Interacts with queued item 5 (`spec/registry.md`): whichever lands second
+Interacts with the queued `spec/registry.md` item: whichever lands second
 documents the flag in the export.
 
 **Acceptance.** Ingest two documents, `forget` one: `read`, `ls` and `search`

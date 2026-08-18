@@ -12,6 +12,20 @@ from fake_registry import FakeDocumentRegistry, pdf_document, sheet_document
 
 from backdraft.gate.reader import GateError, read, select_pages
 
+COUNTY_URL = "https://en.wikipedia.org/w/index.php?title=Franklin_County&oldid=1367935775"
+
+
+def _fetched() -> object:
+    """A web page staged under the filename `fetch.filename_for` invented for it."""
+    return pdf_document(
+        "county",
+        "index.html",
+        [["Franklin County had 1,326,063 residents."]],
+        media_type="html",
+        url=COUNTY_URL,
+    )
+
+
 DOCUMENTS = """\
 2 documents
 
@@ -129,6 +143,58 @@ def test_documents_empty() -> None:
     assert read(FakeDocumentRegistry()) == (
         "No documents.\n\n[Ingest one with: backdraft ingest <file>]"
     )
+
+
+# ---------------------------------------------------------------------------
+# a fetched source is named by its page
+# ---------------------------------------------------------------------------
+
+
+def test_a_fetched_source_is_listed_by_its_url(
+    fake_gate_registry: FakeDocumentRegistry,
+) -> None:
+    """`fetch.filename_for` invents `index.html`; the URL stands in its place.
+
+    Both names would be two names for one thing, and the invented one would be
+    the one that looks authoritative — the 2026-08-06 rule, applied here.
+    """
+    fake_gate_registry.add(_fetched())
+    listed = read(fake_gate_registry)
+    assert f"county      {COUNTY_URL}  html  1 page" in listed
+    assert "index.html" not in listed
+
+
+def test_a_fetched_source_carries_its_url_in_the_toc_headline(
+    fake_gate_registry: FakeDocumentRegistry,
+) -> None:
+    fake_gate_registry.add(_fetched())
+    assert read(fake_gate_registry, "county").startswith(
+        f"county  ({COUNTY_URL}, html, 1 page)"
+    )
+
+
+def test_a_long_url_does_not_widen_the_file_column(
+    fake_gate_registry: FakeDocumentRegistry,
+) -> None:
+    """The origin overflows its column rather than sizing every row to itself.
+
+    An 80-character URL joining the width computation pushes `pdf  3 pages`
+    past column 100 on a registry that is otherwise files, so the file rows are
+    byte-identical whether or not a fetched page sits beside them.
+    """
+    before = read(fake_gate_registry).splitlines()
+    fake_gate_registry.add(_fetched())
+    after = read(fake_gate_registry).splitlines()
+    assert [line for line in after if "http" not in line] == [
+        line.replace("2 documents", "3 documents") for line in before
+    ]
+
+
+def test_a_registry_of_files_prints_what_it_always_did(
+    fake_gate_registry: FakeDocumentRegistry,
+) -> None:
+    """No document carries a URL, so nothing about this list may move."""
+    assert read(fake_gate_registry) == DOCUMENTS
 
 
 def test_toc_pages(fake_gate_registry: FakeDocumentRegistry) -> None:

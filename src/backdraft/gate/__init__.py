@@ -23,6 +23,7 @@ from .reader import (
     render_page_read,
     render_toc,
     select_pages,
+    source_name,
     unit,
 )
 from .searcher import render_search, search
@@ -35,6 +36,7 @@ __all__ = [
     "render_toc",
     "render_page_read",
     "select_pages",
+    "source_name",
     "unit",
     "search",
     "render_search",

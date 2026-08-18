@@ -227,18 +227,23 @@ address.
 
 ```console
 $ backdraft ingest https://example.com/reports/q4-2025
-q4-2025  q4-2025.html  html  1 page
+q4-2025  https://example.com/reports/q4-2025  html  1 page
 
 $ backdraft ls
-q4-2025	q4-2025.html	html	1 page	https://example.com/reports/q4-2025
+q4-2025	https://example.com/reports/q4-2025	html	1 page
 ```
 
+Every surface names a fetched source by its page. The filename you never see —
+`q4-2025.html` — is the temporary file the fetch staged the bytes in, and it
+exists on nobody's disk, so `ingest`, `ls`, `backdraft read` and the artifact
+all show the URL in its place rather than beside it: two names for one thing
+would let the invented one look authoritative.
+
 The origin travels into the artifact too. A claim citing a fetched page shows
-the URL as a link on its receipt, with the date the bytes were taken, and the
-source list names the page rather than the staged filename. That pointer is the
-half of citing a web page a frozen receipt cannot answer on its own: the
-snippet says what the page said, the link is how a reader asks whether it still
-says it.
+the URL as a link on its receipt, with the date the bytes were taken. That
+pointer is the half of citing a web page a frozen receipt cannot answer on its
+own: the snippet says what the page said, the link is how a reader asks whether
+it still says it.
 
 What it does not do, stated rather than worked around: JavaScript-rendered
 pages give you whatever the server sends to a plain GET, pages behind a login

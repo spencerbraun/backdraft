@@ -71,7 +71,7 @@ backdraft ingest "https://en.wikipedia.org/w/index.php?title=Franklin_County,_Oh
 ```
 
 ```
-franklin-county  index.html  html  1 page
+franklin-county  https://en.wikipedia.org/w/index.php?title=Franklin_County,_Ohio&oldid=1367935775  html  1 page
 ```
 
 Two things in that command are deliberate.
@@ -86,9 +86,10 @@ cites, and it is what makes a re-bind six months from now still say `resolved`.
 
 **`--slug` names the document.** Without it the slug comes from the URL's last
 path segment, which here is `index.php` — so the document would be `index`, and
-every token in the memo would carry that. `index.html` in the output above is
-the staging filename the fetch invented for the bytes; no such file is on your
-disk, and the artifact shows the URL in its place.
+every token in the memo would carry that. Notice what the output calls the
+source: the URL, not a filename. The fetch does invent one to stage the bytes
+in — `index.html` — but no such file is on your disk, so no surface that names
+a source ever shows it. The page is the name, here and everywhere after.
 
 ## 3. Start a session
 
@@ -120,7 +121,7 @@ backdraft read
 
 t12-summary         t12-summary.pdf          pdf   3 pages
 underwriting-model  underwriting-model.xlsx  xlsx  2 sheets
-franklin-county     index.html               html  1 page
+franklin-county     https://en.wikipedia.org/w/index.php?title=Franklin_County,_Ohio&oldid=1367935775  html  1 page
 
 [Table of contents: backdraft read <slug>]
 ```

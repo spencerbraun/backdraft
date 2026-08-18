@@ -41,11 +41,12 @@ from .cli_context import (
     resolve_session,
 )
 from .extract import snapshots, vlm_ready
-# The gate owns the word for a collection of pages, and `ingest`/`ls` print the
-# same count its document list does — see `gate.unit`. A downward import, which
-# SPEC § Dependency rule spells "`cli` imports everything"; the mount guard
-# below is about sub-*apps*, and `gate` itself does not need typer.
-from .gate import unit
+# The gate owns the words a document is described in — the noun for a collection
+# of pages (`gate.unit`) and what to call the source itself (`gate.source_name`)
+# — and `ingest`/`ls` describe the same documents its list does. A downward
+# import, which SPEC § Dependency rule spells "`cli` imports everything"; the
+# mount guard below is about sub-*apps*, and `gate` itself does not need typer.
+from .gate import source_name, unit
 from .kernel.errors import BackdraftError
 from .kernel.model import Document, Page
 from .registry import DIRECTORY, Registry
@@ -185,7 +186,7 @@ def ingest(
                         )
                         pages = registry.pages(document.slug)
                         typer.echo(
-                            f"{document.slug}  {document.filename}  "
+                            f"{document.slug}  {source_name(document)}  "
                             f"{document.media_type}  {len(pages)} {unit(pages)}"
                         )
                         nudge_vlm = nudge_vlm or (
@@ -382,10 +383,11 @@ def clean(
 
 @app.command("ls")
 def list_documents() -> None:
-    """List the ingested documents: slug, filename, media type, page count.
+    """List the ingested documents: slug, name, media type, page count.
 
-    A source fetched from the web carries its origin URL as a fifth field —
-    only where there is one, so a registry of files prints what it always did.
+    The name is the filename, or — for a source fetched from the web — the URL
+    it came from, standing in the staging filename's place rather than beside
+    it (`gate.source_name`). A registry of files prints what it always did.
     """
     with opened_registry() as registry:
         documents = registry.documents()
@@ -394,10 +396,9 @@ def list_documents() -> None:
             return
         for document in documents:
             pages = registry.pages(document.slug)
-            origin = (document.meta or {}).get("url")
             typer.echo(
-                f"{document.slug}\t{document.filename}\t{document.media_type}\t"
-                f"{len(pages)} {unit(pages)}" + (f"\t{origin}" if origin else "")
+                f"{document.slug}\t{source_name(document)}\t{document.media_type}\t"
+                f"{len(pages)} {unit(pages)}"
             )
 
 

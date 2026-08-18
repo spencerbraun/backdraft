@@ -51,6 +51,7 @@ __all__ = [
     "render_page_read",
     "select_pages",
     "show",
+    "source_name",
     "unit",
 ]
 
@@ -189,7 +190,15 @@ def read(
 
 
 def render_documents(registry: Registry) -> str:
-    """One line per document: slug, filename, media type, page count.
+    """One line per document: slug, name, media type, page count.
+
+    The name is `source_name`'s — a filename, or a fetched page's origin URL in
+    its place. A URL is long enough to wreck the layout if it joins the name
+    column's width, so it does not: the column is sized on filenames alone and
+    an origin overflows it, pushing that one row's later columns right rather
+    than pushing every row's. The alternative sizes the whole list to the
+    longest URL, which is how one 80-character address moves `pdf  3 pages`
+    past column 100 on a registry that is otherwise files.
 
     Emits no tokens: a document is not evidence, its pages are.
     """
@@ -204,10 +213,14 @@ def render_documents(registry: Registry) -> str:
         pages = registry.pages(document.slug)
         # NOTE: page count is derived rather than read off Document, which
         # Addendum A does not carry one on.
-        rows.append((document.slug, document.filename, document.media_type, pages))
+        rows.append((document.slug, source_name(document), document.media_type, pages))
 
     slug_width = max(len(row[0]) for row in rows)
-    file_width = max(len(row[1]) for row in rows)
+    # Only filenames size the name column; an origin overflows it — see above.
+    file_width = max(
+        (len(document.filename) for document in documents if not _is_fetched(document)),
+        default=0,
+    )
     media_width = max(len(row[2]) for row in rows)
     count_width = max(len(str(len(row[3]))) for row in rows)
 
@@ -216,12 +229,12 @@ def render_documents(registry: Registry) -> str:
         "  ".join(
             (
                 slug.ljust(slug_width),
-                filename.ljust(file_width),
+                name.ljust(file_width),
                 media.ljust(media_width),
                 f"{len(pages):>{count_width}} {unit(pages)}",
             )
         )
-        for slug, filename, media, pages in rows
+        for slug, name, media, pages in rows
     ]
     lines += ["", "[Table of contents: backdraft read <slug>]"]
     return _block(lines)
@@ -746,9 +759,35 @@ def _require_document(registry: Registry, slug: str) -> Document:
 
 def _document_headline(document: Document, pages: Sequence[Page]) -> str:
     return (
-        f"{document.slug}  ({document.filename}, {document.media_type}, "
+        f"{document.slug}  ({source_name(document)}, {document.media_type}, "
         f"{len(pages)} {unit(pages)})"
     )
+
+
+def _is_fetched(document: Document) -> bool:
+    """Whether `source_name` will return a URL: only a fetched source carries one."""
+    return bool((document.meta or {}).get("url"))
+
+
+def source_name(document: Document) -> str:
+    """What to call a source: its origin URL where it has one, else its filename.
+
+    A fetched page's `filename` names the temporary file the bytes were staged
+    in — `fetch.filename_for` invents it from the URL's last path segment, so a
+    permanent link arrives as `index.html`, a name that exists on nobody's disk.
+    The URL therefore stands *in its place* rather than beside it, which is the
+    2026-08-06 rule the artifact's source list already follows: showing both
+    would give a reader two names for one thing and let the fictional one look
+    authoritative.
+
+    Display only. The slug, the token and everything a citation resolves through
+    are untouched — "provenance, never identity" (2026-08-05).
+
+    Public for the reason `unit` is: `ingest` and `ls` name the same document
+    the gate's list names, and one owner is the only way three surfaces keep
+    giving one answer.
+    """
+    return (document.meta or {}).get("url") or document.filename
 
 
 def unit(pages: Sequence[Page]) -> str:

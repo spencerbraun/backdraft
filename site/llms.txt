@@ -42,10 +42,12 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # An ingest source can be an http(s) URL, not just a path: the page is fetched
 # once and snapshotted like a file. Identity is the sha256 of the fetched
 # bytes, so re-ingesting a changed page is a new generation and old citations
-# report drifted; the URL + fetched_at ride along as provenance, show in
-# `backdraft ls`, and reach the artifact — a receipt on a fetched page links to
-# it with the fetch date, and the source list shows the URL rather than the
-# staged filename. Prefer an address that serves one fixed revision (Wikipedia's
+# report drifted; the URL + fetched_at ride along as provenance and reach the
+# artifact — a receipt on a fetched page links to it with the fetch date. Every
+# surface names a fetched source by its URL, never by the filename the fetch
+# invented to stage the bytes in: `backdraft ingest`, `ls` and `read` all print
+# the URL in the filename's place, so the list is where you learn a source came
+# off the web. Prefer an address that serves one fixed revision (Wikipedia's
 # ?oldid= permanent link, a DOI, an archived snapshot): a citation into a page
 # that gets edited reports drifted, correctly and uselessly. Pass --slug with
 # it — a URL ending /index.php or /view yields a slug naming nothing, and a slug

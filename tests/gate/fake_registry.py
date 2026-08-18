@@ -208,8 +208,14 @@ def pdf_document(
     summaries: Sequence[str | None] = (),
     ids: Ids | None = None,
     media_type: str = "pdf",
+    url: str | None = None,
 ) -> _Loaded:
-    """A `page`-kind document from explicit per-page chunk texts."""
+    """A `page`-kind document from explicit per-page chunk texts.
+
+    `url` makes it a fetched source: `meta` carries the origin and the fetch
+    time exactly as `Registry.ingest` stores them for a URL, which is what the
+    gate reads to name the source by its page instead of its staging filename.
+    """
     ids = ids or Ids()
     document = Document(
         slug=slug,
@@ -218,6 +224,9 @@ def pdf_document(
         filename=filename,
         media_type=media_type,  # type: ignore[arg-type]
         created_at="2026-07-27T00:00:00Z",
+        meta=(
+            {"url": url, "fetched_at": "2026-07-27T00:00:00Z"} if url is not None else None
+        ),
     )
     built: list[Page] = []
     anchors: dict[int, list[Anchor]] = {}
