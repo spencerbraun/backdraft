@@ -87,8 +87,9 @@ def test_the_demos_web_citation_names_a_fixed_revision() -> None:
 
 
 def test_the_demo_titles_the_fetched_source_by_its_slug() -> None:
-    """`fetch.filename_for` stages the permanent link as `index.html`; a source
-    called "Index" in the shop window is the invented name winning."""
+    """`fetch.filename_for` stages the permanent link as
+    `en.wikipedia.org-index.html`; a source called "Index" — or "En Wikipedia
+    Org Index" — in the shop window is the invented name winning."""
     for listing in _source_lists():
         assert '<span class="doc">Franklin County</span>' in listing
         assert "index.html" not in listing

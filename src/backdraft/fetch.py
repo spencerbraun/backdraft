@@ -82,6 +82,36 @@ _KNOWN_SUFFIXES = frozenset(_SUFFIX_FOR_TYPE.values()) | {".htm", ".jpeg", ".tif
 _DEFAULT_SUFFIX = ".html"
 """What an unlabelled thing at the end of an http URL is, absent evidence."""
 
+_GENERIC_STEMS = frozenset(
+    {
+        "index",
+        "default",
+        "home",
+        "main",
+        "page",
+        "pages",
+        "view",
+        "show",
+        "item",
+        "detail",
+        "details",
+        "article",
+        "post",
+        "content",
+        "document",
+        "print",
+    }
+)
+"""Last segments that name a site's plumbing rather than its page.
+
+A directory index or a generic handler is the same word on every site, so a
+stem taken from one names nothing — and an all-digit segment (`/articles/12345`)
+is the same problem wearing an id. Either one earns the host in front of it.
+Deliberately short: a word here changes the slug of every page that ends in it,
+so this holds only names that are generic *structurally*, not names that merely
+read as ordinary words.
+"""
+
 
 class FetchError(BackdraftError):
     """A URL could not be fetched."""
@@ -165,21 +195,44 @@ def fetch(url: str, *, timeout: float = TIMEOUT, max_bytes: int = MAX_BYTES) -> 
 def filename_for(url: str, content_type: str = "") -> str:
     """The name the staged snapshot takes: a stem from the URL, a suffix from the type.
 
-    The stem is the URL's last path segment without its extension, or the host
-    when the path is empty — so `https://example.com/reports/q4-2025` becomes
-    `q4-2025.html` and its slug reads `q4-2025`. The suffix comes from the
-    content type, because that is what says which extractor should run; the
-    URL's own suffix is the fallback when the server labelled nothing.
+    The stem is the URL's last path segment without its extension, so
+    `https://example.com/reports/q4-2025` becomes `q4-2025.html` and its slug
+    reads `q4-2025`. When that segment names the site's plumbing rather than its
+    page — a directory index, a generic handler, a bare id, or nothing at all —
+    the host goes in front of it, so two sites' `index.html` land on two slugs
+    that each say which site they came from instead of on `index` and `index-2`.
+    An empty path is the host alone. The suffix comes from the content type,
+    because that is what says which extractor should run; the URL's own suffix
+    is the fallback when the server labelled nothing.
     """
     parts = urlsplit(url)
     segments = [segment for segment in PurePosixPath(unquote(parts.path)).parts if segment != "/"]
     tail = segments[-1] if segments else ""
-    stem = PurePosixPath(tail).stem or parts.netloc or "page"
+    stem = PurePosixPath(tail).stem
+    host = _host_stem(parts.hostname or parts.netloc)
+    if _is_generic(stem):
+        stem = "-".join(part for part in (host, stem) if part) or "page"
     own = PurePosixPath(tail).suffix.lower()
     suffix = _SUFFIX_FOR_TYPE.get(content_type) or (
         own if own in _KNOWN_SUFFIXES else _DEFAULT_SUFFIX
     )
     return f"{stem}{suffix}"
+
+
+def _is_generic(stem: str) -> bool:
+    """True when a path segment does not distinguish this page from any other's."""
+    return not stem or stem.lower() in _GENERIC_STEMS or stem.isdigit()
+
+
+def _host_stem(host: str) -> str:
+    """The host as it should read in a name: lowercase, no `www.`, no port.
+
+    `urlsplit.hostname` already drops the port and any userinfo. The `www.`
+    label is dropped because it distinguishes nothing — it is on every host or
+    none — and it would otherwise eat four of the slug's thirty-two characters.
+    """
+    lowered = host.lower()
+    return lowered[4:] if lowered.startswith("www.") else lowered
 
 
 def _content_type(headers: Message) -> str:

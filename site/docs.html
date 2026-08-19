@@ -174,9 +174,11 @@ that is edited will report <code>drifted</code> on the next bind — correct
 behavior, and useless as a citation, because the sentence quoted is no longer
 the sentence there. Wikipedia's permanent link (<code>?oldid=</code>), a DOI, a
 dated press release, an archived snapshot: each serves one revision's bytes for
-good. Pair it with <code>--slug</code>, because a slug taken from a URL ending
-<code>/index.php</code> or <code>/view</code> names the site no better than it
-names the page, and a slug is permanent once tokens carry it. The
+good. Pair it with <code>--slug</code>. A URL ending <code>/index.php</code>,
+<code>/view</code> or a bare id has no segment worth naming a document after,
+so the slug falls back to one built from the host
+(<code>en-wikipedia-org-index</code>) — which names the site and still not the
+page, and a slug is permanent once tokens carry it. The
 <a href="demo.html">demo</a> cites a Wikipedia article this way.</p>
 <p>What this does not do, said plainly rather than worked around:
 JavaScript-rendered pages give you whatever the server returns to a plain GET,

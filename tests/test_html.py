@@ -532,9 +532,10 @@ def test_a_fetched_source_is_titled_by_its_slug_not_its_staging_filename(
     demo_doc: str, demo: BindReport
 ) -> None:
     """`fetch.filename_for` invents the staging name — a Wikipedia article stages
-    as `index.html` and would title itself "Index". The slug is the handle
-    somebody chose, so it is the name."""
-    page = html.render(demo_doc, _with_origin(demo, url=URL, filename="index.html"))
+    as `en.wikipedia.org-index.html` and would title itself after that. The slug
+    is the handle somebody chose, so it is the name."""
+    staged = "en.wikipedia.org-index.html"
+    page = html.render(demo_doc, _with_origin(demo, url=URL, filename=staged))
     assert '<span class="doc">T12 Audit</span>' in page
     assert "Index" not in page.split('<ul class="srclist">', 1)[1].split("</ul>", 1)[0]
 

@@ -32,42 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. A fetched page's slug is decided, not defaulted
-
-**Intent.** DESIGN.md's Open list has carried "slug assignment/collision rules"
-since the first field trial, and URL sources sharpened it into a real failure:
-`fetch.filename_for` takes the URL's last path segment, so
-`https://a.example/reports/2025/index.html` and
-`https://b.example/docs/index.html` both stage as `index.html` and become slugs
-`index` and `index-2`. An agent then cites `bd:index-2:p1.c3:...` with no way to
-tell which site that is, and a slug is the handle every token in every authored
-document carries — it is stable once assigned, so a bad one is permanent. The
-same collapse hits any site whose pages are `index.html`, `page`, `view`, or a
-bare numeric id.
-
-**Shape.** `fetch.filename_for`, and a decision row that closes the Open
-question for files and URLs together. For a URL, build the stem from enough of
-the address to distinguish it — the host plus the last meaningful path segment
-is the obvious candidate, with the registry's existing `slug_for` slugification
-doing the rest — and keep `_dedupe`'s `-2` as the collision *backstop* rather
-than the normal outcome. `store._assign_slug` and `_dedupe` do not need to
-change; this is about giving them a stem worth deduping. Note the constraint
-that makes this delicate: continuity across a re-fetch is matched on the URL
-(see `_find_document`), not on the slug, so changing the stem rule does not
-break an existing registry's documents — but it does mean two registries built
-on either side of this change disagree about a page's slug, which is a
-compatibility statement the decision row has to make out loud.
-
-**Acceptance.** The two `index.html` URLs above ingest as two slugs that each
-name their site. `https://example.com/reports/q4-2025` still ingests as
-`q4-2025` — the common case does not get uglier to fix the collision case. A
-URL with an empty path still falls back to the host. Tests for each, plus one
-that two pages colliding even after the new rule still dedupe rather than
-error. DESIGN.md gains the decision row and the Open list loses the line.
-
-**Size.** Two days.
-
-### 2. Ingest says what it did and what it got
+### 1. Ingest says what it did and what it got
 
 **Intent.** Two things `ingest` knows and does not say. First, it prints the
 same line whether it created a document, created a *new generation* of one
@@ -106,7 +71,7 @@ asking the agent to judge thinness unaided.
 
 **Size.** Two days.
 
-### 3. `backdraft verify <artifact>`: checking a receipt without the registry
+### 2. `backdraft verify <artifact>`: checking a receipt without the registry
 
 **Intent.** `skills/backdraft-artifact/SKILL.md` exists because there is no
 command: it walks an agent through opening a `.backdraft.json` or
@@ -143,7 +108,7 @@ agent that has no backdraft install.
 
 **Size.** Three days.
 
-### 4. `spec/registry.md`: the export format is normative, or it is not a format
+### 3. `spec/registry.md`: the export format is normative, or it is not a format
 
 **Intent.** `backdraft export` writes `"$format": "backdraft/registry-v1"`, a
 version string that promises a specification and does not have one. `spec/`
@@ -175,7 +140,7 @@ the spec is enough to say what each field means.
 
 **Size.** Two days.
 
-### 5. `search` says when it stopped short
+### 4. `search` says when it stopped short
 
 **Intent.** `backdraft search "the"` prints `20 results for "the"` whether there
 are twenty or two hundred: `--limit` defaults to 20, and the count line reports
@@ -212,7 +177,7 @@ than settle when the line says it was capped.
 
 **Size.** One day.
 
-### 6. The bind report says why a verifier skipped
+### 5. The bind report says why a verifier skipped
 
 **Intent.** A bind report prints `overlap: pass 11, skip 4` and stops. Four
 citations were not checked and the report does not say why, so a reader cannot
@@ -245,7 +210,7 @@ output, and the skill says a skip with a reason is not a hole to fix.
 
 **Size.** One day.
 
-### 7. `session show` says what the ledger holds
+### 6. `session show` says what the ledger holds
 
 **Intent.** The ledger is the mechanism the design rests on — the set of citable
 tokens is exactly the set the gate emitted — and nothing reads it back.
@@ -282,7 +247,7 @@ a stated tradeoff.
 
 **Size.** Two days.
 
-### 8. An unreadable source says what to do, not what errno it was
+### 7. An unreadable source says what to do, not what errno it was
 
 **Intent.** `ingest` now finishes its list and names each failure (2026-08-13),
 which turned the reason string into something a calling agent actually reads —
@@ -317,7 +282,7 @@ actionable so an agent surfaces them to the user rather than paraphrasing.
 
 **Size.** One day.
 
-### 9. A registry can forget a source
+### 8. A registry can forget a source
 
 **Intent.** Ingest is one-way. An agent working unattended over a folder — which
 is now the normal case, since `ingest` finishes its list — will ingest something

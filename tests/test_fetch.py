@@ -107,6 +107,47 @@ def test_the_staged_name_carries_the_stem_and_the_type(
     assert filename_for(url, content_type) == expected
 
 
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        # The failure this rule exists for: two sites, one segment, one slug.
+        ("https://a.example/reports/2025/index.html", "a.example-index.html"),
+        ("https://b.example/docs/index.html", "b.example-index.html"),
+        # Generic handlers are the same word everywhere they appear.
+        ("https://example.com/w/index.php?title=Franklin&oldid=7", "example.com-index.html"),
+        ("https://example.com/pages/view", "example.com-view.html"),
+        # A bare id is the same problem wearing a number.
+        ("https://example.com/articles/12345", "example.com-12345.html"),
+        # `www.` is on every host or none, so it names nothing.
+        ("https://www.example.com/index.html", "example.com-index.html"),
+        # A port is not part of the site's name; two ports dedupe instead.
+        ("http://127.0.0.1:8931/a/index.html", "127.0.0.1-index.html"),
+    ],
+)
+def test_a_segment_that_names_no_page_gets_its_host_in_front(url: str, expected: str) -> None:
+    """`index` and `index-2` say which is which to nobody; the host does."""
+    assert filename_for(url, "text/html") == expected
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        ("https://example.com/reports/q4-2025", "q4-2025.html"),
+        ("https://example.com/2025-outlook", "2025-outlook.html"),
+        ("https://en.wikipedia.org/wiki/Franklin_County,_Ohio", "Franklin_County,_Ohio.html"),
+    ],
+)
+def test_a_segment_that_names_its_page_is_left_alone(url: str, expected: str) -> None:
+    """The common case must not get uglier to fix the collision case."""
+    assert filename_for(url, "text/html") == expected
+
+
+def test_an_empty_path_is_still_the_host_alone() -> None:
+    """No segment to prefix: the host is the whole name, as it always was."""
+    assert filename_for("https://example.com", "text/html") == "example.com.html"
+    assert filename_for("https://example.com/", "text/html") == "example.com.html"
+
+
 # ---- fetch ------------------------------------------------------------------
 
 

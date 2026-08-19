@@ -50,8 +50,9 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # off the web. Prefer an address that serves one fixed revision (Wikipedia's
 # ?oldid= permanent link, a DOI, an archived snapshot): a citation into a page
 # that gets edited reports drifted, correctly and uselessly. Pass --slug with
-# it — a URL ending /index.php or /view yields a slug naming nothing, and a slug
-# is permanent once tokens carry it. JavaScript-rendered pages and anything
+# it — a URL ending /index.php, /view or a bare id falls back to a slug built
+# from the host, which names the site and still not the page, and a slug is
+# permanent once tokens carry it. JavaScript-rendered pages and anything
 # behind a login are out of reach — you get what a plain GET returns. No
 # boilerplate stripping: nav and footers are part of the page.
 # Sandboxes usually cannot reach model providers: if VLM ingest fails on

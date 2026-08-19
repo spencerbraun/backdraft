@@ -148,10 +148,13 @@ def slug_for(filename: str) -> str:
 
     NOTE: the grammar needs at least two characters starting with alnum-lower, so
     a degenerate stem (`a.pdf`, `_.txt`) is padded rather than rejected —
-    refusing to ingest a file over its name would be absurd.
+    refusing to ingest a file over its name would be absurd. Truncation cuts
+    wherever 32 characters land, which is often mid-word and sometimes on a
+    hyphen; the hyphen is trimmed afterwards, so a long name yields `q4-report`
+    rather than `q4-report-`.
     """
     stem = unicodedata.normalize("NFKD", Path(filename).stem).encode("ascii", "ignore")
-    base = _NON_SLUG.sub("-", stem.decode("ascii").lower()).strip("-")[:SLUG_MAX]
+    base = _NON_SLUG.sub("-", stem.decode("ascii").lower()).strip("-")[:SLUG_MAX].rstrip("-")
     if len(base) < 2:
         base = f"{base}-doc".strip("-") if base else "doc"
     return base
@@ -1015,7 +1018,7 @@ def _dedupe(base: str, taken: set[str] | frozenset[str], limit: int) -> str:
     ordinal = 2
     while True:
         suffix = f"-{ordinal}"
-        candidate = f"{base[: limit - len(suffix)]}{suffix}"
+        candidate = f"{base[: limit - len(suffix)].rstrip('-')}{suffix}"
         if candidate not in taken:
             return candidate
         ordinal += 1

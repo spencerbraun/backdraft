@@ -85,11 +85,14 @@ there. An immutable revision plus the fetch date is what a careful analyst
 cites, and it is what makes a re-bind six months from now still say `resolved`.
 
 **`--slug` names the document.** Without it the slug comes from the URL's last
-path segment, which here is `index.php` — so the document would be `index`, and
-every token in the memo would carry that. Notice what the output calls the
-source: the URL, not a filename. The fetch does invent one to stage the bytes
-in — `index.html` — but no such file is on your disk, so no surface that names
-a source ever shows it. The page is the name, here and everywhere after.
+path segment, which here is `index.php` — a handler, not a page, so the host is
+used instead and the document would be `en-wikipedia-org-index`. That says which
+site the memo's tokens point at and nothing about which article, which is what
+`--slug` is for. Notice what the output calls the source: the URL, not a
+filename. The fetch does invent one to stage the bytes in —
+`en.wikipedia.org-index.html` — but no such file is on your disk, so no surface
+that names a source ever shows it. The page is the name, here and everywhere
+after.
 
 ## 3. Start a session
 

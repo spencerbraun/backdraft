@@ -283,10 +283,31 @@ def test_the_partial_index_forbids_two_current_generations(root: Path, note: Pat
         ("___.txt", "doc"),
         ("Café Notes.md", "cafe-notes"),
         ("x" * 60 + ".pdf", "x" * 32),
+        # Truncation lands wherever 32 characters land, sometimes on a hyphen.
+        ("x" * 31 + "-appendix.pdf", "x" * 31),
+        ("Q4 " + "reporting " * 4 + "appendix.pdf", "q4-reporting-reporting-reporting"),
     ],
 )
 def test_slug_for_kebabs_and_truncates(filename: str, expected: str) -> None:
     assert slug_for(filename) == expected
+
+
+def test_a_deduped_slug_does_not_keep_the_hyphen_truncation_left(
+    registry: Registry, tmp_path: Path
+) -> None:
+    """`-2` shortens the base again, and that cut can land on a hyphen too.
+
+    A dangling hyphen is legal in the grammar and reads like a mistake, so both
+    cuts trim: this name would otherwise dedupe to `xxx...--2`.
+    """
+    slugs = []
+    for index in range(2):
+        directory = tmp_path / f"long{index}"
+        directory.mkdir()
+        path = directory / ("x" * 29 + "-abc-def.md")
+        path.write_text(f"body number {index}, distinct bytes", encoding="utf-8")
+        slugs.append(registry.ingest(path).slug)
+    assert slugs == ["x" * 29 + "-ab", "x" * 29 + "-2"]
 
 
 def test_slugs_are_deduped(registry: Registry, tmp_path: Path) -> None:

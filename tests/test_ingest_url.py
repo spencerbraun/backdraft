@@ -16,8 +16,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from backdraft import cli
-from backdraft.registry import Registry
+from backdraft import cli, fetch
+from backdraft.registry import Registry, slug_for
 
 runner = CliRunner()
 
@@ -144,6 +144,65 @@ def test_a_file_ingest_prints_the_ls_line_it_always_did(project: Path, note: Pat
 def test_an_exported_file_document_carries_no_meta_key(project: Path, note: Path) -> None:
     runner.invoke(cli.app, ["ingest", str(note)])
     assert "meta" not in _document(project, "quarterly-notes")
+
+
+# ---- the slug a URL is given ------------------------------------------------
+
+
+def _slugs(root: Path) -> list[str]:
+    return [document["slug"] for document in _export(root)["documents"]]
+
+
+def test_two_sites_index_pages_get_two_slugs_that_name_their_sites() -> None:
+    """The failure this rule exists for, decided where it is decided.
+
+    Both pages stage as `index.html` under the old stem rule, so the second
+    became `index-2` — a handle every token in the draft then carries, naming
+    nothing a reader can act on. No server here on purpose: the slug is settled
+    by the address, before any bytes exist, and the loopback fixture cannot
+    offer two hostnames to show it with.
+    """
+    slugs = [
+        slug_for(fetch.filename_for(url, "text/html"))
+        for url in (
+            "https://a.example/reports/2025/index.html",
+            "https://b.example/docs/index.html",
+        )
+    ]
+    assert slugs == ["a-example-index", "b-example-index"]
+
+
+def test_a_path_that_names_its_page_keeps_naming_it(project: Path, serve) -> None:
+    """The common case does not get uglier to fix the collision case."""
+    base = serve({"/reports/q4-2025": (200, "text/html", PAGE)})
+    runner.invoke(cli.app, ["ingest", f"{base}/reports/q4-2025"])
+    assert _slugs(project) == ["q4-2025"]
+
+
+def test_a_bare_numeric_id_is_named_by_its_host(project: Path, serve) -> None:
+    """`12345` is a slug that says nothing; the site it came from says something."""
+    base = serve({"/articles/12345": (200, "text/html", PAGE)})
+    runner.invoke(cli.app, ["ingest", f"{base}/articles/12345"])
+    assert _slugs(project) == ["127-0-0-1-12345"]
+
+
+def test_a_url_with_an_empty_path_falls_back_to_the_host(project: Path, serve) -> None:
+    base = serve({"/": (200, "text/html", PAGE)})
+    runner.invoke(cli.app, ["ingest", base])
+    assert _slugs(project) == ["127-0-0-1"]
+
+
+def test_two_pages_colliding_after_the_new_rule_still_dedupe(project: Path, serve) -> None:
+    """The host is a better stem, not a unique one — `-2` stays the backstop."""
+    base = serve(
+        {
+            "/a/index.html": (200, "text/html", PAGE),
+            "/b/index.html": (200, "text/html", PAGE.replace(b"$4.1", b"$4.7")),
+        }
+    )
+    result = runner.invoke(cli.app, ["ingest", f"{base}/a/index.html", f"{base}/b/index.html"])
+    assert result.exit_code == 0, result.output
+    assert _slugs(project) == ["127-0-0-1-index", "127-0-0-1-index-2"]
 
 
 # ---- the gate behaves as it does for any other text source ------------------

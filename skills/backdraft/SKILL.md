@@ -60,10 +60,12 @@ offers one** — Wikipedia's `?oldid=` permanent link, a DOI, an archived
 snapshot — because a page that gets edited makes every citation into it report
 `drifted`, which is true and unhelpful: the sentence quoted is no longer the
 sentence there. **Pass `--slug` with the URL.** The default slug is the URL's
-last path segment, so anything ending `/index.php`, `/view` or a bare number
-becomes a slug that names neither the site nor the page, and a slug is
-permanent once your tokens carry it. Quote the URL in the shell — `&` in a
-query string backgrounds the command otherwise.
+last path segment; when that segment names the site's plumbing rather than its
+page — `/index.php`, `/view`, a bare number — the host goes in front of it
+instead, so you get `en-wikipedia-org-index` rather than `index`. That names the
+site and still not the page, and a slug is permanent once your tokens carry it.
+Quote the URL in the shell — `&` in a query string backgrounds the command
+otherwise.
 
 Ingest also stores each PDF page's image — both paths, since the text-layer
 path renders the pages locally through poppler — so the artifact can show the
