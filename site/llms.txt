@@ -55,6 +55,14 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # permanent once tokens carry it. JavaScript-rendered pages and anything
 # behind a login are out of reach — you get what a plain GET returns. No
 # boilerplate stripping: nav and footers are part of the page.
+# Each ingest line ends with the extracted character count and what happened:
+# nothing extra for a new document, `unchanged` for a no-op, `new generation`
+# when the bytes moved — the last one means citations into the previous
+# snapshot may now be drifted, so re-bind and read the report rather than
+# assuming. A source that came back thin (a scan with no text layer, a login
+# wall) gets a `note: little text extracted` line naming the cause at exit 0;
+# that note is the signal a source is a shell — surface it, do not cite around
+# it.
 # Sandboxes usually cannot reach model providers: if VLM ingest fails on
 # network, continue with the text layer and say so. The registry travels
 # with the project folder (.backdraft/), so a registry ingested with the

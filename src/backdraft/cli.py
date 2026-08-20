@@ -49,7 +49,7 @@ from .extract import snapshots, vlm_ready
 from .gate import source_name, unit
 from .kernel.errors import BackdraftError
 from .kernel.model import Document, Page
-from .registry import DIRECTORY, Registry
+from .registry import DIRECTORY, GENERATION, UNCHANGED, Registry
 
 __all__ = [
     "app",
@@ -82,6 +82,55 @@ BACKDRAFT_ENTAIL_API_KEY=
 # BACKDRAFT_SNAPSHOT_QUALITY=85
 # BACKDRAFT_SNAPSHOT_MAX_HEIGHT=1056
 """
+
+THIN_SOURCE_CHARS = 200
+"""Below this many extracted characters, a source is probably a shell.
+
+A login wall, a JavaScript-rendered page and a scanned PDF with no text layer
+all ingest cleanly and produce almost nothing — and used to print `1 page` like
+any success, so an agent could cite the shell of a source without a signal that
+it was one. The number is a heuristic and is deliberately generous: a real
+document with under 200 characters in it is rare, and the cost of being wrong is
+one note at exit 0, never a failure. Display only — no token, no anchor and no
+status derives from it."""
+
+_THIN_CAUSE = {
+    "pdf": (
+        "a PDF with no text layer is a scan, and the text layer is all `pdf-text` "
+        "reads. The vision extractor reads the page image itself: set "
+        "BACKDRAFT_VLM_API_KEY in .backdraft/env and re-ingest."
+    ),
+    "html": (
+        "a page rendered by JavaScript, or one that answered with a login wall "
+        "instead of its content, carries almost no text in its markup — and the "
+        "markup is what was snapshotted. Opening the page in a signed-in browser, "
+        "saving it once it has rendered, and ingesting that file gets the real text."
+    ),
+}
+_THIN_CAUSE_DEFAULT = (
+    "the source may simply be short, or may keep its content somewhere this "
+    "extractor does not read."
+)
+
+
+def _thin_cause(media_type: str) -> str:
+    """Why a source came back thin, as far as its media type can say."""
+    return _THIN_CAUSE.get(media_type, _THIN_CAUSE_DEFAULT)
+
+
+def _outcome_note(outcome: str) -> str:
+    """What `ingest` did, appended to the source's line. A fresh document says nothing.
+
+    Three outcomes printed one line: an agent re-ingesting after a fix could not
+    tell a no-op from a new generation, and the two mean opposite things about
+    the work already written against the source.
+    """
+    if outcome == UNCHANGED:
+        return "  unchanged"
+    if outcome == GENERATION:
+        return "  new generation"
+    return ""
+
 
 # ---- commands ---------------------------------------------------------------
 
@@ -156,6 +205,13 @@ def ingest(
     command exits 1. Re-running the same list after a fix re-ingests nothing that
     already landed unchanged.
 
+    Each source that lands prints its slug, its name, its media type, its page
+    count and how much text came out — plus `unchanged` when re-running produced
+    a no-op, or `new generation` when the bytes moved, which is when citations
+    into the previous snapshot can start reporting `drifted`. A source almost no
+    text came out of gets a note naming the likely cause, at exit 0: a thin
+    snapshot is still a real one.
+
     `--config` keys are checked against the extractor that was chosen, which for
     `auto` is per file. Both PDF paths (`pdf-text`, `vlm`) take `dpi`; every path
     that stores a page image — those two and `image` — takes `snapshot_quality`
@@ -167,6 +223,8 @@ def ingest(
     nudge_vlm = False
     note_pptx = False
     unsnapshot: dict[str, list[str]] = {}  # why it failed -> which documents
+    thin: dict[str, list[str]] = {}  # why it came back thin -> which documents
+    regenerated: list[str] = []  # documents that gained a generation this run
     unread: list[tuple[str, str]] = []  # which source -> why it never landed
     with guard():
         if slug is not None and len(sources) > 1:
@@ -185,10 +243,23 @@ def ingest(
                             path, extractor=extractor, slug=slug, config=settings, **origin
                         )
                         pages = registry.pages(document.slug)
+                        # How much text came out, in one number: the count a
+                        # login wall and a scanned PDF both fail, and the only
+                        # thing on this line that says whether the snapshot is
+                        # worth citing. `chars` for sheets too — this is the
+                        # extraction's volume, not a window into it.
+                        chars = sum(len(page.text) for page in pages)
                         typer.echo(
                             f"{document.slug}  {source_name(document)}  "
-                            f"{document.media_type}  {len(pages)} {unit(pages)}"
+                            f"{document.media_type}  {len(pages)} {unit(pages)}  "
+                            f"{chars} chars{_outcome_note(document.outcome)}"
                         )
+                        if document.outcome == GENERATION:
+                            regenerated.append(document.slug)
+                        if chars < THIN_SOURCE_CHARS:
+                            thin.setdefault(
+                                _thin_cause(document.media_type), []
+                            ).append(document.slug)
                         nudge_vlm = nudge_vlm or (
                             extractor == "auto"
                             and document.media_type == "pdf"
@@ -228,6 +299,27 @@ def ingest(
             "note: extracted slide text only. Charts and images on slides are "
             "not captured; exporting the deck to PDF and ingesting it through "
             "the vision extractor captures them."
+        )
+    # Grouped by cause, the way the snapshot note above is: one scanned PDF and
+    # the next have the same story, and each document's own count is already on
+    # its own line, so the note carries the cause and the names rather than
+    # repeating numbers.
+    for cause, slugs in thin.items():
+        typer.echo(
+            f"note: little text extracted — {cause} Read it with `backdraft read "
+            "<slug>` before citing it, and tell the user the source came back "
+            f"thin rather than citing the shell of it: {', '.join(slugs)}."
+        )
+    if regenerated:
+        # The one line here that is about work already done: a new generation is
+        # the moment older citations can start reporting `drifted`.
+        typer.echo(
+            "note: new generation of "
+            f"{', '.join(regenerated)} — citations into the previous snapshot may "
+            "now report `drifted`. A token whose locator and snippet both survived "
+            "the change carries over untouched, so `backdraft bind` on a document "
+            "citing it is what says which; `backdraft show <token>` then prints "
+            "the cited snippet beside what stands there now."
         )
     if unread:
         # Last, and it carries the exit code: everything above is what landed.

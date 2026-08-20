@@ -34,6 +34,15 @@ registry already. Fix or drop the named sources and re-run the same command:
 one already ingested and unchanged re-ingests as a no-op. Tell the user which
 sources are missing before you write, rather than quietly writing around them.
 
+Read each source's line: it ends with how much text came out, and with what
+`ingest` did. `unchanged` is a no-op — the snapshot was already there and every
+token into it still stands. `new generation` means the bytes moved since the
+last ingest, so citations written against the previous snapshot may now be
+`drifted`; re-bind and act on what it says, do not assume. A bare line is a
+document that did not exist before. When almost no text came out, ingest prints
+a `note: little text extracted` line naming the likely cause — that note, not
+your own judgement, is the signal that a source came back as a shell.
+
 For real PDFs (glossy layouts, info boxes, scans) the VLM extractor produces the
 best receipts; `auto` prefers it when `BACKDRAFT_VLM_API_KEY` is set (env or `.backdraft/env`; ambient provider keys
 are never read) — the default model is Gemini 3.1 Flash Lite through OpenRouter. If ingest prints a note about falling back to the text
@@ -52,8 +61,10 @@ so you know which sources came off the web without a second command. The
 artifact carries the origin itself: a receipt on a fetched page links back to
 it with the fetch date, so you do not need to repeat the URL in the prose for
 the reader to have it. What you get is what a plain unauthenticated GET returns:
-a JavaScript-rendered page or one behind a login will come back thin or empty,
-and if it does, say so to the user rather than citing the shell of it.
+a JavaScript-rendered page or one behind a login comes back thin or empty. You
+do not have to judge that yourself — ingest's own `note: little text extracted`
+line says so and names the cause. When it appears, say so to the user rather
+than citing the shell of the page.
 
 Two habits make a web citation last. **Ingest a fixed revision when the site
 offers one** — Wikipedia's `?oldid=` permanent link, a DOI, an archived

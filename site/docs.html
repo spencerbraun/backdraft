@@ -152,7 +152,7 @@ ingested through the vision extractor, which captures charts and images.</p>
 <p>An ingest source can be an <code>http(s)</code> URL, not only a path.
 Diligence folders contain links, and a link should be as citable as a file:</p>
 <pre>backdraft ingest https://example.com/reports/q4-2025
-<span class="dim">q4-2025  https://example.com/reports/q4-2025  html  1 page</span></pre>
+<span class="dim">q4-2025  https://example.com/reports/q4-2025  html  1 page  18402 chars</span></pre>
 <p>The page is fetched once and snapshotted like any other source. Its identity
 is the sha256 of the bytes fetched at that moment — the URL is provenance
 riding alongside, not identity — so a page that has since changed comes back as
@@ -255,7 +255,7 @@ skill</a> imposes the gate, and you receive the artifact.</div>
 <table>
 <tr><th>Command</th><th>Does</th></tr>
 <tr><td><code>init</code></td><td>Create <code>.backdraft/</code> (registry, credentials template) in the current directory.</td></tr>
-<tr><td><code>ingest &lt;sources&gt;</code></td><td>Snapshot sources into the registry, minting every anchor. A source is a path or an <code>http(s)</code> URL. Formats: PDF, XLSX/XLSM, XLS, CSV/TSV, DOCX, PPTX, HTML, images (png, jpeg, tiff), text and Markdown. <code>--extractor auto|vlm|image|pdf-text|xlsx|xls|csv|docx|pptx|html|text</code>, <code>--slug</code>, <code>--config k=v</code> (repeatable). Config keys are declared per extractor and checked against the one that was chosen, so an unknown key fails and names the ones that apply rather than being ignored: PDFs take <code>dpi</code>, <code>snapshot_quality</code>, <code>snapshot_max_height</code>; the vision paths (<code>vlm</code>, <code>image</code>) also take <code>api_key</code>, <code>base_url</code>, <code>model</code>, <code>timeout</code>, <code>retries</code>, and <code>vlm</code> alone takes <code>concurrency</code> (<code>image</code> takes no <code>dpi</code> — there is nothing to rasterize). Every other format reads none. A source that cannot be read does not end the run: the rest of the list is ingested anyway and the command exits 1 printing <code>N of M sources ingested</code> and one line per failure with its reason, so re-running the same list after a fix costs nothing.</td></tr>
+<tr><td><code>ingest &lt;sources&gt;</code></td><td>Snapshot sources into the registry, minting every anchor. A source is a path or an <code>http(s)</code> URL. Formats: PDF, XLSX/XLSM, XLS, CSV/TSV, DOCX, PPTX, HTML, images (png, jpeg, tiff), text and Markdown. <code>--extractor auto|vlm|image|pdf-text|xlsx|xls|csv|docx|pptx|html|text</code>, <code>--slug</code>, <code>--config k=v</code> (repeatable). Config keys are declared per extractor and checked against the one that was chosen, so an unknown key fails and names the ones that apply rather than being ignored: PDFs take <code>dpi</code>, <code>snapshot_quality</code>, <code>snapshot_max_height</code>; the vision paths (<code>vlm</code>, <code>image</code>) also take <code>api_key</code>, <code>base_url</code>, <code>model</code>, <code>timeout</code>, <code>retries</code>, and <code>vlm</code> alone takes <code>concurrency</code> (<code>image</code> takes no <code>dpi</code> — there is nothing to rasterize). Every other format reads none. A source that cannot be read does not end the run: the rest of the list is ingested anyway and the command exits 1 printing <code>N of M sources ingested</code> and one line per failure with its reason, so re-running the same list after a fix costs nothing. Each source's line closes with how much text came out and which of three things happened — a document created, a <code>new generation</code> of one whose bytes moved (the moment citations into the previous snapshot begin reporting <code>drifted</code>), or <code>unchanged</code>, a no-op. Under a couple of hundred characters a note names the likely cause and what to do, at exit 0.</td></tr>
 <tr><td><code>snapshot-pages &lt;slug&gt;</code></td><td>Backfill page images for an already-ingested PDF, locally, no model calls (needs <code>poppler</code> for rendering). Ingest stores them already — this is for a registry built before it did, or on a machine that had no poppler then.</td></tr>
 <tr><td><code>ls</code></td><td>List ingested documents: slug, name, media type, page count. The name is the filename, or — for a source fetched from the web — the URL it came from, standing in the staging filename's place rather than beside it.</td></tr>
 <tr><td><code>read [slug] [selector]</code></td><td>The gate: document list, table of contents, or a token-marked page/range/sheet read. Mints what it shows.</td></tr>
@@ -453,6 +453,14 @@ registry contains the full text of everything ingested.</li>
 <code>BACKDRAFT_VLM_API_KEY</code> isn't set. Fix the named one.
 Text-layer receipts are fine for clean digital PDFs; glossy or scanned ones
 deserve the vision model.</p>
+<h3>Ingest printed a page count but almost no characters.</h3>
+<p>That is the note doing its job: the source is a shell. A scanned PDF has no
+text layer for <code>pdf-text</code> to read — ingest it through the vision
+extractor instead. A web page rendered by JavaScript or sitting behind a login
+returns a shell to an unauthenticated fetch — save the page from a signed-in
+browser and ingest the file. Either way the exit code stays 0, because a thin
+snapshot is a real snapshot; check it with <code>backdraft read &lt;slug&gt;</code>
+and tell whoever asked, rather than citing what came back.</p>
 <h3>My artifact has no page images.</h3>
 <p>Ingest stores them for every PDF, through both the vision and the text-layer
 path — the latter renders the pages locally, which needs <code>poppler</code>

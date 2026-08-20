@@ -13,8 +13,12 @@ belongs here.
 from __future__ import annotations
 
 from .store import (
+    CREATED,
     DIRECTORY,
     EXPORT_FORMAT,
+    GENERATION,
+    UNCHANGED,
+    Ingested,
     Registry,
     RegistryError,
     Resolution,
@@ -27,8 +31,12 @@ from .store import (
 )
 
 __all__ = [
+    "CREATED",
     "DIRECTORY",
     "EXPORT_FORMAT",
+    "GENERATION",
+    "UNCHANGED",
+    "Ingested",
     "Registry",
     "RegistryError",
     "Resolution",

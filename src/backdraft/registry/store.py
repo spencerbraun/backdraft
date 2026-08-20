@@ -42,8 +42,12 @@ from ..kernel.tokens import parse_locator
 from . import ledger as ledger_module
 
 __all__ = [
+    "CREATED",
     "DIRECTORY",
     "EXPORT_FORMAT",
+    "GENERATION",
+    "UNCHANGED",
+    "Ingested",
     "Registry",
     "RegistryError",
     "Resolution",
@@ -66,6 +70,22 @@ self-describing, matching the artifact's `$format` habit."""
 
 SLUG_MAX = 32
 """A slug is 2-32 characters (kernel/tokens.py enforces the grammar)."""
+
+CREATED = "created"
+"""`ingest` outcome: the registry had no such document."""
+
+GENERATION = "generation"
+"""`ingest` outcome: a new extraction generation of a document already here.
+
+The one outcome with a consequence for existing work — citations into the
+generation just superseded resolve to it still, and `bind` reports them
+`drifted`.
+"""
+
+UNCHANGED = "unchanged"
+"""`ingest` outcome: a no-op. Same bytes, same deterministic extractor, same
+config, so the current generation is already the answer and nothing was
+written — no second generation, and every token untouched."""
 
 _SCHEMA = Path(__file__).with_name("schema.sql")
 _NON_SLUG = re.compile(r"[^a-z0-9]+")
@@ -94,6 +114,31 @@ _MEDIA_SUFFIXES: dict[str, MediaType] = {
 
 class RegistryError(BackdraftError):
     """The registry could not do what was asked of it."""
+
+
+@dataclass(frozen=True, slots=True)
+class Ingested(Document):
+    """The document, plus which of ingest's three outcomes produced it.
+
+    `ingest` does one of three things and used to report all three identically:
+    it creates a document, adds a *new generation* to one whose bytes or config
+    moved, or does nothing at all because re-running would reproduce what is
+    already there. The distinction is not cosmetic — a new generation is the
+    moment citations into the previous one may start reporting `drifted`, which
+    is the one thing a caller re-ingesting after an edit most needs to know.
+
+    A `Document` subclass rather than a new return type, for the reason
+    `SearchResults` is a `list` subclass: Addendum A pins `ingest` to
+    `-> Document`, and this still is one — every caller that reads `.slug` is
+    unaffected, the fakes keep working, and the one caller that cares reads
+    `outcome`.
+
+    One consequence of that, since a dataclass compares by class: an `Ingested`
+    never equals the plain `Document` the read side returns for the same row.
+    Compare what persists — `slug`, `sha256`, `id` — rather than the objects.
+    """
+
+    outcome: str = CREATED
 
 
 @dataclass(frozen=True, slots=True)
@@ -272,6 +317,11 @@ class Registry:
         still the sha256 of those bytes — a page that changed since the last
         fetch is a new generation of the same document, exactly like an edited
         file. Fetching is the caller's job; the registry opens no sockets.
+
+        Returns an `Ingested` — a `Document` carrying `outcome`, one of
+        `CREATED`, `GENERATION` or `UNCHANGED`. The registry knows which of the
+        three happened; deriving it again from outside would mean
+        re-implementing `_is_noop`, so it is reported rather than re-derived.
         """
         path = Path(path)
         try:
@@ -298,7 +348,7 @@ class Registry:
             # A re-fetch that changed nothing still moves the clock: `fetched_at`
             # is when the page was last confirmed to say this, which is the
             # question a reader of a months-old citation actually has.
-            return self._touch_meta(existing, url, fetched_at)
+            return _ingested(self._touch_meta(existing, url, fetched_at), UNCHANGED)
 
         pages = list(chosen.extract(path, settings))
 
@@ -314,7 +364,7 @@ class Registry:
             )
             extraction_id = self._insert_extraction(document.id, chosen, settings_hash, now)
             self._write_pages(document, extraction_id, previous, pages, now)
-        return document
+        return _ingested(document, CREATED if existing is None else GENERATION)
 
     # ---- read side ----------------------------------------------------------
 
@@ -1039,6 +1089,21 @@ def _document(row: sqlite3.Row, meta: dict | None = None) -> Document:
         created_at=row["created_at"],
         meta=meta,
         id=row["id"],
+    )
+
+
+def _ingested(document: Document, outcome: str) -> Ingested:
+    """The same document, saying which of ingest's three outcomes made it."""
+    return Ingested(
+        slug=document.slug,
+        sha256=document.sha256,
+        path=document.path,
+        filename=document.filename,
+        media_type=document.media_type,
+        created_at=document.created_at,
+        meta=document.meta,
+        id=document.id,
+        outcome=outcome,
     )
 
 

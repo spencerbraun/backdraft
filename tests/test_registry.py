@@ -14,7 +14,13 @@ import pytest
 
 from backdraft.extract.base import ExtractedPage
 from backdraft.kernel.tokens import parse as parse_token
-from backdraft.registry import Registry, RegistryError, sanitize_sheet_name, slug_for
+from backdraft.registry import (
+    CREATED,
+    Registry,
+    RegistryError,
+    sanitize_sheet_name,
+    slug_for,
+)
 from backdraft.registry.store import DIRECTORY
 
 from conftest_registry import sheet_page
@@ -39,7 +45,16 @@ def test_ingest_records_the_document(registry: Registry, note: Path) -> None:
     assert document.filename == "quarterly-notes.md"
     assert document.media_type == "text"
     assert len(document.sha256) == 64
-    assert registry.document("quarterly-notes") == document
+    assert document.outcome == CREATED
+    # The read side answers with a plain `Document`, which carries no outcome —
+    # so the two are compared on what persists, not with `==`.
+    stored = registry.document("quarterly-notes")
+    assert stored is not None
+    assert (stored.slug, stored.sha256, stored.id) == (
+        document.slug,
+        document.sha256,
+        document.id,
+    )
 
 
 def test_documents_lists_everything_ingested(registry: Registry, note: Path, workbook: Path) -> None:

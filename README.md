@@ -42,18 +42,26 @@ documents: 0
 … plus where settings live and what to do next
 
 $ backdraft ingest sources/t12-summary.pdf sources/underwriting-model.xlsx
-t12-summary  t12-summary.pdf  pdf  3 pages
-underwriting-model  underwriting-model.xlsx  xlsx  2 sheets
+t12-summary  t12-summary.pdf  pdf  3 pages  8865 chars
+underwriting-model  underwriting-model.xlsx  xlsx  2 sheets  2357 chars
 note: extracted with pdf-text (the embedded text layer). Glossy or scanned PDFs extract better through a vision model: set BACKDRAFT_VLM_API_KEY in .backdraft/env.
 
 $ backdraft ingest "https://en.wikipedia.org/w/index.php?title=Franklin_County,_Ohio&oldid=1367935775" --slug franklin-county
-franklin-county  index.html  html  1 page
+franklin-county  https://en.wikipedia.org/w/index.php?title=Franklin_County,_Ohio&oldid=1367935775  html  1 page  34141 chars
 ```
 
 The demo cites that page for market context. It is Wikipedia's *permanent
 link* — `?oldid=` serves one revision's bytes forever — because a citation into
 a live article reports `drifted` the moment somebody edits it, and the quoted
 sentence would no longer be the sentence there.
+
+Every ingest line ends with how much text came out, and says which of three
+things happened: a document created, a **new generation** of one whose bytes
+moved — which is when citations into the previous snapshot start reporting
+`drifted` — or `unchanged`, a no-op because re-running would reproduce what is
+already there. When almost no text came out, a note names the likely cause (a
+scan with no text layer, a page behind a login) and what to do; it is a note at
+exit 0, because a thin snapshot is still a real one.
 
 **Read.** The page arrives with a citable name over each chunk. This is the whole
 mechanism: what you can cite is exactly what you were shown.
@@ -227,7 +235,7 @@ address.
 
 ```console
 $ backdraft ingest https://example.com/reports/q4-2025
-q4-2025  https://example.com/reports/q4-2025  html  1 page
+q4-2025  https://example.com/reports/q4-2025  html  1 page  18402 chars
 
 $ backdraft ls
 q4-2025	https://example.com/reports/q4-2025	html	1 page

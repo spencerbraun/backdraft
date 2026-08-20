@@ -159,14 +159,31 @@ def test_ingest_reports_an_extractor_failure(project: Path, tmp_path: Path) -> N
 # ---- ingest finishes its list -----------------------------------------------
 
 
+# Long enough to be a real source: under THIN_SOURCE_CHARS these would each
+# carry the thin-source note, which is true of a one-line file and beside the
+# point of the tests below.
+_A = """\
+Occupancy closed at 91.4% in Q3, up sixty basis points on the quarter and the
+third consecutive quarter of gains. Concessions burned off across the Riverside
+and Kenwood assets, and the lease-up at Riverside reached stabilization in
+August, a month ahead of the sponsor's underwriting.
+"""
+_C = """\
+Debt service coverage was 1.28x for the trailing twelve months, clearing the
+1.25x covenant by a margin the lender described as adequate but not comfortable.
+The March refinancing lowered the blended coupon by roughly seventy basis points,
+which is most of what separates this quarter's coverage from last year's.
+"""
+
+
 def _sources(tmp_path: Path) -> tuple[Path, Path, Path]:
     """Two readable markdown files with an unreadable PDF between them."""
     first = tmp_path / "a.md"
-    first.write_text("Occupancy closed at 91.4% in Q3.\n", encoding="utf-8")
+    first.write_text(_A, encoding="utf-8")
     broken = tmp_path / "broken.pdf"
     broken.write_bytes(b"%PDF-1.4 nonsense")
     last = tmp_path / "c.md"
-    last.write_text("Debt service coverage was 1.28x.\n", encoding="utf-8")
+    last.write_text(_C, encoding="utf-8")
     return first, broken, last
 
 
@@ -222,16 +239,139 @@ def test_one_source_failing_alone_counts_in_the_singular(
     assert "1 sources" not in result.stderr
 
 
-def test_a_run_where_nothing_fails_prints_what_it_always_printed(
+def test_a_run_where_nothing_fails_prints_one_line_per_source_and_nothing_else(
     project: Path, tmp_path: Path
 ) -> None:
-    """Byte-identical to the old behaviour: the report is failure-only, so a
-    clean ingest gained no line, no prefix and no trailing note."""
+    """The failure report is failure-only, and so is every note.
+
+    A clean run of readable, ordinary sources gains no prefix, no trailing note
+    and no second line per source — each source's whole story is its own line.
+    Pinned as an exact string because every note added here is a note that could
+    have leaked into it."""
     first, _, last = _sources(tmp_path)
     result = runner.invoke(cli.app, ["ingest", str(first), str(last)])
     assert result.exit_code == 0
-    assert result.stdout == "a-doc  a.md  text  1 page\nc-doc  c.md  text  1 page\n"
+    assert result.stdout == (
+        "a-doc  a.md  text  1 page  286 chars\n"
+        "c-doc  c.md  text  1 page  314 chars\n"
+    )
     assert result.stderr == ""
+
+
+# ---- ingest says what it did and what it got --------------------------------
+
+
+def test_a_fresh_document_reports_how_much_text_came_out(
+    project: Path, note: Path
+) -> None:
+    """The count that says whether the snapshot is worth citing at all."""
+    result = runner.invoke(cli.app, ["ingest", str(note)])
+    assert result.exit_code == 0
+    line = result.stdout.splitlines()[0]
+    assert line.startswith("quarterly-notes  quarterly-notes.md  text  1 page  ")
+    assert line.endswith(" chars")
+    chars = int(line.rsplit("  ", 1)[1].removesuffix(" chars"))
+    assert chars == len(note.read_text(encoding="utf-8"))
+
+
+def test_re_ingesting_unchanged_bytes_says_so(project: Path, note: Path) -> None:
+    """A no-op printed like a fresh ingest is how an agent loses track of state."""
+    first = runner.invoke(cli.app, ["ingest", str(note)])
+    assert "unchanged" not in first.stdout
+
+    second = runner.invoke(cli.app, ["ingest", str(note)])
+    assert second.exit_code == 0
+    assert second.stdout.splitlines()[0].endswith("  unchanged")
+    assert "new generation" not in second.stdout
+
+
+def test_re_ingesting_edited_bytes_says_a_generation_was_made_and_names_drift(
+    project: Path, note: Path
+) -> None:
+    """The moment older citations can start reporting `drifted` — said out loud."""
+    runner.invoke(cli.app, ["ingest", str(note)])
+    note.write_text(
+        note.read_text(encoding="utf-8").replace("1.42x", "1.51x"), encoding="utf-8"
+    )
+    result = runner.invoke(cli.app, ["ingest", str(note)])
+    assert result.exit_code == 0
+    assert result.stdout.splitlines()[0].endswith("  new generation")
+    assert "note: new generation of quarterly-notes" in result.stdout
+    assert "`drifted`" in result.stdout
+    assert "backdraft bind" in result.stdout
+
+
+def test_one_note_names_every_document_that_gained_a_generation(
+    project: Path, note: Path, workbook: Path
+) -> None:
+    """Grouped, not one line per document: the consequence is the same for each."""
+    runner.invoke(cli.app, ["ingest", str(note), str(workbook)])
+    note.write_text(
+        note.read_text(encoding="utf-8").replace("1.42x", "1.51x"), encoding="utf-8"
+    )
+    from openpyxl import load_workbook
+
+    book = load_workbook(workbook)
+    book.active["A1"] = "Unit no."
+    book.save(workbook)
+
+    result = runner.invoke(cli.app, ["ingest", str(note), str(workbook)])
+    assert result.exit_code == 0
+    notes = [line for line in result.stdout.splitlines() if "new generation of" in line]
+    assert len(notes) == 1
+    assert "quarterly-notes, model" in notes[0]
+
+
+def test_a_thin_source_says_the_likely_cause_and_what_to_do(
+    project: Path, tmp_path: Path
+) -> None:
+    """A login wall ingests cleanly, exits 0, and used to print `1 page` like any
+    success — so an agent could cite the shell of a source without a signal."""
+    wall = tmp_path / "q4-results.html"
+    wall.write_text(
+        "<html><body><p>Please sign in to continue.</p></body></html>",
+        encoding="utf-8",
+    )
+    result = runner.invoke(cli.app, ["ingest", str(wall)])
+    assert result.exit_code == 0, "a thin source is a real snapshot, never a failure"
+    assert "note: little text extracted" in result.stdout
+    assert "login wall" in result.stdout
+    assert "backdraft read" in result.stdout
+    assert "q4-results" in result.stdout.splitlines()[-1]
+
+
+def test_a_thin_pdf_is_told_about_the_missing_text_layer_instead(
+    project: Path, tmp_path: Path, scripted: type
+) -> None:
+    """The cause a media type can actually say: a scan has no text layer to read."""
+    scan = tmp_path / "scan.pdf"
+    scan.write_bytes(b"%PDF-1.4 stub")
+    scripted("thinpdf", [ExtractedPage(number=1, kind="page", text="Exhibit A")])
+    result = runner.invoke(cli.app, ["ingest", str(scan), "--extractor", "thinpdf"])
+    assert result.exit_code == 0
+    assert "note: little text extracted" in result.stdout
+    assert "no text layer is a scan" in result.stdout
+    assert "BACKDRAFT_VLM_API_KEY" in result.stdout
+    assert "login wall" not in result.stdout
+
+
+def test_a_source_that_extracted_nothing_at_all_is_thin_too(
+    project: Path, tmp_path: Path, scripted: type
+) -> None:
+    """Zero pages is the limit case of thin, and the one a scan actually hits."""
+    empty = tmp_path / "blank.pdf"
+    empty.write_bytes(b"%PDF-1.4 stub")
+    scripted("nopages", [])
+    result = runner.invoke(cli.app, ["ingest", str(empty), "--extractor", "nopages"])
+    assert result.exit_code == 0
+    assert result.stdout.splitlines()[0] == "blank  blank.pdf  pdf  0 pages  0 chars"
+    assert "note: little text extracted" in result.stdout
+
+
+def test_a_normal_source_carries_no_thin_note(project: Path, note: Path) -> None:
+    result = runner.invoke(cli.app, ["ingest", str(note)])
+    assert result.exit_code == 0
+    assert "little text extracted" not in result.stdout
 
 
 def test_ingesting_a_deck_notes_the_text_only_gap(project: Path, tmp_path: Path) -> None:

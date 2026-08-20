@@ -32,46 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. Ingest says what it did and what it got
-
-**Intent.** Two things `ingest` knows and does not say. First, it prints the
-same line whether it created a document, created a *new generation* of one
-whose bytes changed, or did nothing at all because the bytes and config were
-identical — so an agent re-ingesting after a fix cannot tell whether anything
-happened, and the moment a new generation appears is exactly the moment
-existing bindings may start reporting `drifted`. Second, it never says how much
-text came out. `skills/backdraft/SKILL.md` instructs the agent that a
-JavaScript-rendered page or one behind a login "will come back thin or empty,
-and if it does, say so to the user rather than citing the shell of it" — and
-gives it no signal to notice that with. A login wall extracts as a few dozen
-characters, exits 0, and prints `1 page` like any success. The same silence
-covers a scanned PDF with no text layer.
-
-**Shape.** `ingest` in `cli.py`, output only — no registry or format change.
-`Registry.ingest` already distinguishes the three outcomes internally
-(`_find_document`, `_is_noop`, `_upsert_document`); surface which one happened
-rather than re-deriving it in the CLI, which may mean returning it alongside
-the `Document` or exposing it on the returned value. Print the extracted
-character count beside the page count, and when it falls under a threshold the
-module declares as a named constant, add one line naming the likely cause and
-what to do — the shape the poppler and `pdf-text` notes already use, which is a
-note at exit 0 and never a failure, because a thin page is still a real
-snapshot and failures here are data. A new generation gets its own line saying
-that citations into the previous one may now report `drifted`, and that `bind`
-is what will say so.
-
-**Acceptance.** Ingesting a file twice unchanged says so the second time;
-editing it and re-ingesting says a new generation was made and names drift;
-both still exit 0. A near-empty HTML file ingests, exits 0, and prints the thin
--source note; a normal source does not. `backdraft ingest` on a fresh document
-prints what it prints today plus the character count. Tests for all five
-branches. `demo/walkthrough.md`, `README.md` and `site/docs.html` show the real
-new output, and `skills/backdraft/SKILL.md` points at the note instead of
-asking the agent to judge thinness unaided.
-
-**Size.** Two days.
-
-### 2. `backdraft verify <artifact>`: checking a receipt without the registry
+### 1. `backdraft verify <artifact>`: checking a receipt without the registry
 
 **Intent.** `skills/backdraft-artifact/SKILL.md` exists because there is no
 command: it walks an agent through opening a `.backdraft.json` or
@@ -108,7 +69,7 @@ agent that has no backdraft install.
 
 **Size.** Three days.
 
-### 3. `spec/registry.md`: the export format is normative, or it is not a format
+### 2. `spec/registry.md`: the export format is normative, or it is not a format
 
 **Intent.** `backdraft export` writes `"$format": "backdraft/registry-v1"`, a
 version string that promises a specification and does not have one. `spec/`
@@ -140,7 +101,7 @@ the spec is enough to say what each field means.
 
 **Size.** Two days.
 
-### 4. `search` says when it stopped short
+### 3. `search` says when it stopped short
 
 **Intent.** `backdraft search "the"` prints `20 results for "the"` whether there
 are twenty or two hundred: `--limit` defaults to 20, and the count line reports
@@ -177,7 +138,7 @@ than settle when the line says it was capped.
 
 **Size.** One day.
 
-### 5. The bind report says why a verifier skipped
+### 4. The bind report says why a verifier skipped
 
 **Intent.** A bind report prints `overlap: pass 11, skip 4` and stops. Four
 citations were not checked and the report does not say why, so a reader cannot
@@ -210,7 +171,7 @@ output, and the skill says a skip with a reason is not a hole to fix.
 
 **Size.** One day.
 
-### 6. `session show` says what the ledger holds
+### 5. `session show` says what the ledger holds
 
 **Intent.** The ledger is the mechanism the design rests on — the set of citable
 tokens is exactly the set the gate emitted — and nothing reads it back.
@@ -247,7 +208,7 @@ a stated tradeoff.
 
 **Size.** Two days.
 
-### 7. An unreadable source says what to do, not what errno it was
+### 6. An unreadable source says what to do, not what errno it was
 
 **Intent.** `ingest` now finishes its list and names each failure (2026-08-13),
 which turned the reason string into something a calling agent actually reads —
@@ -282,7 +243,7 @@ actionable so an agent surfaces them to the user rather than paraphrasing.
 
 **Size.** One day.
 
-### 8. A registry can forget a source
+### 7. A registry can forget a source
 
 **Intent.** Ingest is one-way. An agent working unattended over a folder — which
 is now the normal case, since `ingest` finishes its list — will ingest something

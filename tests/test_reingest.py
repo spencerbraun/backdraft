@@ -15,7 +15,7 @@ import pytest
 from conftest_registry import PAGE_BREAK
 
 from backdraft.extract.base import ExtractedPage
-from backdraft.registry import Registry, current_at
+from backdraft.registry import CREATED, GENERATION, Registry, UNCHANGED, current_at
 
 
 def _tokens(registry: Registry, slug: str) -> dict[str, str]:
@@ -41,9 +41,19 @@ def test_re_ingesting_identical_bytes_changes_nothing(registry: Registry, note: 
 
     second = registry.ingest(note)
 
-    assert second == first
+    assert (second.slug, second.sha256, second.id) == (first.slug, first.sha256, first.id)
     assert _tokens(registry, first.slug) == before
     assert len(_generations(registry, first.slug)) == 1
+
+
+def test_ingest_says_which_of_its_three_outcomes_happened(
+    registry: Registry, note: Path
+) -> None:
+    """The registry knows; deriving it from outside means re-implementing `_is_noop`."""
+    assert registry.ingest(note).outcome == CREATED
+    assert registry.ingest(note).outcome == UNCHANGED
+    note.write_text("Occupancy closed at 92.0% in Q3.\n", encoding="utf-8")
+    assert registry.ingest(note).outcome == GENERATION
 
 
 def test_identical_bytes_in_a_fresh_registry_mint_identical_tokens(

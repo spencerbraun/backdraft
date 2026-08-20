@@ -39,8 +39,8 @@ backdraft ingest sources/t12-summary.pdf sources/underwriting-model.xlsx
 ```
 
 ```
-t12-summary  t12-summary.pdf  pdf  3 pages
-underwriting-model  underwriting-model.xlsx  xlsx  2 sheets
+t12-summary  t12-summary.pdf  pdf  3 pages  8865 chars
+underwriting-model  underwriting-model.xlsx  xlsx  2 sheets  2357 chars
 note: extracted with pdf-text (the embedded text layer). Glossy or scanned PDFs extract better through a vision model: set BACKDRAFT_VLM_API_KEY in .backdraft/env.
 ```
 
@@ -62,6 +62,13 @@ the VLM extractor is the recommended path: `auto` picks it when
 provider key), and the snapshot it
 produces (the model's clean reading of the page) becomes the receipt.
 
+Each line closes with how much text came out. That number is the one signal that
+a source is worth citing: a scanned PDF with no text layer, and a web page that
+answered an unauthenticated fetch with a login wall, both ingest cleanly and
+print a page count like any success. Under a couple of hundred characters ingest
+adds a note naming the likely cause and what to do about it — still exit 0,
+because a thin snapshot is a real snapshot, just not one to write against.
+
 A source can also be a web page. The memo needs one figure the sponsor's file
 cannot supply — how deep the local renter base is — so the county's Wikipedia
 article is ingested the same way a file is:
@@ -71,7 +78,7 @@ backdraft ingest "https://en.wikipedia.org/w/index.php?title=Franklin_County,_Oh
 ```
 
 ```
-franklin-county  https://en.wikipedia.org/w/index.php?title=Franklin_County,_Ohio&oldid=1367935775  html  1 page
+franklin-county  https://en.wikipedia.org/w/index.php?title=Franklin_County,_Ohio&oldid=1367935775  html  1 page  34141 chars
 ```
 
 Two things in that command are deliberate.
@@ -635,4 +642,23 @@ text — and therefore every token in this file — does not change.
 The web source is fetched, not generated, so it is not in that script; re-run
 its `ingest` line from step 2. Because the URL names a revision the bytes come
 back identical, which makes the re-ingest a no-op and leaves its two tokens
-exactly as they are here.
+exactly as they are here — and the line says so:
+
+```
+franklin-county  https://en.wikipedia.org/w/index.php?title=Franklin_County,_Ohio&oldid=1367935775  html  1 page  34141 chars  unchanged
+```
+
+Regenerating the two local sources is the other case. Their bytes move, so each
+becomes a *new generation* of the same document, and ingest says that too:
+
+```
+t12-summary  t12-summary.pdf  pdf  3 pages  8865 chars  new generation
+underwriting-model  underwriting-model.xlsx  xlsx  2 sheets  2357 chars  new generation
+note: extracted with pdf-text (the embedded text layer). Glossy or scanned PDFs extract better through a vision model: set BACKDRAFT_VLM_API_KEY in .backdraft/env.
+note: new generation of t12-summary, underwriting-model — citations into the previous snapshot may now report `drifted`. A token whose locator and snippet both survived the change carries over untouched, so `backdraft bind` on a document citing it is what says which; `backdraft show <token>` then prints the cited snippet beside what stands there now.
+```
+
+Here the answer is none of them: the generators change the bytes and not the
+extracted text, so every token carries over and a re-bind still says
+`resolved`. The note says *may* for exactly that reason — `ingest` knows the
+snapshot moved, and only `bind` knows whether any citation noticed.
