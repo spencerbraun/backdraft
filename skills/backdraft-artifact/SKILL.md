@@ -17,8 +17,11 @@ documents, not backdraft itself.
   `.backdraft/records/` inside a project.
 - **Artifact** (`memo.backdraft.html`) — the payload is embedded verbatim in the
   one `<script type="application/json" id="backdraft-artifact">` element. Extract
-  its text content and parse it. `<`, `>` and `&` inside it are escaped as
-  `<`, `>`, `&`; JSON decoding restores them.
+  its text content and parse it — the whole element is the payload, no
+  unwrapping. Every `<`, `>` and `&` in it is written as the JSON escape
+  `\u003c`, `\u003e`, `\u0026`, so that nothing inside a snippet can close
+  the script element; a JSON parser restores them and nothing else is needed.
+  Do not HTML-unescape it: there are no HTML entities in there to undo.
 
 Check `$format` first. It must equal `backdraft/artifact-v1` **exactly**. If it
 does not, stop and say so — there is no compatibility range and no guessing;

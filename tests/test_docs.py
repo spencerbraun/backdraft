@@ -15,12 +15,14 @@ regeneration can quietly lose.
 
 from __future__ import annotations
 
+import json
 import pathlib
 import re
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 DESIGN = REPO / "DESIGN.md"
 DEMO = REPO / "site" / "demo.html"
+ARTIFACT_SKILL = REPO / "skills" / "backdraft-artifact" / "SKILL.md"
 
 ROW = re.compile(r"^\| (\d{4}-\d{2}-\d{2}) \|")
 
@@ -93,3 +95,39 @@ def test_the_demo_titles_the_fetched_source_by_its_slug() -> None:
     for listing in _source_lists():
         assert '<span class="doc">Franklin County</span>' in listing
         assert "index.html" not in listing
+
+
+# ---- the artifact skill describes the escaping the renderer actually does ----
+
+
+def _island(page: str) -> str:
+    """The artifact's JSON island, exactly as a reader of the file finds it."""
+    head = '<script type="application/json" id="backdraft-artifact">'
+    return page.split(head, 1)[1].split("</script>", 1)[0]
+
+
+def test_the_island_is_escaped_with_json_escapes_and_no_html_entities() -> None:
+    """What `render.html.page._escape_island` does, seen from outside the code.
+
+    `skills/backdraft-artifact/SKILL.md` tells an agent how to decode this, and
+    an agent that believes the wrong mechanism reaches for an HTML unescape that
+    either does nothing or corrupts a snippet. So the two are pinned together.
+    """
+    island = _island(DEMO.read_text(encoding="utf-8"))
+    assert "\\u003c" in island and "\\u0026" in island
+    for literal in ("<", ">", "&"):
+        assert literal not in island, "a literal here could close the element"
+    assert json.loads(island)["$format"] == "backdraft/artifact-v1"
+
+
+def test_the_artifact_skill_names_those_escapes_and_warns_off_html_unescaping() -> None:
+    """The prose half of the pin.
+
+    It used to describe HTML entities, which are not what is in the file, and
+    the entities in the sentence had themselves been unescaped — so it read as
+    the tautology "`<` is escaped as `<`" and told an agent nothing.
+    """
+    skill = ARTIFACT_SKILL.read_text(encoding="utf-8")
+    assert "\\u003c" in skill and "\\u0026" in skill
+    assert "Do not HTML-unescape it" in skill
+
