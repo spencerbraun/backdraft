@@ -282,6 +282,197 @@ registry never actually shrinks.
 
 **Size.** Three days.
 
+### 8. Bind's markdown names a fetched source by a file nobody has
+
+**Intent.** The 2026-08-18 row made `gate.source_name` the one owner of what a
+source is called and named the one surface it could not reach — bind, because
+`bind` → `gate` is a sideways import SPEC forbids. The exception is larger than
+that row said. `binder.py`'s `_doc_name` returns `document.filename`, and it
+feeds both the generated `## References` section of `bind --bound` and the
+proposals in the unmatched-claims section, so the markdown projection — the
+form that travels into a pull request or an email, where the HTML artifact
+cannot follow — calls the demo's Wikipedia article `index.html`. Bind the demo
+with `--mode backfill --bound` and `memo.bound.md` says
+`**[2]** index.html — p1.c11 — resolved` for a source that `render --to
+footnotes` names `**franklin-county** · <https://en.wikipedia.org/…>` and the
+artifact names `Franklin County`. Two of backdraft's own output formats
+disagree about what a source is, and the one that disagrees is the one a reader
+gets without a browser.
+
+**Shape.** Answer the dependency objection rather than working around it.
+`source_name` is a pure function of a `Document`, and `Document` lives in
+`kernel/model.py`, which `gate` and `bind` both import *downward* from — so the
+kernel is the owner the rule was always looking for, and it stays stdlib-pure
+there. Decide and write down whether `gate.source_name` becomes a redirect or
+whether callers move to the kernel path, remembering that kernel API in this
+repo is module paths rather than flat re-exports, and that `cli.py` imports
+`gate.source_name` today and SPEC § Gate names it. Leave the render side alone:
+`render/html/text.source_title` and `render/footnotes._origin` read a `url` off
+the *artifact's* `docs` dict, a different shape from a `Document`, and they are
+already correct — say so in the row rather than letting the next reader think
+they were missed.
+
+**Acceptance.** Add an uncited claim to a copy of `demo/memo.md`, run `bind
+memo.md --mode backfill --bound`, and `memo.bound.md` contains no `index.html`
+and names the URL in both its References entries and its unmatched proposals.
+A References entry for a *file* source is byte-identical to today's — pin it,
+the way the file rows of the gate's list are pinned. `render --to footnotes` is
+unchanged. SPEC's dependency rule and § Gate are updated, and the 2026-08-18
+row gains its correction: the exception it accepted is now closed and the row
+should say how.
+
+**Size.** Two days.
+
+### 9. A web page has a name, and `read` shows it the navigation menu instead
+
+**Intent.** `backdraft read franklin-county` — the demo's own web source —
+prints `p1  Franklin County, Ohio - Wikipedia  Jump to content Main menu Main
+menu move to sidebar hide Navigation - Main page - Contents - Current events -
+Random art...`. The table-of-contents line is the one surface that tells an
+agent what is on a page before it spends context reading it, and for every web
+source it is site chrome. The page's real name is sitting in the extracted text
+and in the markup's `<title>`, unused: a fetched page ingested without `--slug`
+also titles itself `En Wikipedia Org Index` in the artifact's source list,
+because `render/html/text.source_title` falls back to the slug and title-cases
+it. Two surfaces need one fact nothing captures. Separately, an HTML source is
+a single page, so its table of contents is that one line and does no
+navigating at all — for a 34,000-character article the citable unit is the
+chunk and nothing lists the chunks.
+
+**Shape.** Capture the fact once, at extraction: `extract/html.py` already
+parses the markup, so the document's `<title>` becomes page or document meta
+there, and everything downstream reads it instead of guessing. Then
+`gate/reader.py`'s TOC preview (`TOC_PREVIEW_CHARS`, `_preview`) prefers it,
+and `render/html/text.source_title` prefers it over the slug fallback for a
+document that has one. For the single-page case, `render_toc` lists the page's
+chunks with their opening words, so a one-page source's table of contents is
+one. **This is display only and must stay that way**: no chunk boundary moves,
+no anchor moves, no token changes, and the slug is not derived from the title —
+that is the admissibility argument the 2026-08-20 thin-source note made, and
+this row must make it again, because the neighbouring rule ("no boilerplate
+stripping: a heuristic that changes its mind moves anchors") is about
+extraction and is not being touched. A page with no `<title>`, and every
+non-HTML source, keeps exactly what it prints today.
+
+**Acceptance.** In `demo/`, `backdraft read franklin-county` names the county
+rather than "Jump to content", and lists the page's chunks. `backdraft read
+t12-summary` and `backdraft read underwriting-model` are byte-identical to
+today's — pin both. `backdraft bind memo.md --session s-bridgeview --check
+value-trace,overlap` still reports 17 resolved and the same one unresolved,
+with the same tokens: mint them before and after and diff. An HTML fixture with
+no `<title>` falls back to what it prints now. `demo/walkthrough.md`'s read
+blocks and `README.md`'s show the real output. DESIGN row.
+
+**Size.** Three days.
+
+### 10. A page read has no budget and no closing line
+
+**Intent.** `backdraft read franklin-county p1` prints 36,442 characters and
+stops, with nothing to say how much that was or whether it was all of it — it
+ends mid-navigation on `49 languages Add topic`, which reads exactly like a
+truncation and is not one. `--limit` defaults to "all of them", so the
+continuation hint this repo is proud of — `[Showing 0-464 of 3115 chars.
+Continue with: …]` — only ever appears to a caller who already knew to pass
+`--limit`. The gate is the one surface an agent is *required* to use, which
+makes the default the case that matters: one `read` can spend a large fraction
+of a context window with no warning, and the agent cannot tell a complete page
+from a cut one. `search` caps at 20 by default; `read` caps at nothing. This is
+the same silent-cap family as the queued `search` item, from the other end — an
+uncapped read that looks capped, rather than a capped search that looks
+complete.
+
+**Shape.** `gate/reader.py`'s page rendering and `gate/cli.py`'s `--limit`. The
+decision to make and write down is a default budget versus staying unbounded
+and always closing with the size and the continuation line; prefer whichever
+keeps a small page byte-identical, since most pages are small and their output
+is a contract. Whatever lands, a read that shows part of a page must close by
+naming the exact command that continues it, as the existing hint does. One
+constraint to state and test rather than discover: the window slices by
+characters and a chunk token stands above its chunk, so a cut must not leave a
+token over a chunk the reader only half received — either the window respects
+chunk boundaries or the closing line says the last chunk is partial. Do not add
+an offset story to `search` here; that is the queued item's ground.
+
+**Acceptance.** `backdraft read t12-summary p1` in `demo/` is byte-identical to
+what it prints today — pin it. `backdraft read franklin-county p1` closes by
+saying how much of the page it showed and how to see the rest, and running the
+command it names continues where it stopped. No read output ever shows a token
+above a chunk it did not finish. `demo/walkthrough.md`, `README.md`,
+`site/llms.txt` and `skills/backdraft/SKILL.md` show the real output and tell
+the agent to continue rather than assume it saw the page. DESIGN row.
+
+**Size.** Two days.
+
+### 11. The thin-source signal exists only in the ingest that printed it
+
+**Intent.** 2026-08-20 gave `ingest` a character count and a `note: little text
+extracted` naming the likely cause — the signal that a source is a shell and
+must not be cited. Both are printed once and then gone: nothing stores the
+count, and `ls`, the gate's document list and a document's table of contents
+say nothing about it. The agent that writes is usually not the process that
+ingested — the skill says to ingest everything up front and then read, and a
+registry travels with the project folder — so the one signal that matters is
+the one an agent is least likely to be present for. Off `backdraft read`'s
+list, a 34,000-character article and a 60-character login wall are the same
+row.
+
+**Shape.** The count is derivable from the current extraction
+(`sum(len(page.text))`), so this is a reporting change rather than a storage
+one unless measurement says otherwise. One owner, shared between `cli.py`'s
+ingest line and `gate/reader.py`'s list and headline, the way `unit` and
+`source_name` already are — the point of this item is that three surfaces give
+one answer, so a second implementation of the count would defeat it. Display
+only, as the ingest note is: no token, anchor or status derives from it. Hold
+the byte-identity rule the source-naming work established — a registry of
+ordinary sources must not gain a column for this, so mark only the sources that
+are thin rather than annotating every row.
+
+**Acceptance.** Ingest a login-wall HTML file beside a real source: `backdraft
+read` and `backdraft ls` mark the thin one and say nothing new about the other,
+and `backdraft read <thin-slug>` says it in the headline too. A registry with
+no thin source prints what it prints today, byte for byte — pinned, including
+`demo/`'s three sources. `THIN_SOURCE_CHARS` is read from one place.
+`skills/backdraft/SKILL.md` and `site/llms.txt` tell the agent that the
+document list is where it learns this, not only the ingest it may not have run.
+
+**Size.** Two days.
+
+### 12. What a URL will be called, before the answer is permanent
+
+**Intent.** Three docs now tell an agent to pass `--slug` when it ingests a URL,
+because a slug is permanent once tokens carry it and the default may name a
+site rather than a page. None of them lets the agent find out what the default
+would be. `fetch.filename_for` settles the answer from the address alone,
+before any bytes exist — that is the 2026-08-19 row's own words — so the
+question is cheap and answerable, and today the only way to ask it is to ingest
+and live with the result. An agent that guesses wrong has written a name into
+every token of the document, and the fix is re-ingesting under a new slug and
+rewriting the draft.
+
+**Shape.** Small and read-only. The natural home is beside the thing it
+predicts: a flag on `ingest` that resolves each source to the slug and media
+type it would take and prints them without fetching, writing or minting
+anything, or a sibling command if a flag on a writing verb reads badly — pick
+one and say why in the DESIGN row, since "a verb that does not do its verb" is
+the objection to answer. For a URL the answer comes from `fetch.filename_for`
+plus `registry.slug_for` and needs no network; the media type is the honest
+gap, because only the served content type settles it, and the output must say
+so rather than guessing. For a file, both are already knowable. Existing
+collisions matter: a slug already taken must be reported as taken, since that is
+what turns a predicted `index` into a real `index-2`.
+
+**Acceptance.** Against `demo/`, asking about
+`https://en.wikipedia.org/w/index.php?title=Franklin_County,_Ohio&oldid=1367935775`
+prints `en-wikipedia-org-index` and does not create a document, open a socket,
+or touch the ledger — check the registry's document count and `ls` before and
+after. Asking about a path prints the slug the file would take. Asking about a
+source whose slug is already in the registry says so. `README.md`,
+`site/docs.html`, `site/llms.txt` and `skills/backdraft/SKILL.md` name it where
+they currently say "pass `--slug`", so the advice comes with the way to check
+it.
+
+**Size.** One day.
+
 ## Parked
 
 Deliberately not queued, each with the reason, so picking one up starts from
