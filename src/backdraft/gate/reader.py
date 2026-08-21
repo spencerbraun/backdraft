@@ -217,8 +217,10 @@ def render_documents(registry: Registry) -> str:
 
     slug_width = max(len(row[0]) for row in rows)
     # Only filenames size the name column; an origin overflows it — see above.
+    # `default=0` is the all-fetched registry: no filename sizes anything, so
+    # every name is a URL and the column collapses rather than padding to one.
     file_width = max(
-        (len(document.filename) for document in documents if not _is_fetched(document)),
+        (len(document.filename) for document in documents if not _origin(document)),
         default=0,
     )
     media_width = max(len(row[2]) for row in rows)
@@ -764,9 +766,14 @@ def _document_headline(document: Document, pages: Sequence[Page]) -> str:
     )
 
 
-def _is_fetched(document: Document) -> bool:
-    """Whether `source_name` will return a URL: only a fetched source carries one."""
-    return bool((document.meta or {}).get("url"))
+def _origin(document: Document) -> str:
+    """The URL a fetched source came from; `""` for a file.
+
+    The one place `meta["url"]` is read on this side: `source_name` answers
+    what to call the document and `render_documents` asks whether the name is
+    a URL, and two readings of one key drift apart the moment the key does.
+    """
+    return str((document.meta or {}).get("url") or "")
 
 
 def source_name(document: Document) -> str:
@@ -787,7 +794,7 @@ def source_name(document: Document) -> str:
     the gate's list names, and one owner is the only way three surfaces keep
     giving one answer.
     """
-    return (document.meta or {}).get("url") or document.filename
+    return _origin(document) or document.filename
 
 
 def unit(pages: Sequence[Page]) -> str:

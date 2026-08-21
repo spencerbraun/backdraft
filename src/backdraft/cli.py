@@ -106,11 +106,17 @@ _THIN_CAUSE = {
         "markup is what was snapshotted. Opening the page in a signed-in browser, "
         "saving it once it has rendered, and ingesting that file gets the real text."
     ),
+    "pptx": (
+        "a deck whose slides are charts and images carries almost no slide text, "
+        "and slide text is all this extractor reads — the note above has the fix."
+    ),
 }
 _THIN_CAUSE_DEFAULT = (
     "the source may simply be short, or may keep its content somewhere this "
     "extractor does not read."
 )
+"""For a media type with nothing specific to say. Deliberately not a guess: an
+unmapped cause reported plainly beats a wrong suggestion confidently made."""
 
 
 def _thin_cause(media_type: str) -> str:
@@ -479,8 +485,11 @@ def list_documents() -> None:
 
     The name is the filename, or — for a source fetched from the web — the URL
     it came from, standing in the staging filename's place rather than beside
-    it (`gate.source_name`). A registry of files prints what it always did.
+    it. A registry of files prints what it always did.
     """
+    # The name is `gate.source_name`'s, shared with `ingest` and the gate's own
+    # list. Out of the docstring on purpose: typer prints this one to a user,
+    # and a module path is a pointer into code they are not reading.
     with opened_registry() as registry:
         documents = registry.documents()
         if not documents:

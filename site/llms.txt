@@ -60,9 +60,9 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # when the bytes moved — the last one means citations into the previous
 # snapshot may now be drifted, so re-bind and read the report rather than
 # assuming. A source that came back thin (a scan with no text layer, a login
-# wall) gets a `note: little text extracted` line naming the cause at exit 0;
-# that note is the signal a source is a shell — surface it, do not cite around
-# it.
+# wall, a deck whose slides are all images) gets a `note: little text
+# extracted` line naming the cause at exit 0; that note is the signal a source
+# is a shell — surface it, do not cite around it.
 # Sandboxes usually cannot reach model providers: if VLM ingest fails on
 # network, continue with the text layer and say so. The registry travels
 # with the project folder (.backdraft/), so a registry ingested with the

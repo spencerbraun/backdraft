@@ -374,6 +374,49 @@ def test_a_normal_source_carries_no_thin_note(project: Path, note: Path) -> None
     assert "little text extracted" not in result.stdout
 
 
+def test_a_thin_deck_is_pointed_at_the_note_that_already_named_the_gap(
+    project: Path, tmp_path: Path
+) -> None:
+    """A deck of images is the one thin cause the command already prints.
+
+    Falling through to the generic default would tell an agent less than the
+    line directly above it does, so `pptx` names the cause and defers the fix
+    rather than restating it.
+    """
+    from pptx import Presentation
+
+    deck = tmp_path / "visual.pptx"
+    presentation = Presentation()
+    presentation.slides.add_slide(presentation.slide_layouts[6])
+    presentation.save(deck)
+
+    result = runner.invoke(cli.app, ["ingest", str(deck)])
+    assert result.exit_code == 0
+    assert "note: extracted slide text only" in result.stdout
+    assert "note: little text extracted — a deck whose slides are" in result.stdout
+    assert "the note above has the fix" in result.stdout
+    assert "may simply be short" not in result.stdout
+
+
+def test_a_thin_source_with_nothing_specific_to_say_says_so_plainly(
+    project: Path, tmp_path: Path
+) -> None:
+    """A media type off the cause table gets the default, not a wrong guess.
+
+    `text` has no story a scan or a login wall has: an almost-empty note is
+    almost certainly an almost-empty note. The note still fires, because the
+    thing worth saying — do not cite the shell of this — is the same.
+    """
+    stub = tmp_path / "stub.md"
+    stub.write_text("Occupancy was fine.\n", encoding="utf-8")
+    result = runner.invoke(cli.app, ["ingest", str(stub)])
+    assert result.exit_code == 0
+    assert "note: little text extracted — the source may simply be short" in result.stdout
+    assert "no text layer" not in result.stdout
+    assert "login wall" not in result.stdout
+    assert result.stdout.rstrip().endswith("stub.")
+
+
 def test_ingesting_a_deck_notes_the_text_only_gap(project: Path, tmp_path: Path) -> None:
     """The note a calling agent relays when the deck is visual-heavy."""
     from pptx import Presentation

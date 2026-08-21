@@ -148,6 +148,15 @@ def test_an_empty_path_is_still_the_host_alone() -> None:
     assert filename_for("https://example.com/", "text/html") == "example.com.html"
 
 
+def test_a_url_naming_neither_a_page_nor_a_host_falls_back_to_page() -> None:
+    """The last resort, pinned so it stays a name rather than an empty suffix.
+
+    `fetch` rejects this URL before it could ever be staged, but `filename_for`
+    is public and answers about an address alone — so it answers with a name.
+    """
+    assert filename_for("http://", "text/html") == "page.html"
+
+
 # ---- fetch ------------------------------------------------------------------
 
 

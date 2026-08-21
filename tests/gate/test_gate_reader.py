@@ -197,6 +197,29 @@ def test_a_registry_of_files_prints_what_it_always_did(
     assert read(fake_gate_registry) == DOCUMENTS
 
 
+def test_a_registry_of_nothing_but_fetched_pages_still_lists_cleanly() -> None:
+    """No filename sizes the name column, so it collapses instead of padding.
+
+    The `default=0` branch of the width computation: with every name a URL
+    there is nothing to align to, and padding to the longest URL would put two
+    columns of blanks after the shortest one.
+    """
+    registry = FakeDocumentRegistry()
+    registry.add(_fetched())
+    registry.add(
+        pdf_document(
+            "notes",
+            "index.html",
+            [["Rents in the submarket rose."]],
+            media_type="html",
+            url="https://example.com/a",
+        )
+    )
+    listed = read(registry).splitlines()
+    assert listed[2] == f"county  {COUNTY_URL}  html  1 page"
+    assert listed[3] == "notes   https://example.com/a  html  1 page"
+
+
 def test_toc_pages(fake_gate_registry: FakeDocumentRegistry) -> None:
     assert read(fake_gate_registry, "t12-audit") == TOC_PDF
 
