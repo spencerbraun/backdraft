@@ -228,7 +228,11 @@ means, and each is testable:
    inline; every image is a `data:` URI. The constraint is enforced, not
    promised: a `Content-Security-Policy` meta tag with `default-src 'none'`
    makes the browser refuse any request the file might try. The file renders
-   identically from `file://` with the network down.
+   identically from `file://` with the network down. Mathematics, where a
+   producer renders it, MUST be static markup for the same reason: MathML
+   satisfies this, while a script-driven formula renderer or a downloaded math
+   font does not. A producer that does not render math MUST leave the author's
+   source visible rather than altering it.
 2. **Script is enhancement, never substrate.** Inline behavior script is
    permitted (it is how the evidence rail, source selector and sheet view
    work) but the artifact MUST degrade to a readable document without it:

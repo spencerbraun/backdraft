@@ -14,10 +14,11 @@ import json
 from ...kernel.artifact import FORMAT, ISLAND_ID, sidecar
 from ...kernel.model import BindReport, CitationStatus
 from .. import markdown
+from ..math import Math
 from ..placement import locate
 from ..theme import Theme
 from .assets import FLAME_PATH, SCRIPT_MIN, STYLESHEET_MIN, _favicon
-from .components import _card, _note, _page_store_html, _sources_index
+from .components import _card, _math_note, _note, _page_store_html, _sources_index
 from .text import _esc, split_subtitle, worst_status
 
 # ISLAND_ID — where the record sits in the page — comes from `kernel.artifact`:
@@ -55,10 +56,15 @@ def render(
 
     page_store: dict[str, dict] = {}
 
+    # One collector for the whole page: claims are rendered before the body, so
+    # a formula's number is stable wherever it appears, and every conversion
+    # failure is known by the time the notes are built.
+    math: list[Math] = []
+
     spans = []
     for placement in placed:
         flag = "" if worst_status(placement.claim) is CitationStatus.RESOLVED else " flagged"
-        text = markdown.inline(placement.claim.text)
+        text = markdown.inline(placement.claim.text, math)
         spans.append(markdown.Span(
             start=placement.start, end=placement.end,
             html=(
@@ -67,10 +73,13 @@ def render(
                 f'{text}<sup class="mark">{placement.number}</sup></a>'
             ),
         ))
-    body = markdown.to_html(source, spans)
+    body = markdown.to_html(source, spans, math)
 
     cards = "\n".join(_card(p, docs, evidence, page_store) for p in placements)
-    notes = "\n".join(_note(p, docs) for p in placements)
+    notes = "\n".join(
+        [_note(p, docs) for p in placements]
+        + [_math_note(item) for item in math if item.error]
+    )
 
     # NOTE: the masthead carries no failure count. Failure still speaks, but in
     # context — the wavy mark on the claim it belongs to, and that claim's note

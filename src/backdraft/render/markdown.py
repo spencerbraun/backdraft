@@ -12,9 +12,14 @@ artifact are the spans the report recorded — never a second, disagreeing parse
 
 NOTE (deliberate omissions, the spec is silent on all of them): reference links,
 setext headings, HTML passthrough, footnote syntax, and autolinks are not
-recognized and render as literal text. Intraword `_` is not a delimiter, per
-CommonMark, so `snake_case_name` survives as written; `*` is unrestricted. Images render as their alt text: an
+recognized and render as literal text. Images render as their alt text: an
 `<img>` would be an external request, which the artifact does not make.
+Intraword `_` is not a delimiter, per CommonMark, so `snake_case_name` survives
+as written; `*` keeps its intraword permission.
+
+Math is the one thing here that is not stdlib: `render.math` lifts formulas out
+before any rule below sees them and converts them with an optional dependency.
+It is opt-in per call and off for evidence — see `to_html`.
 """
 
 from __future__ import annotations
@@ -23,6 +28,8 @@ import html
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+
+from . import math as _math
 
 __all__ = ["Span", "to_html", "inline"]
 
@@ -73,30 +80,45 @@ class Span:
     html: str
 
 
-def to_html(source: str, spans: Sequence[Span] = ()) -> str:
+def to_html(source: str, spans: Sequence[Span] = (), math: list[_math.Math] | None = None) -> str:
     """Render `source` as HTML, splicing each span's HTML into its source range.
 
     Spans must not overlap; they are applied in source order.
+
+    Passing `math` opts this text into math rendering and collects what was
+    found. The default is off, and deliberately: a document body is authored
+    prose whose formulas the author meant as formulas, while a receipt's snippet
+    is evidence, which must read as it was extracted and not as this renderer
+    would prefer it. Callers that render evidence pass nothing.
     """
     masked, splices = _mask_spans(source, spans)
+    if math is not None:
+        masked = _math.protect(masked, math)
     rendered = _blocks(masked.expandtabs(4).splitlines())
     for index, markup in enumerate(splices):
         rendered = rendered.replace(_SPLICE.format(index=index), markup)
-    return rendered
+    return _math.restore(rendered, math) if math is not None else rendered
 
 
-def inline(text: str) -> str:
-    """Render one run of inline markdown — the form used inside a claim's text."""
+def inline(text: str, math: list[_math.Math] | None = None) -> str:
+    """Render one run of inline markdown — the form used inside a claim's text.
+
+    `math` behaves as it does in `to_html`. Math is lifted out before the
+    backslash-escape pass rather than after, because that pass would otherwise
+    eat the `\\(` and `\\)` delimiters as ordinary markdown escapes.
+    """
     escapes: list[str] = []
 
     def stash(match: re.Match[str]) -> str:
         escapes.append(html.escape(match.group(1), quote=False))
         return _ESCAPED.format(index=len(escapes) - 1)
 
+    if math is not None:
+        text = _math.protect(text, math)
     rendered = _inline(_BACKSLASH_RE.sub(stash, text))
     for index, literal in enumerate(escapes):
         rendered = rendered.replace(_ESCAPED.format(index=index), literal)
-    return rendered
+    return _math.restore(rendered, math) if math is not None else rendered
 
 
 def _mask_spans(source: str, spans: Sequence[Span]) -> tuple[str, list[str]]:

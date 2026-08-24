@@ -161,6 +161,13 @@ Rules:
 A title convention the artifact honors: an *italic line* directly under the
 `# title` becomes the document's subtitle on the rendered page.
 
+Math is allowed: write LaTeX the ordinary way — `$...$` or `\(...\)` inline,
+`$$...$$` or `\[...\]` for a display formula — and the artifact renders it as
+math when the `[math]` extra is installed. Without the extra the formula shows
+verbatim instead; it is never silently rewritten either way, so there is no
+reason to avoid math or to spell a formula out in words. Currency (`$250`,
+`$1.2M`) and shell variables in backticks are never read as math.
+
 ```bash
 backdraft bind memo.md --session s-<short-name>
 backdraft render memo.md --to html

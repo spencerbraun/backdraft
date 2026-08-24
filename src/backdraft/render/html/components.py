@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 
 from ...kernel.model import SHEET_MEDIA_TYPES, Citation
+from ..math import Math
 from ..placement import Placement
 from .fmt import _is_number, _style_attr, _width_px, fmt_cell
 from .text import (
@@ -299,6 +300,23 @@ def _note(placement: Placement, docs: dict) -> str:
         f'<a class="backref" href="#claim-{placement.number}" '
         f'title="Back to the claim">{placement.number}</a>'
         f'<div>{"".join(parts)}</div></li>'
+    )
+
+
+def _math_note(item: Math) -> str:
+    """A formula that would not convert, said plainly and linked back to itself.
+
+    It takes the shape a claim's note takes — marked where it stands, explained
+    here — because the reader's question is the same one: what is this, and why
+    does it not look like the rest of the document.
+    """
+    return (
+        f'<li class="note" id="{item.anchor}-note">'
+        f'<a class="backref" href="#{item.anchor}" title="Back to the formula">!</a>'
+        f'<div><p class="alarm">This formula could not be rendered as math '
+        f"({_esc(item.error or 'unknown')}); it is shown as it was written.</p>"
+        f'<blockquote class="quote"><code>{_esc(item.source)}</code></blockquote>'
+        f"</div></li>"
     )
 
 

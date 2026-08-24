@@ -436,61 +436,6 @@ it.
 
 **Size.** One day.
 
-### 12. Math in a document renders as math, or says it could not
-
-**Intent.** An agent writing a memo about coverage, a rate, or a model's output
-writes what any author would write — `$\mathrm{DSCR} = \frac{NOI}{D}$` — and the
-artifact hands the reader raw TeX. At worst it hands them corrupted TeX: today
-`$x_1$ and $x_2$` renders as `$x<em>1$ and $x</em>2$`, because the two
-subscripts pair into markdown emphasis, and `\(a^2+b^2=c^2\)` renders as
-`(a^2 + b^2 = c^2)` because `_BACKSLASH_RE` eats the delimiters as escapes. Both
-failures are silent and both are data-dependent — `$x_1$` alone survives, so the
-corruption appears only in the real document. A document nobody can read is not
-a lesser artifact, it is a broken one, and unrendered TeX is not a destination:
-forbidding math outright would be better than shipping it.
-
-**Shape.** `render/markdown.py`. Math spans get masked the way code spans
-already are — `_INLINE_RE` and the `stash`/`_mask_spans` machinery is the
-existing mechanism — for `$...$`, `$$...$$`, `\(...\)` and `\[...\]`, so nothing
-inside a math span is ever seen by the emphasis or backslash-escape passes.
-Conversion is `latex2mathml` (pure Python, zero dependencies, 312 KB installed,
-MIT), declared as an optional extra `[math]` in the mould of `[vlm]` and
-`[entail]`. The output is MathML: static markup that browsers lay out natively,
-so there is no script, no font file and no external request, and artifact rules
-1 and 2 hold by construction rather than by promise — this is the whole reason
-not to inline KaTeX, which would cost roughly a megabyte of fonts on every
-artifact whether or not it contains math. This is display-only: the sidecar
-keeps the authored source text, and no token, snippet or hash moves.
-
-Failures are data here too, and the boundary is uneven, so pin it. `latex2mathml`
-raises typed errors for some malformed input (`}{` and the empty string raise
-`NoAvailableTokensError`, `\begin{bmatrix} a` raises `MissingEndError`) and
-silently degrades for the rest (`\notacommand{x}` becomes `<mi>\notacommand</mi>`,
-`\frac{a` becomes a one-argument `mfrac`). A raise is a failure the artifact must
-show at the claim in rule 6's shape, not a warn-and-drop and not a traceback. The
-silent class cannot be caught and must be named as a known limit rather than
-papered over. Without the extra installed, math must still never be *corrupted*:
-the span stays masked and is emitted verbatim in a `.math` span — the degradation
-path, not the goal.
-
-**Acceptance.** Render a document carrying inline math, display math and both
-delimiter styles, once with the extra and once without. With it, the artifact
-contains `<math>` elements and no `$`-delimited source; without it, the artifact
-contains the TeX verbatim with no `<em>` anywhere inside a math span. In both,
-the `default-src 'none'` meta tag is intact and the file renders from `file://`
-with the network down. Malformed math surfaces at the claim and in the Notes with
-a reason. Mint the demo's tokens before and after and diff them: unchanged.
-Update `spec/artifact.md` where it enumerates what the HTML form may contain, and
-`skills/backdraft/SKILL.md` so an agent knows math is allowed and what happens
-without the extra.
-
-**DESIGN row.** MathML over a bundled renderer: why (self-containment survives,
-no fonts, no script) and the tradeoff that makes it non-obvious — MathML leans on
-a system math font, so two readers of one artifact may see different glyph
-quality, which is the one soft spot in the "fixed at render" promise of rule 7.
-
-**Size.** Two days.
-
 ## Parked
 
 Deliberately not queued, each with the reason, so picking one up starts from

@@ -199,7 +199,12 @@ OpenRouter (<code>https://openrouter.ai/api/v1</code>) running
 OpenRouter key. To point elsewhere, set <code>BACKDRAFT_VLM_BASE_URL</code>
 and <code>BACKDRAFT_VLM_MODEL</code>, for example directly at OpenAI or at a
 local server. <code>[entail]</code> adds the optional model-judge
-verifier, keyed separately by <code>BACKDRAFT_ENTAIL_API_KEY</code>.</p>
+verifier, keyed separately by <code>BACKDRAFT_ENTAIL_API_KEY</code>.
+<code>[math]</code> converts LaTeX written in a document — <code>$...$</code>,
+<code>$$...$$</code>, <code>\(...\)</code>, <code>\[...\]</code> — into
+MathML the browser lays out itself, so the artifact stays one file with no
+script and no font to fetch. Without it a formula renders verbatim rather
+than wrong. Dollar amounts are never mistaken for math.</p>
 </section>
 
 <section id="concepts">

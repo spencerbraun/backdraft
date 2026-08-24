@@ -318,12 +318,13 @@ the keyless text layer and says so — still storing each page's image, which it
 renders locally. PDF page rendering needs poppler, installed separately; without
 it ingest succeeds without the images and names `snapshot-pages` as the backfill.
 
-Two extras:
+Three extras:
 
 | Extra | Adds | For |
 |---|---|---|
 | `[entail]` | `anthropic` | `bind --check entail`, the model-judge verifier |
 | `[xls]` | `python-calamine` | legacy `.xls` workbooks, values only, rendered the same shape as xlsx |
+| `[math]` | `latex2mathml` | LaTeX in a document becomes MathML in the artifact; without it, formulas render verbatim |
 
 `backdraft[vlm]` still installs: it is an empty compat alias from when the
 vision deps were an extra.

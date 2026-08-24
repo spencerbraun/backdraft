@@ -155,6 +155,11 @@ a{color:inherit}
 .claim:hover{background:var(--hover);text-decoration-color:var(--ink)}
 .claim.active{background:var(--active);text-decoration-color:var(--ink)}
 .claim.flagged{text-decoration-style:wavy;text-decoration-color:var(--alarm)}
+math{font-size:1.02em}
+math[display=block]{display:block;width:fit-content;max-width:100%;margin:.9rem auto}
+p:has(>math[display=block]){overflow-x:auto}
+.math{font-family:var(--mono);font-size:.9em;white-space:pre-wrap}
+.math-error{text-decoration:underline wavy var(--alarm);text-underline-offset:.2em}
 .mark{font-family:var(--sans);font-size:.58em;font-weight:600;color:var(--muted);
   margin-left:.14em}
 .claim:hover .mark,.claim.active .mark{color:var(--ink)}

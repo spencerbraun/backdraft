@@ -32,6 +32,9 @@ vlm = []
 entail = ["anthropic>=0.40"]
 # Legacy .xls workbooks, read by calamine (values only).
 xls = ["python-calamine>=0.3"]
+# LaTeX in an authored document, converted to MathML when the artifact is
+# rendered. Pure Python and dependency-free; without it math renders verbatim.
+math = ["latex2mathml>=3.77"]
 
 [project.scripts]
 backdraft = "backdraft.cli:main"
