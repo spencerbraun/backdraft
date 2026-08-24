@@ -12,7 +12,8 @@ artifact are the spans the report recorded — never a second, disagreeing parse
 
 NOTE (deliberate omissions, the spec is silent on all of them): reference links,
 setext headings, HTML passthrough, footnote syntax, and autolinks are not
-recognized and render as literal text. Images render as their alt text: an
+recognized and render as literal text. Intraword `_` is not a delimiter, per
+CommonMark, so `snake_case_name` survives as written; `*` is unrestricted. Images render as their alt text: an
 `<img>` would be an external request, which the artifact does not make.
 """
 
@@ -38,13 +39,22 @@ _ALIGN_RE = re.compile(r":?-{1,}:?")
 _BACKSLASH_RE = re.compile(r"\\([\\`*_{}\[\]()#+\-.!|>~])")
 _SAFE_HREF_RE = re.compile(r"\s*javascript\s*:", re.IGNORECASE)
 
+# CommonMark's flanking rule, in the one form this subset needs: a `_` run with a
+# word character on either side is never a delimiter, which is why `_` and `*` are
+# spelled as separate alternatives below. Without it `snake_case_name` renders as
+# `snake<em>case</em>name` — authored text silently rewritten, which is the one
+# thing a tool whose claim is that a document's text is checkable cannot do. The
+# guard is `\w` rather than alphanumeric so that it also refuses to start or end
+# inside a run of underscores, which is what keeps `snake__case__name` whole.
 _INLINE_RE = re.compile(
     r"""
       (?P<fence>`+)(?P<code>.+?)(?P=fence)
     | !\[(?P<alt>[^\]]*)\]\([^)]*\)
     | \[(?P<label>(?:[^\[\]]|\[[^\]]*\])*)\]\((?P<href>[^)\s]*)(?:\s+"[^"]*")?\)
-    | (?P<strong_mark>\*\*|__)(?P<strong>.+?)(?P=strong_mark)
-    | (?P<em_mark>[*_])(?P<em>.+?)(?P=em_mark)
+    | \*\*(?P<strong>.+?)\*\*
+    | (?<!\w)__(?P<strong_us>.+?)__(?!\w)
+    | \*(?P<em>.+?)\*
+    | (?<!\w)_(?P<em_us>.+?)_(?!\w)
     """,
     re.VERBOSE | re.DOTALL,
 )
@@ -308,6 +318,6 @@ def _inline_match(match: re.Match[str]) -> str:
         if _SAFE_HREF_RE.match(href):
             return _inline(label)
         return f'<a href="{html.escape(href, quote=True)}">{_inline(label)}</a>'
-    if (strong := match["strong"]) is not None:
+    if (strong := match["strong"] or match["strong_us"]) is not None:
         return f"<strong>{_inline(strong)}</strong>"
-    return f"<em>{_inline(match['em'])}</em>"
+    return f"<em>{_inline(match['em'] or match['em_us'])}</em>"

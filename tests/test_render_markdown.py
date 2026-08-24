@@ -27,6 +27,39 @@ def test_inline_forms() -> None:
     assert render("__bold__ and _italic_") == "<p><strong>bold</strong> and <em>italic</em></p>"
 
 
+def test_intraword_underscore_is_not_a_delimiter() -> None:
+    """CommonMark's flanking rule: prose is never silently re-emphasized.
+
+    The old behavior paired the underscores, so a paragraph naming two
+    snake_case identifiers had its text rewritten — and only when the count was
+    even, which is why it survived every short test and broke real documents.
+    """
+    assert render("the snake_case_name field") == "<p>the snake_case_name field</p>"
+    assert render("call foo_bar and baz_qux now") == "<p>call foo_bar and baz_qux now</p>"
+    assert render("a_b_c") == "<p>a_b_c</p>"
+    assert render("x_1 and y_2 and z_3") == "<p>x_1 and y_2 and z_3</p>"
+    assert render("trailing name_") == "<p>trailing name_</p>"
+    assert render("\u00fcber_wert_zahl") == "<p>\u00fcber_wert_zahl</p>"
+
+
+def test_a_run_of_underscores_is_one_delimiter() -> None:
+    """A match may not start or end inside a run, or `snake__case__name` splits."""
+    assert render("read snake__case__name twice") == "<p>read snake__case__name twice</p>"
+
+
+def test_underscore_emphasis_still_works_at_word_boundaries() -> None:
+    assert render("foo _bar_ baz") == "<p>foo <em>bar</em> baz</p>"
+    assert render("_foo_bar_") == "<p><em>foo_bar</em></p>"
+    assert render("__bold with _em_ inside__") == (
+        "<p><strong>bold with <em>em</em> inside</strong></p>"
+    )
+
+
+def test_asterisk_emphasis_is_unrestricted() -> None:
+    """Only `_` is guarded; `*` keeps CommonMark's intraword permission."""
+    assert render("snake*case*name") == "<p>snake<em>case</em>name</p>"
+
+
 def test_links() -> None:
     assert render("[text](notes.md)") == '<p><a href="notes.md">text</a></p>'
     assert render('[text](notes.md "why")') == '<p><a href="notes.md">text</a></p>'

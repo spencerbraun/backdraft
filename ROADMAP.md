@@ -491,34 +491,6 @@ quality, which is the one soft spot in the "fixed at render" promise of rule 7.
 
 **Size.** Two days.
 
-### 13. Prose with two snake_case names is silently corrupted
-
-**Intent.** `the snake_case_name field` renders as `the
-snake<em>case</em>name field`, and `call foo_bar and baz_qux` as `call
-foo<em>bar and baz</em>qux`. CommonMark forbids intraword `_` emphasis — that is
-the entire reason `_` and `*` have different delimiter rules in the spec — and
-`render/markdown.py` does not implement the rule, so any memo naming two
-snake_case identifiers in one paragraph has its text quietly rewritten. This is
-independent of math and worse than the math case, because nothing signals it:
-the author sees prose, the reader sees prose, and the two are not the same
-prose. A tool whose whole claim is that a document's text is checkable cannot
-silently alter that text.
-
-**Shape.** `_INLINE_RE` in `render/markdown.py`. Implement CommonMark's
-left/right-flanking delimiter run rule for `_`: a `_` flanked by alphanumerics on
-both sides is never a delimiter. `*` is unaffected and its behavior must not
-move. Nothing currently pins the deviating behavior — `tests/test_render_markdown.py:27`
-pins `__bold__` and `_italic_`, both of which must keep working — so this is a
-fix, not a format change; note in the commit that no golden file moves.
-
-**Acceptance.** `snake_case_name`, `foo_bar and baz_qux` and `a_b_c` survive
-verbatim through `inline` and `to_html`; `_italic_`, `__bold__` and `*em*` are
-unchanged; the emphasis cases in `tests/test_render_markdown.py` pass untouched;
-`uv run backdraft render` over `demo/memo.md` produces a byte-identical artifact,
-since the demo contains no `<em>` today and none should appear.
-
-**Size.** One day.
-
 ## Parked
 
 Deliberately not queued, each with the reason, so picking one up starts from
