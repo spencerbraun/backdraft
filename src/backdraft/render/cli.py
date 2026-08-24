@@ -4,20 +4,27 @@ Render's inputs are an authored document and the sidecar bind wrote beside it.
 The registry is never opened here: an artifact must be reproducible from the two
 files a reader was handed, on a machine that has never seen the sources.
 
+`verify` lives here too: it is the reader half of the same format, and this
+module already holds the door onto it (`render.sidecar`). It is the one command
+in this file that may open the registry — and it opens it from *cwd*, never from
+the artifact's own directory, because an artifact is a file people forward and
+where it landed says nothing about which registry produced it.
+
 Mounted by the top-level CLI as `app`, per SPEC Addendum B:
 
     from backdraft.render import cli as render_cli
     app.registered_commands.extend(render_cli.app.registered_commands)
     app.registered_groups.extend(render_cli.app.registered_groups)
 
-which puts `render <doc.md>` and the `theme` group at the top level. Both lines
-are load-bearing: commands and groups are separate registries on a typer app, so
-mounting only the first would silently drop `theme list` / `theme show`.
+which puts `render <doc.md>`, `verify <artifact>` and the `theme` group at the
+top level. Both lines are load-bearing: commands and groups are separate
+registries on a typer app, so mounting only the first would silently drop
+`theme list` / `theme show`.
 
 NOTE: this module's `app` is not meant to be invoked on its own. The command
 names only exist once it is mounted next to the top level's others — and typer
 collapses a single-command app into a bare command, which is what `app` was
-before the `theme` group joined `render` here.
+before `verify` and the `theme` group joined `render` here.
 """
 
 from __future__ import annotations
@@ -29,15 +36,26 @@ from typing import Annotated
 
 import typer
 
-from ..cli_context import UsageError, find_root, guard
+from ..cli_context import (
+    EXIT_UNRESOLVED,
+    UsageError,
+    claim_words,
+    find_root,
+    guard,
+)
 from ..kernel.artifact import (
     ARTIFACT_SUFFIX,
     FOOTNOTES_SUFFIX,
     SIDECAR_SUFFIX,
 )
+from ..kernel.errors import TokenError
+from ..kernel.hashing import snippet_hash
+from ..kernel.model import BindReport, Citation, CitationStatus, Claim
+from ..kernel.tokens import format_locator, parse as parse_token
+from ..registry import Registry, citation_for
 from . import footnotes, html, sidecar, theme as theming
 
-__all__ = ["app", "theme_app", "Target"]
+__all__ = ["app", "theme_app", "Target", "verify"]
 
 app = typer.Typer(help="Render a bound document as a self-contained artifact.")
 theme_app = typer.Typer(help="Inspect the artifact's themes.")
@@ -135,6 +153,225 @@ def render(
     target = out or doc.with_name(doc.stem + _SUFFIX[to])
     target.write_text(text, encoding="utf-8")
     typer.secho(str(target), fg=typer.colors.GREEN)
+
+
+# ---- verify -----------------------------------------------------------------
+#
+# Two tiers, and the report always says which one ran. Tier one is the check a
+# recipient can make with the file alone — the record against itself — and it is
+# the one that matters, because it is the one that travels. Tier two only exists
+# where the sources do, and it answers a different question: not "is this record
+# intact" but "do the sources still say this today".
+
+
+@app.command()
+def verify(
+    artifact: Annotated[
+        Path,
+        typer.Argument(help="A .backdraft.html artifact or a .backdraft.json sidecar."),
+    ],
+) -> None:
+    """Check an artifact against itself, and against the sources when they are here.
+
+    Two tiers, and the output names which ran. **The record against itself**
+    needs nothing but the file: every `snippet_sha256` is recomputed from the
+    snippet the file carries, every token is checked against the anchor it
+    names, and `summary` is recounted from `claims`. That is
+    `spec/artifact.md` § Checking an artifact, and it catches an edited
+    artifact. **Against the sources** runs only when a `.backdraft/` is found
+    from the current directory — not from the artifact's, because an artifact is
+    a file people forward and the folder it landed in says nothing about which
+    registry it came from. It re-resolves every token and reports the statuses
+    as `bind` would.
+
+    Read-only. It opens no session and mints nothing, which is what separates it
+    from `backdraft show`: showing is minting, and an audit must not make its
+    subject citable.
+
+    Exit codes: 0 everything checked passed · 1 the file is missing, or is not
+    an artifact · 2 something did not verify, so a hook can gate on it. A record
+    that faithfully carries an `unresolved` citation still exits 0 on tier one —
+    a kept failure is the record working, not the record broken.
+    """
+    with guard():
+        if not artifact.is_file():
+            raise UsageError(f"no such file: {artifact}")
+        try:
+            payload = sidecar.read_payload(artifact)
+            report = sidecar.to_report(payload)
+        except (ValueError, KeyError, TypeError, OSError, UnicodeDecodeError) as error:
+            raise UsageError(_not_an_artifact(artifact, error)) from error
+
+    receipts = [
+        (claim, citation)
+        for claim in report.claims
+        for citation in claim.citations
+        if citation.anchor is not None
+    ]
+    broken = [
+        (claim, citation, reason)
+        for claim, citation in receipts
+        if (reason := _receipt_problem(citation)) is not None
+    ]
+    summary = report.summary
+    recount = "the summary recount agrees"
+    if payload.get("summary") != summary:
+        recount = "the summary does NOT agree with a recount of claims — trust claims"
+
+    typer.echo(f"checked {artifact} [{payload['$format']}]")
+    typer.echo(f"  receipts: {len(receipts) - len(broken)} of {len(receipts)} hold")
+    typer.echo(
+        f"  record: {summary['claims']} claim(s), {summary['citations']} citation(s); "
+        f"{recount}"
+    )
+    typer.echo(f"  recorded: {_counts(summary['by_status'])}{_unmatched(report)}")
+
+    root = find_root()
+    against: list[tuple[Claim, Citation, Citation]] = []
+    if root is None:
+        typer.echo("  sources: no .backdraft/ found from here — not re-checked")
+    else:
+        against = _against_sources(report, root)
+        typer.echo(
+            f"  sources: re-resolved against {root} — "
+            f"{_counts(_tally(fresh for _, _, fresh in against))}"
+        )
+
+    for claim, citation, reason in broken:
+        typer.echo(f"  ! receipt: {citation.token} — {reason} — {_where(claim)}")
+    for claim, recorded, fresh in against:
+        if fresh.status is CitationStatus.RESOLVED:
+            continue
+        moved = (
+            "" if fresh.status is recorded.status
+            else f" — the record says {recorded.status}"
+        )
+        typer.echo(f"  ! {fresh.status}: {fresh.token}{moved} — {_where(claim)}")
+
+    if root is None:
+        typer.echo(
+            "[Re-check against the sources: run this inside the project it was bound in.]"
+        )
+    if broken or recount.startswith("the summary does NOT") or any(
+        fresh.status is not CitationStatus.RESOLVED for _, _, fresh in against
+    ):
+        raise typer.Exit(EXIT_UNRESOLVED)
+
+
+def _receipt_problem(citation: Citation) -> str | None:
+    """Why this citation's receipt does not hold up, or None when it does.
+
+    `spec/artifact.md` § Checking an artifact, steps 2 and 3, in order: the
+    snippet must hash to the sha256 recorded beside it, the token's `hash`
+    segment must be a prefix of the hash of the snippet that token was *minted
+    from*, and the token's `slug` and `locator` must be the anchor's. Ordered
+    because a snippet that does not hash to its own sha256 makes every
+    comparison downstream meaningless — reporting one tampered snippet three
+    times would bury which byte moved.
+
+    The middle check is the one with a subtlety, and getting it wrong would flag
+    every drifted artifact as forged. A `drifted` citation's token names what
+    the author cited — `drifted_from` — while `anchor` carries what stands at
+    that locator *now*, so the two hashes are supposed to differ. `slug` and
+    `locator` are still the anchor's on both sides: drift is defined as the same
+    locator holding different text.
+    """
+    anchor = citation.anchor
+    assert anchor is not None  # callers filter; kept so the type is not a lie
+    digest = snippet_hash(anchor.receipt.snippet)
+    if digest != anchor.receipt.snippet_sha256:
+        return (
+            f"the snippet hashes to {digest[:16]}, "
+            f"the record says {anchor.receipt.snippet_sha256[:16]}"
+        )
+    try:
+        token = parse_token(citation.token)
+    except TokenError as error:
+        return f"the token does not parse: {error}"
+    cited = digest if citation.drifted_from is None else snippet_hash(citation.drifted_from)
+    if not cited.startswith(token.hash):
+        named = "the snippet" if citation.drifted_from is None else "drifted_from"
+        return f"the token's hash {token.hash} is not a prefix of {named}'s {cited[:16]}"
+    if token.slug != anchor.slug:
+        return f"the token names {token.slug}, the anchor is in {anchor.slug}"
+    located = format_locator(anchor.locator)
+    if format_locator(token.locator) != located:
+        return f"the token points at {format_locator(token.locator)}, the anchor at {located}"
+    return None
+
+
+def _against_sources(
+    report: BindReport, root: Path
+) -> list[tuple[Claim, Citation, Citation]]:
+    """Every citation re-resolved: the claim, what the record says, what the registry says.
+
+    `registry.citation_for` is the walk `bind` runs, so a status printed here is
+    the status a re-bind would print — with one gap, named rather than papered
+    over: `not_shown` cannot appear, because it is a fact about a ledger session
+    and verify opens none. A citation the record calls `not_shown` therefore
+    comes back `resolved` here, which is not a contradiction; it is the other
+    question being answered.
+    """
+    registry = Registry.open(root)
+    try:
+        return [
+            (claim, citation, citation_for(registry, citation.token))
+            for claim in report.claims
+            for citation in claim.citations
+        ]
+    finally:
+        registry.close()
+
+
+def _not_an_artifact(artifact: Path, error: Exception) -> str:
+    """Why this file could not be read as a record, and where the record may be.
+
+    A person or an agent reaching for `verify` usually has the document in hand,
+    not the record, so the common miss is `backdraft verify memo.md`. Naming the
+    file that *is* the record turns the refusal into the next command.
+    """
+    message = f"{artifact.name} is not a backdraft artifact: {error}"
+    beside = sidecar.find_sidecar(artifact)
+    rendered = artifact.with_name(artifact.stem + ARTIFACT_SUFFIX)
+    if beside is not None:
+        return f"{message}. Its record is {beside}"
+    if rendered.is_file():
+        return f"{message}. Its artifact is {rendered}"
+    return message
+
+
+def _where(claim: Claim) -> str:
+    """A line item's tail: the claim's own words and where they sit.
+
+    `bind`'s shape exactly (`cli_context.claim_words`) — the two commands report
+    on the same claims, and a reader who has read one report should not have to
+    learn a second layout.
+    """
+    return f"{claim_words(claim.text)} @{claim.start}"
+
+
+def _counts(by_status: dict[str, int]) -> str:
+    """`{status: n}` as one line: `resolved 17, unresolved 1`."""
+    pairs = sorted(by_status.items())
+    return ", ".join(f"{status} {count}" for status, count in pairs) or "none"
+
+
+def _tally(citations) -> dict[str, int]:  # noqa: ANN001 - an iterable of Citation
+    counts: dict[str, int] = {}
+    for citation in citations:
+        counts[str(citation.status)] = counts.get(str(citation.status), 0) + 1
+    return counts
+
+
+def _unmatched(report: BindReport) -> str:
+    """The backfill claims the record carries with no anchor at all.
+
+    Counted rather than listed, and never a line item: an unmatched claim is
+    something the record honestly says was never anchored, not something that
+    failed a check here.
+    """
+    count = sum(1 for claim in report.claims if claim.unmatched)
+    return f"; {count} unmatched claim(s)" if count else ""
 
 
 @theme_app.command("list")

@@ -101,11 +101,20 @@ An italic line directly under the # title becomes the artifact subtitle.
 
 backdraft bind memo.md --check value-trace,overlap
 backdraft render memo.md --to html          # -> memo.backdraft.html
+backdraft verify memo.backdraft.html        # check a record you were handed:
+                                            # snippets rehashed, tokens checked
+                                            # against their anchors, summary
+                                            # recounted. Plus, only when a
+                                            # .backdraft/ is found from cwd,
+                                            # every token re-resolved against
+                                            # the sources. Read-only: mints
+                                            # nothing, unlike `show`. Exit 2 if
+                                            # something did not verify.
 # Look: --theme <default|press|slate|file.toml>, else .backdraft/theme.toml
 # then ~/.config/backdraft/theme.toml. Display only; never a citation concern.
 # `backdraft theme list` / `theme show <name>` if the user asks about looks.
 
-## Exit codes (bind)
+## Exit codes (bind, verify)
 
 0 every citation resolved · 1 usage/environment error · 2 something did not
 resolve, act on it. Each line item reads
@@ -120,11 +129,19 @@ and mints a not_shown one so the next bind resolves. NEVER fix exit 2 by
 deleting the token; a kept failure is the honest outcome. Show the user the bind
 report verbatim.
 
+`verify` shares the codes and the line shape. Its 0 means everything it checked
+passed — not that every claim is supported, and not that the sources were
+looked at unless the `sources:` line says they were. A `! receipt:` line means
+the file was edited after it was written; report that first. A tier-two line
+ending `— the record says resolved` means the source moved since the document
+was bound: re-read and confirm, do not delete.
+
 ## Files
 
 memo.md (authored, yours) · memo.backdraft.html (the deliverable, document +
 receipts + evidence, one file, no network) · the record lives at
-.backdraft/records/<doc>.backdraft.json. `backdraft clean` tidies strays.
+.backdraft/records/<doc>.backdraft.json. `backdraft verify` reads either the
+artifact or the record. `backdraft clean` tidies strays.
 Verification (--check) is evidence, never a gate: a partial is not a problem
 to fix.
 

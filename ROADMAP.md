@@ -32,44 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. `backdraft verify <artifact>`: checking a receipt without the registry
-
-**Intent.** `skills/backdraft-artifact/SKILL.md` exists because there is no
-command: it walks an agent through opening a `.backdraft.json` or
-`.backdraft.html`, recomputing each `snippet_sha256`, and reporting claim
-statuses by hand. That is a deterministic check over a self-describing file,
-which is precisely the kind of thing that should not be a prose procedure an
-agent re-implements every time — and doing it by hand is how a recipient's
-check ends up weaker than the producer's. The artifact is the product; nothing in the
-tool reads one back.
-
-**Shape.** A new command in `render/cli.py` (which already owns the artifact's
-reader half through `sidecar.read`), taking the artifact or its sidecar.
-Two tiers, and the output must be explicit about which ran. Tier one needs
-nothing but the file: parse it against `kernel/artifact.py`'s format, recompute
-every `snippet_sha256` from the snippet the file carries, and confirm the
-`$format` and the claim/citation counts — this is the check a recipient with
-only the file can make, and it catches an edited artifact. Tier two runs only
-when a registry is discoverable: re-resolve each token through the same path
-`bind` uses and report the closed status set. Exit 0 when everything checked
-passed, 1 on a usage error, and — matching `bind` — 2 when something did not
-verify, so a hook can gate on it. Read-only: it opens no session and mints
-nothing, which is what distinguishes it from `read` and from `backdraft show`
-(landed 2026-08-12), whose whole point is that showing mints — an audit must not
-make its subject citable.
-
-**Acceptance.** `backdraft verify demo/memo.backdraft.html` from outside
-`demo/` reports tier one passing and says plainly that no registry was found,
-exiting 0. From inside `demo/` it also re-resolves and reports the one
-unresolved citation, exiting 2. A file with one snippet byte changed fails by
-naming the claim and the hash that did not match. A file that is not an
-artifact exits 1 saying so. `skills/backdraft-artifact/SKILL.md` is rewritten
-around the command, keeping the prose procedure only as the fallback for an
-agent that has no backdraft install.
-
-**Size.** Three days.
-
-### 2. `spec/registry.md`: the export format is normative, or it is not a format
+### 1. `spec/registry.md`: the export format is normative, or it is not a format
 
 **Intent.** `backdraft export` writes `"$format": "backdraft/registry-v1"`, a
 version string that promises a specification and does not have one. `spec/`
@@ -101,7 +64,7 @@ the spec is enough to say what each field means.
 
 **Size.** Two days.
 
-### 3. `search` says when it stopped short
+### 2. `search` says when it stopped short
 
 **Intent.** `backdraft search "the"` prints `20 results for "the"` whether there
 are twenty or two hundred: `--limit` defaults to 20, and the count line reports
@@ -138,7 +101,7 @@ than settle when the line says it was capped.
 
 **Size.** One day.
 
-### 4. The bind report says why a verifier skipped
+### 3. The bind report says why a verifier skipped
 
 **Intent.** A bind report prints `overlap: pass 11, skip 4` and stops. Four
 citations were not checked and the report does not say why, so a reader cannot
@@ -171,7 +134,7 @@ output, and the skill says a skip with a reason is not a hole to fix.
 
 **Size.** One day.
 
-### 5. `session show` says what the ledger holds
+### 4. `session show` says what the ledger holds
 
 **Intent.** The ledger is the mechanism the design rests on — the set of citable
 tokens is exactly the set the gate emitted — and nothing reads it back.
@@ -208,7 +171,7 @@ a stated tradeoff.
 
 **Size.** Two days.
 
-### 6. An unreadable source says what to do, not what errno it was
+### 5. An unreadable source says what to do, not what errno it was
 
 **Intent.** `ingest` now finishes its list and names each failure (2026-08-13),
 which turned the reason string into something a calling agent actually reads —
@@ -243,7 +206,7 @@ actionable so an agent surfaces them to the user rather than paraphrasing.
 
 **Size.** One day.
 
-### 7. A registry can forget a source
+### 6. A registry can forget a source
 
 **Intent.** Ingest is one-way. An agent working unattended over a folder — which
 is now the normal case, since `ingest` finishes its list — will ingest something
@@ -282,7 +245,7 @@ registry never actually shrinks.
 
 **Size.** Three days.
 
-### 8. Bind's markdown names a fetched source by a file nobody has
+### 7. Bind's markdown names a fetched source by a file nobody has
 
 **Intent.** The 2026-08-18 row made `gate.source_name` the one owner of what a
 source is called and named the one surface it could not reach — bind, because
@@ -323,7 +286,7 @@ should say how.
 
 **Size.** Two days.
 
-### 9. A web page has a name, and `read` shows it the navigation menu instead
+### 8. A web page has a name, and `read` shows it the navigation menu instead
 
 **Intent.** `backdraft read franklin-county` — the demo's own web source —
 prints `p1  Franklin County, Ohio - Wikipedia  Jump to content Main menu Main
@@ -365,7 +328,7 @@ blocks and `README.md`'s show the real output. DESIGN row.
 
 **Size.** Three days.
 
-### 10. A page read has no budget and no closing line
+### 9. A page read has no budget and no closing line
 
 **Intent.** `backdraft read franklin-county p1` prints 36,442 characters and
 stops, with nothing to say how much that was or whether it was all of it — it
@@ -403,7 +366,7 @@ the agent to continue rather than assume it saw the page. DESIGN row.
 
 **Size.** Two days.
 
-### 11. The thin-source signal exists only in the ingest that printed it
+### 10. The thin-source signal exists only in the ingest that printed it
 
 **Intent.** 2026-08-20 gave `ingest` a character count and a `note: little text
 extracted` naming the likely cause — the signal that a source is a shell and
@@ -437,7 +400,7 @@ document list is where it learns this, not only the ingest it may not have run.
 
 **Size.** Two days.
 
-### 12. What a URL will be called, before the answer is permanent
+### 11. What a URL will be called, before the answer is permanent
 
 **Intent.** Three docs now tell an agent to pass `--slug` when it ingests a URL,
 because a slug is permanent once tokens carry it and the default may name a

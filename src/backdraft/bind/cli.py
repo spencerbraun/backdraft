@@ -57,6 +57,7 @@ from ..cli_context import (
     EXIT_UNRESOLVED,
     EXIT_USAGE,
     UsageError,
+    claim_words,
     guard,
     open_registry,
     resolve_session,
@@ -69,12 +70,8 @@ __all__ = ["app", "bind", "EXIT_USAGE", "EXIT_UNRESOLVED"]
 
 app = typer.Typer(help="Bind an authored document against the registry.")
 
-CLAIM_WIDTH = 80
-"""Characters of a claim's own words carried onto a report line item.
-
-Enough to recognize the sentence in the document, short enough that a run with
-several line items still reads as a list.
-"""
+# The line-item shape — the claim's own words, collapsed to one line — is shared
+# with `verify`, so `claim_words` lives in `cli_context` with the exit codes.
 
 
 @app.command("bind")
@@ -147,11 +144,11 @@ def _print_report(report, doc: Path, *, bound: bool = False, record: Path | None
         reason = f" — {citation.error}" if citation.error else ""
         typer.echo(
             f"  ! {citation.status}: {citation.token}{reason}"
-            f" — {_claim_text(claim.text)} @{claim.start}"
+            f" — {claim_words(claim.text)} @{claim.start}"
         )
     for claim in report.claims:
         if claim.unmatched:
-            typer.echo(f"  ! unmatched: {_claim_text(claim.text)}")
+            typer.echo(f"  ! unmatched: {claim_words(claim.text)}")
     if bound:
         typer.echo(f"wrote {bound_path(doc)}")
     typer.echo(f"wrote {_as_typed(record or sidecar_path(doc))}")
@@ -180,16 +177,6 @@ def _line_items(report) -> Iterator[tuple[Claim, Citation]]:  # noqa: ANN001 - B
                 continue
             seen.add(key)
             yield claim, citation
-
-
-def _claim_text(text: str) -> str:
-    """A claim's words as one line of report: collapsed to `CLAIM_WIDTH`.
-
-    A claim span may wrap across source lines, and a line item that wraps stops
-    being one line item — the report's shape is what makes it greppable.
-    """
-    collapsed = " ".join(text.split())
-    return collapsed[:CLAIM_WIDTH] if collapsed else "(no claim text)"
 
 
 def _as_typed(path: Path) -> Path:

@@ -29,6 +29,7 @@ from typing import Any
 
 from ..kernel.artifact import (  # noqa: F401  (re-exported: the format is kernel-owned)
     FORMAT,
+    ISLAND_ID,
     LEGEND,
     SIDECAR_SUFFIX,
     dumps,
@@ -50,12 +51,15 @@ from ..kernel.tokens import parse_locator
 
 __all__ = [
     "FORMAT",
+    "ISLAND_ID",
     "LEGEND",
     "SIDECAR_SUFFIX",
     "sidecar",
     "dumps",
     "write",
     "read",
+    "read_payload",
+    "island",
     "to_report",
     "sidecar_path",
     "find_sidecar",
@@ -74,6 +78,57 @@ def read(path: Path) -> BindReport:
     Raises `ValueError` if the file is not a payload of this exact format.
     """
     return to_report(json.loads(path.read_text(encoding="utf-8")))
+
+
+def read_payload(path: Path) -> dict[str, Any]:
+    """The record inside either half of the artifact, as the payload dict.
+
+    A `.backdraft.json` *is* the payload; a `.backdraft.html` carries the same
+    object in its record island. Both are accepted because both are what a
+    reader gets handed, and which one arrived says nothing about what may be
+    asked of it — the HTML is the half people forward, and refusing it would
+    make the readable half the unreadable one.
+
+    Decided by content, not by extension: the file is parsed as JSON, and only
+    a file that is not JSON is looked at as a page. So a sidecar someone renamed
+    still reads, and a file that is neither raises `ValueError` naming what it
+    was expected to be rather than a parser's complaint about byte 1.
+    """
+    text = path.read_text(encoding="utf-8")
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        payload = island(text)
+    if not isinstance(payload, dict):
+        kind = type(payload).__name__
+        raise ValueError(f"{path.name} holds no artifact payload (found a bare {kind})")
+    return payload
+
+
+def island(page: str) -> dict[str, Any]:
+    """The record island of a rendered artifact: `<script … id="…">` to `</script>`.
+
+    The island's bytes are JSON, escaped so that no snippet can close the
+    element (`<` `>` `&` written as `\u003c` `\u003e` `\u0026`) — which a JSON
+    parser undoes on its own. Nothing is HTML-unescaped: there are no entities
+    in there to undo, and doing it anyway would corrupt any snippet that quotes
+    an ampersand. `spec/artifact.md` § The HTML artifact is the normative
+    statement; `ISLAND_ID` is the kernel's copy of where to look.
+    """
+    head = f'<script type="application/json" id="{ISLAND_ID}">'
+    _, found, rest = page.partition(head)
+    if not found:
+        raise ValueError(
+            f"it is neither JSON nor a page carrying a <script id=\"{ISLAND_ID}\"> "
+            "record island"
+        )
+    body, closed, _ = rest.partition("</script>")
+    if not closed:
+        raise ValueError(f"the {ISLAND_ID} island is unterminated")
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"the {ISLAND_ID} island is not valid JSON: {error}") from error
 
 
 def to_report(payload: dict[str, Any]) -> BindReport:

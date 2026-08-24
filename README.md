@@ -168,6 +168,29 @@ memo.backdraft.html
 That file is the whole deliverable: send it over email or Slack and the
 recipient gets the full experience by double-clicking it.
 
+**The recipient can check it.** `backdraft verify` takes the artifact or its
+sidecar and does the checking that the file is built to make possible: every
+snippet rehashed against the sha256 recorded beside it, every token checked
+against the anchor it names, `summary` recounted from the claims.
+
+```console
+$ backdraft verify memo.backdraft.html
+checked memo.backdraft.html [backdraft/artifact-v1]
+  receipts: 17 of 17 hold
+  record: 17 claim(s), 18 citation(s); the summary recount agrees
+  recorded: resolved 17, unresolved 1
+  sources: no .backdraft/ found from here — not re-checked
+[Re-check against the sources: run this inside the project it was bound in.]
+```
+
+That first tier needs nothing but the file, which is the point — it is the check
+someone who was emailed the artifact can still make. Run it inside the project
+the document was bound in and it also re-resolves every citation against the
+registry, so a source that has changed since shows up as `drifted` rather than
+going unnoticed. Exit 0 when everything it checked passed, 2 when something did
+not, so a hook can gate on it. It opens no session and mints nothing: an audit
+must not make its subject citable.
+
 **Theming.** The artifact ships with a default look and two alternates,
 `press` and `slate`:
 
@@ -321,7 +344,7 @@ Three agent skills ship inside the package and in this repo:
 |---|---|
 | [`backdraft`](skills/backdraft/SKILL.md) | writing a new document from sources, citing as it goes |
 | [`backdraft-backfill`](skills/backdraft-backfill/SKILL.md) | attributing a document that already exists |
-| [`backdraft-artifact`](skills/backdraft-artifact/SKILL.md) | reading someone else's artifact cold |
+| [`backdraft-artifact`](skills/backdraft-artifact/SKILL.md) | checking and reading someone else's artifact cold |
 
 The CLI is the system; a skill is one page telling an agent to use it. Nothing in
 the skills is required to use backdraft by hand. How the skills reach your agent

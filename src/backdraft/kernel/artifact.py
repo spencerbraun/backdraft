@@ -25,6 +25,7 @@ from .model import BindReport
 
 __all__ = [
     "FORMAT",
+    "ISLAND_ID",
     "LEGEND",
     "ARTIFACT_SUFFIX",
     "BOUND_SUFFIX",
@@ -40,6 +41,18 @@ __all__ = [
 
 FORMAT = "backdraft/artifact-v1"
 """The artifact format string. Readers match it exactly; see `LEGEND["version"]`."""
+
+ISLAND_ID = "backdraft-artifact"
+"""The id of the HTML artifact's record island.
+
+Where the payload sits inside a `.backdraft.html` — `<script
+type="application/json" id="backdraft-artifact">` — and therefore how a reader
+finds it, which makes it format rather than markup (spec/artifact.md § The HTML
+artifact fixes it, and § Naming's argument applies unchanged). Kernel-owned for
+the same reason as the suffixes: the renderer writes it and the reader looks for
+it, and a constant kept on the writing side would be a reader importing a
+renderer to find out where to look.
+"""
 
 # ---- the naming family ------------------------------------------------------
 #
@@ -187,15 +200,22 @@ LEGEND: dict[str, Any] = {
     ),
     "verify_this_record": [
         "1. For every citation carrying an `anchor`, recompute sha256 over the "
-        "normalized `snippet`: it must equal `anchor.snippet_sha256`, and the `hash` "
-        "segment of `token` must be a prefix of it.",
-        "2. The `slug` and `locator` segments of `token` must equal `anchor.slug` and "
-        "`anchor.locator`.",
-        "3. Recount `summary` from `claims`.",
-        "Steps 1 to 3 need nothing but this object. If you also hold the source "
+        "normalized `anchor.snippet`: it must equal `anchor.snippet_sha256`.",
+        "2. The `hash` segment of `token` must be a prefix of the sha256 of the "
+        "snippet that token was minted from. For a citation carrying "
+        "`drifted_from` that is `drifted_from` — the token names what the author "
+        "cited, while `anchor` carries what stands at that locator now, so the two "
+        "hashes are meant to differ. For every other citation it is "
+        "`anchor.snippet`.",
+        "3. The `slug` and `locator` segments of `token` must equal `anchor.slug` and "
+        "`anchor.locator` — drift keeps the locator and changes the text, so this "
+        "holds either way.",
+        "4. Recount `summary` from `claims`.",
+        "Steps 1 to 4 need nothing but this object. If you also hold the source "
         "documents, look `locator` up in the document named by `slug` and compare its "
         "text against `snippet`; that is the only check this record cannot make of "
-        "itself.",
+        "itself. `backdraft verify <this file>` runs all of it, and runs the source "
+        "check too wherever a registry is at hand.",
     ],
     "evidence": (
         "Optional. Evidence context for the cited sources, bounded by what is cited "

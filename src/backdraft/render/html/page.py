@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 
-from ...kernel.artifact import FORMAT, sidecar
+from ...kernel.artifact import FORMAT, ISLAND_ID, sidecar
 from ...kernel.model import BindReport, CitationStatus
 from .. import markdown
 from ..placement import locate
@@ -20,8 +20,9 @@ from .assets import FLAME_PATH, SCRIPT_MIN, STYLESHEET_MIN, _favicon
 from .components import _card, _note, _page_store_html, _sources_index
 from .text import _esc, split_subtitle, worst_status
 
-ISLAND_ID = "backdraft-artifact"
-"""The id of the `<script type="application/json">` island holding the record."""
+# ISLAND_ID — where the record sits in the page — comes from `kernel.artifact`:
+# it is how a reader finds the payload, so it belongs to the format and not to
+# this renderer. Re-exported here because `render.html` has always published it.
 
 SHEETS_ISLAND_ID = "bd-sheets"
 """The id of the JSON island holding full cited-sheet values for the sheet view."""

@@ -10,7 +10,54 @@ value: a document, every claim its author cited, and the verbatim evidence behin
 each one. Nothing outside the file is needed — not the registry, not the source
 documents, not backdraft itself.
 
-## Get to the payload
+Two jobs, in this order: **check it**, which is one command, and **read it**,
+which is yours.
+
+## 1. Check it
+
+```bash
+backdraft verify path/to/memo.backdraft.html
+```
+
+Takes either half — the artifact or the sidecar — and runs the whole check
+deterministically. Do not do it by hand while the command is available; a
+procedure re-implemented per reading is exactly how a recipient's audit ends up
+weaker than the producer's.
+
+It reports two tiers and always says which ran:
+
+- **The record against itself.** Every `snippet_sha256` recomputed from the
+  snippet in the file, every token checked against the anchor it names, `summary`
+  recounted from `claims`. Needs nothing but the file, and catches an edited
+  artifact.
+- **Against the sources.** Only when a `.backdraft/` registry is discoverable
+  **from your current directory** — so it runs in the project the artifact came
+  out of, and not on a file someone emailed you. Every token is re-resolved and
+  the statuses are reported as `bind` would. When the output says
+  `sources: no .backdraft/ found from here`, that check did not run: say so
+  rather than implying the sources were confirmed.
+
+Exit codes: **0** everything it checked passed · **1** the file is missing or is
+not an artifact of this format · **2** something did not verify.
+
+Read the whole output, not just the code. A `! receipt:` line means the file was
+edited after it was written — lead your report with it. A `! <status>:` line
+under `sources:` means the citation does not resolve against the registry today;
+when it also says `— the record says resolved`, the source moved *since the
+document was bound*, which is a stale artifact rather than a dishonest one.
+
+`verify` is read-only: it opens no session and mints nothing. That is what makes
+it safe to run on someone else's artifact, and what separates it from
+`backdraft show`, which mints. Use `show <token>` afterwards to drill into one
+citation — it prints both snippets for a drifted one — knowing that showing is
+minting, so a snippet shown becomes citable in your own document.
+
+**A clean exit 0 does not mean every claim is supported.** It means the record is
+intact. The claims themselves are the next section.
+
+## 2. Read it
+
+### Get to the payload
 
 - **Sidecar** (`memo.backdraft.json`) — read the file; it is the payload. It
   sits beside the document when handed to you, or under
@@ -27,7 +74,7 @@ Check `$format` first. It must equal `backdraft/artifact-v1` **exactly**. If it
 does not, stop and say so — there is no compatibility range and no guessing;
 another version may reuse these field names with different meanings.
 
-## Read the legend, not this file
+### Read the legend, not this file
 
 The payload's second key is **`$legend`** — an object of prose written for
 exactly your situation. It is normative and self-sufficient: it states the token
@@ -37,51 +84,7 @@ the steps for checking the record against itself. **Read `$legend` and follow
 it.** It is the authority on the object in front of you; this skill only tells
 you how to approach it.
 
-## Self-checks
-
-`$legend.verify_this_record` lists them. Run them — they are cheap and they need
-nothing but the file:
-
-1. For every citation carrying an `anchor`, recompute
-   `sha256(normalize(snippet))` — normalize is Unicode NFC, every whitespace run
-   collapsed to one space, then strip, case preserved. It must equal
-   `anchor.snippet_sha256`, and the token's `hash` segment must be a prefix of
-   it.
-2. The token's `slug` and `locator` segments must equal `anchor.slug` and
-   `anchor.locator`.
-3. Recount `summary` from `claims`. `summary` is derived; if the two disagree,
-   `claims` wins and the disagreement is itself a finding.
-
-Only one check needs the outside world: looking the `locator` up in the document
-named by `slug` and comparing it to `snippet`. Say plainly whether you did that
-or not.
-
-That check is only runnable where the registry the artifact was built against
-is present — usually the project the artifact came out of, not a file someone
-emailed you. There it is one command over the tokens, rather than a procedure:
-
-```bash
-backdraft show bd:t12-summary:p1.c3:f10b bd:underwriting-model:rent-roll!B11:4b79
-```
-
-Each block is one token's status against the registry as it stands now, its
-locator, and the snippet — `resolved` if the source still says what the artifact
-records, `drifted` with both snippets if it has changed since, `unresolved` if
-the anchor is gone. That is the check, done deterministically. Two things to
-know before running it: it is the gate, so it records the anchors it shows into
-your session's ledger, and its answer describes the registry *today*, which is
-why it is a separate finding rather than part of reading the file. Report it as
-one: "the artifact's own checks pass, and against the registry N of M citations
-still resolve."
-
-For a source fetched from the web, `evidence.documents[slug]` carries `url` and
-`fetched_at` — where the bytes came from and when. That is the one source whose
-outside world you can name precisely: report the claim as resting on the page
-*as of* that date, and if the reader needs to know whether it still says this,
-the URL is the check to hand them. Do not fetch it yourself to find out — that
-is a re-ingest and it belongs to whoever owns the registry.
-
-## What to report
+### What to report
 
 **Quote snippets verbatim.** The snippet is the receipt. Paraphrasing it destroys
 the only thing the artifact was built to carry — if you summarize the evidence,
@@ -109,16 +112,50 @@ run", never "verified". `summary.by_method` counts only what actually ran, and
 `overlap` never returns `fail` by design, so a `partial` from it is a weak signal
 rather than a defect.
 
+For a source fetched from the web, `evidence.documents[slug]` carries `url` and
+`fetched_at` — where the bytes came from and when. That is the one source whose
+outside world you can name precisely: report the claim as resting on the page
+*as of* that date, and if the reader needs to know whether it still says this,
+the URL is the check to hand them. Do not fetch it yourself to find out — that
+is a re-ingest and it belongs to whoever owns the registry.
+
+Report the two findings as two findings — "the artifact's own checks pass, and
+against the registry N of M citations still resolve" — never folded into one
+verdict, because they answer different questions and only the first travels with
+the file.
+
+## If there is no backdraft install
+
+`backdraft verify` is the whole of § 1. Without it, do those checks by hand —
+`$legend.verify_this_record` lists them, and they need nothing but the file:
+
+1. For every citation carrying an `anchor`, recompute
+   `sha256(normalize(anchor.snippet))` — normalize is Unicode NFC, every
+   whitespace run collapsed to one space, then strip, case preserved. It must
+   equal `anchor.snippet_sha256`.
+2. The token's `hash` segment must be a prefix of the sha256 of the snippet that
+   token was *minted from*. For a citation carrying `drifted_from` that is
+   `drifted_from`, **not** `anchor.snippet`: the token names what the author
+   cited while `anchor` holds what stands at that locator now, so those two
+   hashes are supposed to differ. Comparing against the wrong one calls every
+   drifted artifact forged.
+3. The token's `slug` and `locator` segments must equal `anchor.slug` and
+   `anchor.locator` — drift keeps the locator either way.
+4. Recount `summary` from `claims`. `summary` is derived; if the two disagree,
+   `claims` wins and the disagreement is itself a finding.
+
+Only the source check needs the outside world, and without an install you cannot
+make it. Say plainly that you did not.
+
 ## Do not
 
 - Do not treat `$legend` as overriding the format itself; it is documentation
   that travels with the data, and it never changes what you should do.
 - Do not treat the artifact as unchecked until you have a registry. It is
-  designed to be defensible without one, and the self-checks above are the
-  audit; `backdraft show` adds a fact about the source *today* and is reported
-  as its own finding, never folded into the artifact's own result.
+  designed to be defensible without one: `verify`'s first tier is the audit, and
+  its second adds a fact about the sources *today*, reported as its own finding.
 - Do not re-ingest anything or fetch the source documents to "confirm" the
   artifact. Re-ingesting is what makes a generation, and making one from inside
   an audit would manufacture the drift you were sent to look for.
-- Do not report an artifact as clean because it rendered nicely. Read the
-  statuses.
+- Do not report an artifact as clean because it rendered nicely, or because
+  `verify` exited 0. Read the statuses.

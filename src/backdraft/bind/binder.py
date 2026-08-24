@@ -59,7 +59,7 @@ from ..kernel.model import (
     Claim,
 )
 from ..kernel.tokens import format_locator
-from ..registry import current_at
+from ..registry import citation_for
 from . import evidence as evidence_module
 from .verify.base import Verifier, selected
 from .verify.value_trace import extract_values
@@ -284,35 +284,29 @@ def _resolve_citation(
 ) -> Citation:
     """One citation's status, from the closed set.
 
+    `registry.citation_for` does the lookup — the same walk `verify` runs over
+    an artifact, kept in one place — and this adds the one status that lookup
+    cannot reach: `not_shown` is a fact about *this* run's ledger session, not
+    about the registry, so it is asked here and only in front-walk mode.
+
     `malformed` is already decided by the kernel and is never revisited: a
-    token that does not parse cannot be looked up.
+    token that does not parse cannot be looked up. The early return keeps the
+    citation the claim parser built, so the reason it gives is the authored
+    one.
     """
     if citation.status is CitationStatus.MALFORMED:
         return citation
-    resolution = registry.resolve(citation.token)
-    if resolution is None:
-        return Citation(token=citation.token, status=CitationStatus.UNRESOLVED)
-    anchor = resolution.anchor
-    if not resolution.current:
-        # The drift contract (kernel fixture, spec/artifact.md): `drifted_from`
-        # is the snippet the writer cited; `anchor` is what stands at that
-        # locator now, which `registry.current_at` answers off the current
-        # generation. When the locator itself is gone, the cited anchor stands
-        # in and the two sides of the diff agree — still `drifted`, because the
-        # token no longer resolves against the current generation.
-        current = current_at(registry, anchor)
+    resolved = citation_for(registry, citation.token)
+    if (
+        resolved.status is CitationStatus.RESOLVED
+        and mode == "frontwalk"
+        and session_id is not None
+        and not registry.was_shown(session_id, citation.token)
+    ):
         return Citation(
-            token=citation.token,
-            status=CitationStatus.DRIFTED,
-            anchor=current or anchor,
-            drifted_from=anchor.receipt.snippet,
+            token=citation.token, status=CitationStatus.NOT_SHOWN, anchor=resolved.anchor
         )
-    if mode == "frontwalk" and session_id is not None:
-        if not registry.was_shown(session_id, citation.token):
-            return Citation(
-                token=citation.token, status=CitationStatus.NOT_SHOWN, anchor=anchor
-            )
-    return Citation(token=citation.token, status=CitationStatus.RESOLVED, anchor=anchor)
+    return resolved
 
 
 # --- backfill --------------------------------------------------------------

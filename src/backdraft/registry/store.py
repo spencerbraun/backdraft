@@ -35,7 +35,17 @@ from ..extract import ExtractedPage, base as extract_base
 from ..kernel import chunking
 from ..kernel.errors import BackdraftError, TokenError
 from ..kernel.hashing import TOKEN_HASH_LENGTHS, config_hash, content_hash, snippet_hash
-from ..kernel.model import Anchor, CellValue, Document, MediaType, Page, Receipt
+from ..kernel.claims import parse_citation
+from ..kernel.model import (
+    Anchor,
+    CellValue,
+    Citation,
+    CitationStatus,
+    Document,
+    MediaType,
+    Page,
+    Receipt,
+)
 from ..kernel.tokens import ChunkLocator, PageLocator, format_token
 from ..kernel.tokens import parse as parse_token
 from ..kernel.tokens import parse_locator
@@ -53,6 +63,7 @@ __all__ = [
     "Resolution",
     "SearchHit",
     "SearchResults",
+    "citation_for",
     "current_at",
     "media_type_for",
     "sanitize_sheet_name",
@@ -242,6 +253,48 @@ def current_at(registry: "Registry", anchor: Anchor) -> Anchor | None:
         if candidate.locator == anchor.locator:
             return candidate
     return None
+
+
+def citation_for(registry: "Registry", token: str) -> Citation:
+    """What one token says against this registry, with no session in the picture.
+
+    The token-to-status walk, in one place. `bind` takes it to resolve a
+    document's citations and `verify` takes it to re-check an artifact against
+    the sources, and the dependency rule forbids either importing the other —
+    which is how one six-line decision tree becomes two. So it lives beside
+    `current_at`, for the same reason and by the same rule: a module function
+    that composes the pinned surface without widening it.
+
+    Four of the five statuses come back. `malformed` is decided by
+    `kernel.claims.parse_citation`, the same call bind's kernel step makes, so
+    the reserved `bd:calc(...)` form lands identically everywhere; `drifted`
+    carries the superseded snippet in `drifted_from` and the anchor standing at
+    that locator now (or, when the locator itself is gone, the cited one, so the
+    two sides of the diff agree). `not_shown` is deliberately absent: it is a
+    fact about a ledger session, and the caller that has one adds it — see
+    `bind.binder._resolve_citation`.
+
+    NOTE: the gate's `show` walks the same tree and keeps its own copy, on
+    purpose. It mints what it prints, and a drift mints *both* anchors — the
+    cited one and the one standing there now — which a `Citation` cannot carry:
+    it holds one anchor and the other side's snippet. Folding `show` in here
+    would mean widening the return value for the one caller that needs more.
+    """
+    citation = parse_citation(token)
+    if citation.status is CitationStatus.MALFORMED:
+        return citation
+    resolution = registry.resolve(token)
+    if resolution is None:
+        return Citation(token=token, status=CitationStatus.UNRESOLVED)
+    anchor = resolution.anchor
+    if resolution.current:
+        return Citation(token=token, status=CitationStatus.RESOLVED, anchor=anchor)
+    return Citation(
+        token=token,
+        status=CitationStatus.DRIFTED,
+        anchor=current_at(registry, anchor) or anchor,
+        drifted_from=anchor.receipt.snippet,
+    )
 
 
 class Registry:

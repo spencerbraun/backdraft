@@ -243,7 +243,10 @@ backdraft show bd:report:p4.c2:7f11 <span class="dim"># what does this token say
 
 <span class="dim"># write claims as links, then bind and render</span>
 backdraft bind memo.md --check value-trace,overlap
-backdraft render memo.md --to html <span class="dim"># -&gt; memo.backdraft.html</span></pre>
+backdraft render memo.md --to html <span class="dim"># -&gt; memo.backdraft.html</span>
+
+<span class="dim"># check one you were handed — the artifact or its record</span>
+backdraft verify memo.backdraft.html</pre>
 <div class="note">In practice the reading and writing steps are an agent's:
 you ask for a cited memo, the <a
 href="https://github.com/spencerbraun/backdraft/blob/main/skills/backdraft/SKILL.md">backdraft
@@ -265,16 +268,17 @@ skill</a> imposes the gate, and you receive the artifact.</div>
 <tr><td><code>session start|show</code></td><td>Ledger sessions; export <code>BACKDRAFT_SESSION</code> to enable <code>not_shown</code> detection.</td></tr>
 <tr><td><code>bind &lt;doc.md&gt;</code></td><td>Resolve every citation, run <code>--check</code> verifiers, assemble evidence, write the record. <code>--session</code>, <code>--mode frontwalk|backfill</code>, <code>--lean</code> (skip page images), <code>--bound</code> (also write the markdown projection).</td></tr>
 <tr><td><code>render &lt;doc.md&gt;</code></td><td>The artifact. <code>--to html|footnotes|json</code>, <code>-o</code>, <code>--theme</code> (see <a href="#theming">Theming</a>).</td></tr>
+<tr><td><code>verify &lt;artifact&gt;</code></td><td>Check a record: the <code>.backdraft.html</code> artifact or its <code>.backdraft.json</code> sidecar. Two tiers, and the output says which ran. Against itself, needing nothing but the file: every <code>snippet_sha256</code> recomputed, every token checked against the anchor it names, <code>summary</code> recounted from <code>claims</code>. Against the sources, only where a <code>.backdraft/</code> is discoverable <em>from the current directory</em> — an artifact is a file people forward, so where it landed says nothing about which registry produced it: every token re-resolved and reported as <code>bind</code> would. Read-only — no session, no minting, so an audit never makes its subject citable. Exit 2 when something did not verify; a record that faithfully carries an <code>unresolved</code> citation still passes.</td></tr>
 <tr><td><code>theme list|show</code></td><td>List the bundled themes and which one is in effect; print one (validated) to stdout. See <a href="#theming">Theming</a>.</td></tr>
 <tr><td><code>clean [dir]</code></td><td>Tidy a working directory: relocate stray records, remove leftover projections. Never touches authored files or artifacts.</td></tr>
 <tr><td><code>export</code></td><td>The whole registry as JSON.</td></tr>
 </table>
-<h3>Bind exit codes</h3>
+<h3>Bind and verify exit codes</h3>
 <table>
 <tr><th>Code</th><th>Means</th></tr>
-<tr><td><code>0</code></td><td>Every citation resolved.</td></tr>
-<tr><td><code>1</code></td><td>Usage or environment error.</td></tr>
-<tr><td><code>2</code></td><td>Bind completed and something did not resolve, the code a CI job or Stop-hook gates on. Verification verdicts never produce it.</td></tr>
+<tr><td><code>0</code></td><td>Every citation resolved; for <code>verify</code>, everything it checked passed.</td></tr>
+<tr><td><code>1</code></td><td>Usage or environment error — for <code>verify</code>, a file that is missing or is not an artifact of this format.</td></tr>
+<tr><td><code>2</code></td><td>The run completed and did not come out clean: <code>bind</code> with something unresolved, <code>verify</code> with a receipt that did not hold or a citation that no longer resolves. This is the code a CI job or Stop-hook gates on, so a hook written for one catches the other. Verification verdicts (<code>--check</code>) never produce it.</td></tr>
 </table>
 </section>
 

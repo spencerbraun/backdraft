@@ -545,7 +545,67 @@ file, so redirecting it is how you start your own:
 backdraft theme show default > ~/.config/backdraft/theme.toml
 ```
 
-## 10. Fixing the failure
+## 10. Verify — the check the recipient can make
+
+Everything above is the producer's side. The artifact exists so that whoever
+receives it does not have to take any of it on trust, and `verify` is that check
+as one command rather than a procedure to re-implement.
+
+```bash
+backdraft verify memo.backdraft.html
+echo "exit: $?"
+```
+
+```
+checked memo.backdraft.html [backdraft/artifact-v1]
+  receipts: 17 of 17 hold
+  record: 17 claim(s), 18 citation(s); the summary recount agrees
+  recorded: resolved 17, unresolved 1
+  sources: re-resolved against /…/demo — resolved 17, unresolved 1
+  ! unresolved: bd:t12-summary:p4.c1:1a2b — replacement reserve of $250 per unit per year @3629
+exit: 2
+```
+
+Two tiers, and the report always names which one ran.
+
+**The record against itself** is the first three lines, and it needs nothing but
+the file: every snippet rehashed and compared to the `snippet_sha256` recorded
+beside it, every token checked against the anchor it names, `summary` recounted
+from `claims`. Edit one byte of one snippet and that line reads `16 of 17`, with
+a `! receipt:` item naming the claim and both hashes.
+
+**Against the sources** is the fourth line, and it happens here only because
+this directory has a registry. Copy the artifact somewhere else — which is what
+sending it to somebody is — and the same command says so instead:
+
+```
+checked memo.backdraft.html [backdraft/artifact-v1]
+  receipts: 17 of 17 hold
+  record: 17 claim(s), 18 citation(s); the summary recount agrees
+  recorded: resolved 17, unresolved 1
+  sources: no .backdraft/ found from here — not re-checked
+[Re-check against the sources: run this inside the project it was bound in.]
+exit: 0
+```
+
+Note the exit codes: 2 here, 0 there, over the same bytes. They are not
+inconsistent — they answer different questions. Tier one passed both times;
+what the registry says about the sources *today* is a fact this directory has
+and an inbox does not. The lookup is deliberately from the current directory
+rather than from the artifact's own, because an artifact is a file people
+forward and the folder it landed in proves nothing about which registry
+produced it.
+
+`recorded: resolved 17, unresolved 1` is a third fact and is neither check: it
+is what the producer found, carried faithfully. A kept failure is the record
+working, which is why the copy in an inbox exits 0 while carrying an unresolved
+citation in plain sight.
+
+Verify opens no session and mints nothing — unlike `show` in the next section,
+which is the gate. An audit that minted would make its own subject citable,
+which is exactly backwards.
+
+## 11. Fixing the failure
 
 Start by asking the token itself. `show` is the inverse of minting: hand it a
 token from anywhere — a bind report, an artifact, a draft — and it says what

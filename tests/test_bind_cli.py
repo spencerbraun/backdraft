@@ -8,6 +8,7 @@ import pytest
 from fakes import FakeAnchorRegistry
 from typer.testing import CliRunner
 
+from backdraft import cli_context
 from backdraft.bind import cli as bind_cli
 from backdraft.bind.binder import bound_path, sidecar_path
 from backdraft.registry import DIRECTORY
@@ -193,7 +194,7 @@ def test_a_long_claim_is_truncated_like_the_unmatched_line(tmp_path, fake_bind_r
     words = "Replacement reserves are underwritten at two hundred and fifty dollars per unit per year"
     doc = write(tmp_path, f"[{words}](bd:ghost:p1.c1:0000).\n")
     result = run(str(doc), "--session", "s1")
-    assert f"— {words[:bind_cli.CLAIM_WIDTH]} @0" in result.output
+    assert f"— {words[:cli_context.CLAIM_WIDTH]} @0" in result.output
     assert words not in result.output
 
 

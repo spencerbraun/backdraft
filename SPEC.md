@@ -76,7 +76,7 @@ backdraft/
       theme.py              # the artifact's look: TOML in, one CSS override block out
       themes/               # the bundled themes, as the same files a user would write
       _text.py              # presentation helpers both renderers share (status prose, elision)
-      cli.py                # `render` — mounted by the top-level cli
+      cli.py                # `render` + `verify` — mounted by the top-level cli
     fetch.py                # the whole network surface: one bounded GET over http(s), stdlib only
     cli.py                  # typer entry; owns discovery, sessions, the network, and the mounts
   skills/
@@ -286,6 +286,7 @@ All switches **default off** (`--check` opts in). Verdicts are recorded evidence
 - `--to footnotes` → plain markdown projection. `--to json` → sidecar alone.
 - `--theme <name|file>` restyles the html artifact — a TOML file of colors, font stacks and heading treatment, resolved by `render/theme.py` into one CSS block emitted *after* the stylesheet (so an unthemed render is byte-identical to one from before themes existed). Precedence: `--theme` > project `.backdraft/theme.toml` > XDG `~/.config/backdraft/theme.toml` > built-in. `backdraft theme list` names the bundled themes and which file is in effect; `theme show <name|file>` prints one, validated, so redirecting `show default` bootstraps a commented starting file and `show ./mine.toml` lints one. Display only: no token, receipt or record moves, and layout is outside the allowlist.
 - Artifact format string: `backdraft/artifact-v1` (prose spec in spec/artifact.md).
+- `verify <artifact>` is the reader half made a command: it takes the `.backdraft.html` or the `.backdraft.json` and runs spec/artifact.md § Checking an artifact — every `snippet_sha256` recomputed, every token checked against the anchor it names (against `drifted_from` where there is one), `summary` recounted. Where a registry is discoverable from cwd it also re-resolves every token through `registry.citation_for`, the walk `bind` takes, and reports the statuses. Read-only: no session, no minting, so an audit never makes its subject citable.
 
 ## CLI (cli.py — typer)
 
@@ -298,18 +299,19 @@ backdraft search "<query>" [--in slug]
 backdraft show <token>...           # gate: what does this token say?
 backdraft bind <doc.md> [--session S] [--check ...] [--mode ...]
 backdraft render <doc.md> [--to html|footnotes|json] [-o out] [--theme name|file]
+backdraft verify <artifact>          # check a record: receipts, then the sources
 backdraft theme [list|show <name|file>]
 backdraft export [--out registry.json]
 backdraft session [start|show] 
 ```
 
-Registry discovery: nearest `.backdraft/` walking up from cwd, `BACKDRAFT_HOME` override. Exit codes: 0 clean; 1 usage/env error; 2 bind completed with non-resolved citations (so hooks can gate on it).
+Registry discovery: nearest `.backdraft/` walking up from cwd, `BACKDRAFT_HOME` override — from the *document's* directory for `bind`, and from cwd for `verify`, whose input is a portable file that says nothing about which registry produced it. Exit codes: 0 clean; 1 usage/env error; 2 a run that completed and did not come out clean — `bind` with non-resolved citations, `verify` with a record that failed its checks (so hooks can gate on either).
 
 ## Skills
 
 - `backdraft` (front-walk): the substitution instruction — source documents are read only through `backdraft read`/`search`; write claims as `[text](bd:...)`; finish with `bind` + `render`; surface the report. ~One page.
 - `backdraft-backfill`: ingest sources, then per claim in an existing doc: search → propose anchors → bind `--mode backfill`; unmatched claims presented as an open list, never silently unattributed.
-- `backdraft-artifact`: teach a cold agent to read an artifact/sidecar (mostly redundant with the embedded legend, by design).
+- `backdraft-artifact`: check an artifact, then read it. The check is `backdraft verify`, one command; the prose procedure survives only as the fallback for an agent with no install. The reading half stays mostly redundant with the embedded legend, by design.
 
 ## Workstreams (builders)
 
@@ -330,7 +332,7 @@ Integration invariants (every workstream's tests must respect): any token the ga
 
 `registry/store.py` exposes exactly this surface. W1 implements it; W2/W3 consume it and MUST NOT implement anything under `registry/`; their tests use a lightweight fake implementing these names.
 
-Beside the class, `registry` exports one module function, `current_at(registry, anchor) -> Anchor | None`: the current generation's anchor at `anchor`'s locator, or None if the locator is gone. It is the other half of drift — `resolve` finds what the writer saw, this finds what stands there now — and it lives here because both `bind` and the gate's `show` need it and the dependency rule forbids either importing the other. A function rather than a method so it composes the surface above without widening it, and so the fakes keep working unchanged.
+Beside the class, `registry` exports two module functions. `current_at(registry, anchor) -> Anchor | None`: the current generation's anchor at `anchor`'s locator, or None if the locator is gone. It is the other half of drift — `resolve` finds what the writer saw, this finds what stands there now — and it lives here because both `bind` and the gate's `show` need it and the dependency rule forbids either importing the other. `citation_for(registry, token) -> Citation`: the whole token-to-status walk, session aside — `malformed` from `kernel.claims.parse_citation`, then `resolve`, then `current_at` for the drift case — returning four of the five statuses. `not_shown` is excluded on purpose: it is a fact about a ledger session, and the caller holding one adds it. Here for the same reason as `current_at`, one dependency further along: `bind` and `verify` both need the walk and may not import each other. Both are functions rather than methods so they compose the surface above without widening it, and so the fakes keep working unchanged.
 
 ```python
 class Registry:

@@ -287,15 +287,29 @@ Given only the file, in this order:
 1. Parse the island (or read the sidecar). `$format` must equal
    `backdraft/artifact-v1`.
 2. For every citation carrying an anchor, recompute `sha256(normalize(snippet))`
-   and compare it to `snippet_sha256`; then check that the token's `hash`
-   segment is a prefix of it, and that the token's `slug` and `locator` segments
-   equal the anchor's.
-3. Recount `summary` from `claims`.
-4. Confirm the rendered document shows every non-`resolved` citation.
+   and compare it to `snippet_sha256`.
+3. For every such citation, check that the token's `hash` segment is a prefix of
+   the sha256 of the snippet that token was **minted from**. For a citation
+   carrying `drifted_from` that snippet is `drifted_from`, not `anchor.snippet`:
+   the token names what the author cited, `anchor` carries what stands at that
+   locator now, and the two hashes differing is precisely what `drifted` means.
+   For every other citation it is `anchor.snippet`. Either way the token's
+   `slug` and `locator` segments MUST equal the anchor's — drift holds the
+   locator and moves the text.
+4. Recount `summary` from `claims`.
+5. Confirm the rendered document shows every non-`resolved` citation.
 
 Only one check needs the world outside the file: looking `locator` up in the
 document named by `slug` and comparing it to `snippet`. That is the check the
 receipt exists to make rare.
+
+`backdraft verify <artifact>` is this list, implemented: steps 1 to 4 from the
+file alone, and — only where a registry is discoverable from the current
+directory — the outside check as well, re-resolving every token and reporting
+the statuses. It exits 0 when everything it checked passed, 1 when the file is
+not an artifact of this format, and 2 when something did not verify. A record
+that carries a non-`resolved` citation still passes: what the producer found is
+data the record faithfully carries, not a defect in it.
 
 ## The markdown projection (informative)
 

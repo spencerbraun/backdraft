@@ -12,8 +12,9 @@ registry, and **never a sub-app**, so it is importable from anywhere.
 `cli.resolve_session` are what the spec, the tests and the docs already call the
 CLI's own surface. This module is the definition; `cli.py` is the front door.
 
-Exit codes (SPEC § CLI): 0 clean, 1 usage or environment error, 2 bind completed
-with non-resolved citations.
+Exit codes (SPEC § CLI): 0 clean, 1 usage or environment error, 2 a run that
+completed and did not come out clean — `bind` with non-resolved citations, and
+`verify` with a record that failed its checks.
 """
 
 from __future__ import annotations
@@ -32,12 +33,14 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 __all__ = [
+    "CLAIM_WIDTH",
     "DEFAULT_SESSION",
     "EXIT_USAGE",
     "EXIT_UNRESOLVED",
     "HOME_ENV",
     "SESSION_ENV",
     "UsageError",
+    "claim_words",
     "fail",
     "find_root",
     "guard",
@@ -63,7 +66,17 @@ either way, so the caller reads the answer, not the code.
 """
 
 EXIT_UNRESOLVED = 2
-"""`bind` completed and something did not resolve. Owned by `bind`; hooks gate on it."""
+"""A command completed and what it checked did not come out clean.
+
+`bind`'s: the run finished and a citation did not resolve. `verify`'s too, for
+the same class of outcome one step later — a record that failed its own checks,
+or citations that no longer resolve against the sources. Both are "ran fine, the
+document is not clean", which is exactly what a `Stop` hook gates on, so both
+leave through this code and a hook written for one catches the other.
+
+Not `gate.cli`'s `show`, which stays at 1: a lookup answering "that token names
+nothing" is not a document failing, and gating a document on it would be wrong.
+"""
 
 
 class UsageError(BackdraftError):
@@ -157,3 +170,29 @@ def opened_registry(start: Path | None = None) -> Iterator[Registry]:
             yield registry
         finally:
             registry.close()
+
+
+# ---- report lines -----------------------------------------------------------
+
+
+CLAIM_WIDTH = 80
+"""Characters of a claim's own words carried onto a report line item.
+
+Enough to recognize the sentence in the document, short enough that a run with
+several line items still reads as a list.
+"""
+
+
+def claim_words(text: str) -> str:
+    """A claim's words as one line of report: collapsed to `CLAIM_WIDTH`.
+
+    A claim span may wrap across source lines, and a line item that wraps stops
+    being one line item — the report's shape is what makes it greppable.
+
+    Shared because two commands print the same kind of line about the same
+    claims: `bind` reporting what did not resolve, `verify` reporting what did
+    not check out. Two copies would drift on the width and the reader would meet
+    two shapes for one thing.
+    """
+    collapsed = " ".join(text.split())
+    return collapsed[:CLAIM_WIDTH] if collapsed else "(no claim text)"
