@@ -276,7 +276,7 @@ skill</a> imposes the gate, and you receive the artifact.</div>
 <tr><td><code>verify &lt;artifact&gt;</code></td><td>Check a record: the <code>.backdraft.html</code> artifact or its <code>.backdraft.json</code> sidecar. Two tiers, and the output says which ran. Against itself, needing nothing but the file: every <code>snippet_sha256</code> recomputed, every token checked against the anchor it names, <code>summary</code> recounted from <code>claims</code>. Against the sources, only where a <code>.backdraft/</code> is discoverable <em>from the current directory</em> — an artifact is a file people forward, so where it landed says nothing about which registry produced it: every token re-resolved and reported as <code>bind</code> would. Read-only — no session, no minting, so an audit never makes its subject citable. Exit 2 when something did not verify; a record that faithfully carries an <code>unresolved</code> citation still passes.</td></tr>
 <tr><td><code>theme list|show</code></td><td>List the bundled themes and which one is in effect; print one (validated) to stdout. See <a href="#theming">Theming</a>.</td></tr>
 <tr><td><code>clean [dir]</code></td><td>Tidy a working directory: relocate stray records, remove leftover projections. Never touches authored files or artifacts.</td></tr>
-<tr><td><code>export</code></td><td>The whole registry as JSON.</td></tr>
+<tr><td><code>export</code></td><td>The whole registry as JSON, every generation included &mdash; the <a href="https://github.com/spencerbraun/backdraft/blob/main/spec/registry.md"><code>backdraft/registry-v1</code></a> format.</td></tr>
 </table>
 <h3>Bind and verify exit codes</h3>
 <table>

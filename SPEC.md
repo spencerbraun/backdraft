@@ -84,7 +84,7 @@ backdraft/
     backdraft-backfill/SKILL.md
     backdraft-artifact/SKILL.md   # reader
   spec/                     # normative prose format specs (portable; other impls read these)
-    tokens.md  chunking.md  artifact.md
+    tokens.md  chunking.md  artifact.md  registry.md
   tests/                    # pytest; kernel tests are pure/golden-file
 ```
 
@@ -129,7 +129,7 @@ Deterministic, pure: `chunk(page_text) -> [Chunk(ordinal, text, start, end)]`.
 
 Anchor identity for a chunk: (extraction, page number, ordinal). `start`/`end` are char offsets into the page text — stored, enabling future span/region features.
 
-## Registry (registry/schema.sql)
+## Registry (registry/schema.sql; export format in spec/registry.md)
 
 ```sql
 CREATE TABLE documents (
@@ -394,6 +394,12 @@ class Registry:
         # report_json is the bare report WITHOUT the evidence block (heavy,
         # reproducible from the registry).
     def export_json(self) -> dict: ...
+        # The whole registry as JSON-able data, `backdraft/registry-v1`. It is the only
+        # portable form a registry has — what a second implementation, a migration or an
+        # audit reads — so its shape is normative and specified in spec/registry.md, which
+        # tests/test_spec_registry.py pins against what this actually emits. `bindings[].report`
+        # is the artifact payload and stays spec/artifact.md's; page images, sheet styling and
+        # the FTS index are deliberately out, so an export round-trips citations, not a database.
 ```
 
 `Resolution` and `SearchHit` are small frozen dataclasses in `registry/store.py`; `SearchResults` is the `list[SearchHit]` subclass described above, and `Ingested` the `Document` subclass. Both subclasses exist so a pinned return type can carry an out-of-band fact without every consumer and every fake changing shape.

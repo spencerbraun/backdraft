@@ -32,39 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. `spec/registry.md`: the export format is normative, or it is not a format
-
-**Intent.** `backdraft export` writes `"$format": "backdraft/registry-v1"`, a
-version string that promises a specification and does not have one. `spec/`
-holds `artifact.md`, `tokens.md` and `chunking.md`, and the repo's own rule is
-that another implementation reads those and nothing else — the export is the
-only declared format outside that set. It is also the only complete, portable
-representation of a registry, so it is what a second implementation, a
-migration, or an audit would read. The gap is not theoretical: the 2026-08-05
-work added a conditional `meta` key to every exported document, a format change
-to a format with nothing to change.
-
-**Shape.** A new `spec/registry.md` in the voice of `spec/artifact.md`:
-normative prose, MUST/OPTIONAL where it means them, and written to be readable
-without the code. Cover the top-level shape, the document entry including the
-`meta` key and its `url`/`fetched_at` (OPTIONAL, present only for a fetched
-source — the same conditional the artifact spec already states, for the same
-compatibility reason), every extraction generation with `is_current`, pages
-and cells, and anchors with their receipts. State what identity is and what it
-is not, matching the concept table in `SPEC.md`. Say what a conforming reader
-must do with a key it does not recognize. Pin it the way the artifact format is
-pinned: a golden-file test over the demo registry's export, so the next
-conditional key is a test failure rather than an undocumented change.
-
-**Acceptance.** `spec/registry.md` describes every key `Registry.export`
-actually emits — check that mechanically, with a test that walks the exported
-JSON and fails on a key the spec does not name. `SPEC.md`'s file map and
-`README.md`'s spec list gain it. Exporting the demo registry and reading only
-the spec is enough to say what each field means.
-
-**Size.** Two days.
-
-### 2. `search` says when it stopped short
+### 1. `search` says when it stopped short
 
 **Intent.** `backdraft search "the"` prints `20 results for "the"` whether there
 are twenty or two hundred: `--limit` defaults to 20, and the count line reports
@@ -101,7 +69,7 @@ than settle when the line says it was capped.
 
 **Size.** One day.
 
-### 3. The bind report says why a verifier skipped
+### 2. The bind report says why a verifier skipped
 
 **Intent.** A bind report prints `overlap: pass 11, skip 4` and stops. Four
 citations were not checked and the report does not say why, so a reader cannot
@@ -134,7 +102,7 @@ output, and the skill says a skip with a reason is not a hole to fix.
 
 **Size.** One day.
 
-### 4. `session show` says what the ledger holds
+### 3. `session show` says what the ledger holds
 
 **Intent.** The ledger is the mechanism the design rests on — the set of citable
 tokens is exactly the set the gate emitted — and nothing reads it back.
@@ -171,7 +139,7 @@ a stated tradeoff.
 
 **Size.** Two days.
 
-### 5. An unreadable source says what to do, not what errno it was
+### 4. An unreadable source says what to do, not what errno it was
 
 **Intent.** `ingest` now finishes its list and names each failure (2026-08-13),
 which turned the reason string into something a calling agent actually reads —
@@ -206,7 +174,7 @@ actionable so an agent surfaces them to the user rather than paraphrasing.
 
 **Size.** One day.
 
-### 6. A registry can forget a source
+### 5. A registry can forget a source
 
 **Intent.** Ingest is one-way. An agent working unattended over a folder — which
 is now the normal case, since `ingest` finishes its list — will ingest something
@@ -229,8 +197,9 @@ nothing: reuse `unresolved` and let the *reason* say withdrawn, since adding a
 status is an artifact-format change and this does not need one. Storage is a
 flag on `documents`, not a DELETE, for the same reason. Require confirmation or
 an explicit flag, since this is the one command that takes something away.
-Interacts with the queued `spec/registry.md` item: whichever lands second
-documents the flag in the export.
+`spec/registry.md` has landed and pins the export against what it emits, so a
+withdrawal flag reaching `documents[]` is a spec change: name the key there,
+say what a reader must conclude from it, or keep it out of the export.
 
 **Acceptance.** Ingest two documents, `forget` one: `read`, `ls` and `search`
 show only the other; a token minted from the forgotten one still resolves
@@ -245,7 +214,7 @@ registry never actually shrinks.
 
 **Size.** Three days.
 
-### 7. Bind's markdown names a fetched source by a file nobody has
+### 6. Bind's markdown names a fetched source by a file nobody has
 
 **Intent.** The 2026-08-18 row made `gate.source_name` the one owner of what a
 source is called and named the one surface it could not reach — bind, because
@@ -286,7 +255,7 @@ should say how.
 
 **Size.** Two days.
 
-### 8. A web page has a name, and `read` shows it the navigation menu instead
+### 7. A web page has a name, and `read` shows it the navigation menu instead
 
 **Intent.** `backdraft read franklin-county` — the demo's own web source —
 prints `p1  Franklin County, Ohio - Wikipedia  Jump to content Main menu Main
@@ -328,7 +297,7 @@ blocks and `README.md`'s show the real output. DESIGN row.
 
 **Size.** Three days.
 
-### 9. A page read has no budget and no closing line
+### 8. A page read has no budget and no closing line
 
 **Intent.** `backdraft read franklin-county p1` prints 36,442 characters and
 stops, with nothing to say how much that was or whether it was all of it — it
@@ -366,7 +335,7 @@ the agent to continue rather than assume it saw the page. DESIGN row.
 
 **Size.** Two days.
 
-### 10. The thin-source signal exists only in the ingest that printed it
+### 9. The thin-source signal exists only in the ingest that printed it
 
 **Intent.** 2026-08-20 gave `ingest` a character count and a `note: little text
 extracted` naming the likely cause — the signal that a source is a shell and
@@ -400,7 +369,7 @@ document list is where it learns this, not only the ingest it may not have run.
 
 **Size.** Two days.
 
-### 11. What a URL will be called, before the answer is permanent
+### 10. What a URL will be called, before the answer is permanent
 
 **Intent.** Three docs now tell an agent to pass `--slug` when it ingests a URL,
 because a slug is permanent once tokens carry it and the default may name a

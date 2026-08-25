@@ -403,9 +403,10 @@ spans are citable. In a sandboxed session run every command as
 | [spec/tokens.md](spec/tokens.md) | the citation token grammar, normatively |
 | [spec/chunking.md](spec/chunking.md) | the deterministic chunker |
 | [spec/artifact.md](spec/artifact.md) | the artifact format, sidecar payload, legend, HTML rules |
+| [spec/registry.md](spec/registry.md) | the registry export format `backdraft export` writes |
 | [demo/walkthrough.md](demo/walkthrough.md) | the whole thing end to end, with real output |
 
-The three files under `spec/` are the portable specification: another
+The four files under `spec/` are the portable specification: another
 implementation reads them and nothing else.
 
 ## Status

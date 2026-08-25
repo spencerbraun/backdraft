@@ -509,7 +509,13 @@ def export(
         Path | None, typer.Option("--out", "-o", help="Write here instead of stdout.")
     ] = None,
 ) -> None:
-    """Export the whole registry as JSON, every generation included."""
+    """Export the whole registry as JSON, every generation included.
+
+    The `backdraft/registry-v1` format, specified in spec/registry.md: every
+    document, extraction, page, anchor and receipt, plus the ledger and the
+    bind reports. It is content, not a backup — page images, sheet styling and
+    the search index stay in the database.
+    """
     with opened_registry() as registry:
         payload = json.dumps(registry.export_json(), indent=2, ensure_ascii=False)
     if out is None:
