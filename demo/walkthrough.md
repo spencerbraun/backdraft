@@ -308,6 +308,31 @@ market figures come the same way: `backdraft search "most populous county"` and
 `bd:franklin-county:p1.c24:5678`. A web page is a source like any other here —
 searched, minted and cited with no special case.
 
+Search shows twenty results by default, and a run that hits the limit says so
+rather than reporting the size of the page as if it were the size of the answer:
+
+```bash
+backdraft search "occupancy" --limit 2
+```
+
+```
+2 of 4 results for "occupancy"
+
+[bd:underwriting-model:rent-roll!F1:e356]  underwriting-model p1
+  Occupancy
+
+[bd:underwriting-model:rent-roll!A10:a8f4]  underwriting-model p1
+  Economic occupancy (T12)
+
+[Read the page: backdraft read underwriting-model p1]
+[See all 4: backdraft search occupancy --limit 4]
+```
+
+An uncapped run says `4 results` and closes with the read hints alone. The
+distinction is the whole point: relevance order is not the same as the sentence
+you needed, so a reader who is not told the list was cut picks the best of what
+it was handed and never learns the rest existed.
+
 The query goes to SQLite FTS5 as written. `"purchase price"` is a phrase; boolean
 syntax (`a OR b`) works only where FTS5 says it does, and quoting a whole boolean
 expression turns it into a literal phrase that matches nothing.

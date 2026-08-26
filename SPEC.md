@@ -295,7 +295,9 @@ backdraft init                      # create .backdraft/, print status
 backdraft ingest <sources...> [--extractor auto] [--slug S] [--config k=v]
                                     # a source is a path or an http(s) URL
 backdraft ls | backdraft read ...   # gate, above
-backdraft search "<query>" [--in slug]
+backdraft search "<query>" [--in slug] [--limit N]
+                                    # a run `--limit` cut says how many matched and
+                                    # names the command that shows the rest
 backdraft show <token>...           # gate: what does this token say?
 backdraft bind <doc.md> [--session S] [--check ...] [--mode ...]
 backdraft render <doc.md> [--to html|footnotes|json] [-o out] [--theme name|file]
@@ -369,8 +371,14 @@ class Registry:
     def search(self, query: str, *, slug: str | None = None,
                limit: int = 20) -> list[SearchHit]: ...              # SearchHit(anchor, slug, page_number)
         # Concretely a `SearchResults` (a list subclass) carrying `phrase_fallback: bool` —
-        # True when the query did not parse as FTS5 and was retried as a quoted phrase.
-        # Consumers may ignore the flag; the gate renders it as a note line.
+        # True when the query did not parse as FTS5 and was retried as a quoted phrase —
+        # and `total: int`, how many anchors matched before `limit` truncated them.
+        # The list is the page; `total` is the size of the answer, so a caller can tell
+        # twenty results from the first twenty of two hundred. Counted with a COUNT(*)
+        # over the same joins, and only when the page came back full, so an uncapped
+        # search still runs one query. Consumers may ignore both; the gate renders the
+        # fallback as a note line and a `total` above `len(hits)` as `N of M results`
+        # plus the command that widens the limit.
 
     # ledger (W2 writes, W3 reads)
     def ensure_session(self, session_id: str | None, label: str | None = None) -> str: ...
@@ -402,7 +410,7 @@ class Registry:
         # the FTS index are deliberately out, so an export round-trips citations, not a database.
 ```
 
-`Resolution` and `SearchHit` are small frozen dataclasses in `registry/store.py`; `SearchResults` is the `list[SearchHit]` subclass described above, and `Ingested` the `Document` subclass. Both subclasses exist so a pinned return type can carry an out-of-band fact without every consumer and every fake changing shape.
+`Resolution` and `SearchHit` are small frozen dataclasses in `registry/store.py`; `SearchResults` is the `list[SearchHit]` subclass described above, and `Ingested` the `Document` subclass. Both subclasses exist so a pinned return type can carry out-of-band facts without every consumer and every fake changing shape.
 
 ## Addendum B — CLI assembly
 

@@ -56,11 +56,12 @@ class SearchHit:
 
 
 class SearchResults(list):
-    """`list[SearchHit]` that remembers whether the query was retried as a phrase."""
+    """`list[SearchHit]` remembering the phrase retry and the pre-limit total."""
 
-    def __init__(self, hits=(), *, phrase_fallback: bool = False):
+    def __init__(self, hits=(), *, phrase_fallback: bool = False, total: int | None = None):
         super().__init__(hits)
         self.phrase_fallback = phrase_fallback
+        self.total = len(self) if total is None else total
 
 
 _UNPARSEABLE = re.compile(r"[^\w\s\"]")
@@ -140,7 +141,11 @@ class FakeDocumentRegistry:
                                 anchor=anchor, slug=loaded.document.slug, page_number=number
                             )
                         )
-        return SearchResults(hits[:limit], phrase_fallback=bool(_UNPARSEABLE.search(query)))
+        return SearchResults(
+            hits[:limit],
+            phrase_fallback=bool(_UNPARSEABLE.search(query)),
+            total=len(hits),
+        )
 
     # -- ledger ------------------------------------------------------------
 

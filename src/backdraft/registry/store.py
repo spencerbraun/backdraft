@@ -174,24 +174,37 @@ class SearchHit:
 
 
 class SearchResults(list[SearchHit]):
-    """The hits, plus how the query had to be run to get them.
+    """The hits, plus how the query had to be run and how many it left behind.
 
     `search` retries a query FTS5 cannot parse as a quoted phrase, which changes
     what "no results" means: `1.42x` as a phrase matches the two tokens `1.42`
     and `x` adjacent, not the boolean query the caller wrote. A silent retry
     makes an empty result look like an absent fact, so the fallback is reported.
 
+    `total` is how many anchors matched before `limit` truncated them, which is
+    the same kind of fact from the other end: a list of twenty that is all there
+    is and a list of twenty cut from two hundred are indistinguishable to the
+    caller, and the caller acts on the difference. The list itself stays the
+    page; `total` is the size of the answer.
+
     A `list` subclass rather than a new return type on purpose: Addendum A pins
     `search` to `list[SearchHit]`, and this still is one — every caller that
     iterates, indexes or measures it is unaffected, and the one caller that
-    cares reads the flag.
+    cares reads the attributes.
     """
 
-    __slots__ = ("phrase_fallback",)
+    __slots__ = ("phrase_fallback", "total")
 
-    def __init__(self, hits: Iterable[SearchHit] = (), *, phrase_fallback: bool = False):
+    def __init__(
+        self,
+        hits: Iterable[SearchHit] = (),
+        *,
+        phrase_fallback: bool = False,
+        total: int | None = None,
+    ):
         super().__init__(hits)
         self.phrase_fallback = phrase_fallback
+        self.total = len(self) if total is None else total
 
 
 def media_type_for(path: Path) -> MediaType:
@@ -572,34 +585,64 @@ class Registry:
         search for numbers, and a number is not a syntax error. The retry is
         recorded on the result (`phrase_fallback`) rather than hidden: it changes
         what the query means, so the caller gets to say so.
+
+        `limit` truncates the hits, and the result carries `total` — how many
+        matched before the cut — so a caller can tell a complete answer from a
+        page of one.
         """
         try:
-            return SearchResults(self._search(query, slug, limit))
+            return self._results(query, slug, limit)
         except sqlite3.OperationalError:
             phrase = '"' + query.replace('"', '""') + '"'
         try:
-            return SearchResults(
-                self._search(phrase, slug, limit), phrase_fallback=True
-            )
+            return self._results(phrase, slug, limit, phrase_fallback=True)
         except sqlite3.OperationalError as error:  # pragma: no cover - phrases always parse
             raise RegistryError(f"invalid search query {query!r}: {error}") from error
 
-    def _search(self, query: str, slug: str | None, limit: int) -> list[SearchHit]:
+    def _results(
+        self, query: str, slug: str | None, limit: int, *, phrase_fallback: bool = False
+    ) -> SearchResults:
+        """One page of hits, and how many there were to page through.
+
+        The count is only asked for when the page came back full, since a page
+        the limit did not fill *is* the whole answer — so an uncapped search,
+        which is nearly all of them, still runs exactly one query.
+        """
+        hits = self._search(query, slug, limit)
+        total = self._match_count(query, slug) if len(hits) >= limit else len(hits)
+        return SearchResults(hits, phrase_fallback=phrase_fallback, total=total)
+
+    def _match_sql(self, slug: str | None) -> tuple[str, list[Any]]:
+        """The FROM/WHERE both the page and its count run over.
+
+        Shared rather than written twice: a count that joined differently from
+        the fetch would report a total the caller can never actually reach.
+        """
         sql = (
-            "SELECT anchors.*, documents.slug AS slug "
             "FROM search "
             "JOIN anchors ON anchors.token = search.token "
             "JOIN extractions ON extractions.id = anchors.extraction_id AND extractions.is_current = 1 "
             "JOIN documents ON documents.id = extractions.document_id "
             "WHERE search MATCH ?"
         )
-        parameters: list[Any] = [query]
+        parameters: list[Any] = []
         if slug is not None:
             sql += " AND documents.slug = ?"
             parameters.append(slug)
-        sql += " ORDER BY rank LIMIT ?"
-        parameters.append(limit)
-        rows = self._connection.execute(sql, parameters).fetchall()
+        return sql, parameters
+
+    def _match_count(self, query: str, slug: str | None) -> int:
+        """How many anchors the query matches, ignoring any limit."""
+        match, parameters = self._match_sql(slug)
+        row = self._connection.execute(
+            f"SELECT COUNT(*) AS total {match}", [query, *parameters]
+        ).fetchone()
+        return int(row["total"])
+
+    def _search(self, query: str, slug: str | None, limit: int) -> list[SearchHit]:
+        match, parameters = self._match_sql(slug)
+        sql = f"SELECT anchors.*, documents.slug AS slug {match} ORDER BY rank LIMIT ?"
+        rows = self._connection.execute(sql, [query, *parameters, limit]).fetchall()
         return [
             SearchHit(
                 anchor=_anchor(row, row["slug"]),

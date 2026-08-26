@@ -26,6 +26,7 @@ from conftest_registry import PAGE_BREAK
 
 from backdraft.bind.binder import bind
 from backdraft.gate.reader import read, show
+from backdraft.gate.searcher import search
 from backdraft.kernel.model import CitationStatus
 from backdraft.registry import Registry
 
@@ -50,6 +51,25 @@ def _windows(registry: Registry, slug: str, selector: str, limit: int) -> list[s
             return out
         offset = int(hint.rsplit("--offset ", 1)[1].rstrip("]"))
     raise AssertionError("the continuation hint never terminated")
+
+
+def test_the_widen_hint_really_produces_the_results_it_promised(
+    registry: Registry, note: Path
+) -> None:
+    """The hint is a command, so the check is running it — as `_windows` does for `read`.
+
+    A total counted differently from the fetch would name a number the caller
+    can never reach, which is worse than the silence it replaced.
+    """
+    registry.ingest(note)
+    capped = search(registry, "the", limit=1, session="s")
+    hint = capped.split("\n")[-1]
+    assert hint.startswith("[See all ")
+    widened = search(registry, "the", limit=int(hint.rsplit("--limit ", 1)[1].rstrip("]")), session="s")
+    total = int(hint.split("[See all ", 1)[1].split(":", 1)[0])
+    assert widened.count("[bd:") == total
+    assert widened.startswith(f"{total} results")
+    assert "See all" not in widened
 
 
 def test_every_sheet_window_repeats_the_real_header_block(

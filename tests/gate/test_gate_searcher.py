@@ -89,7 +89,87 @@ def test_limit_is_passed_through() -> None:
     fake_gate_registry = FakeDocumentRegistry().add(
         pdf_document("doc", "doc.pdf", [["alpha one"], ["alpha two"], ["alpha three"]])
     )
-    assert search(fake_gate_registry, "alpha", limit=2, session="s").startswith("2 results")
+    assert search(fake_gate_registry, "alpha", limit=2, session="s").startswith("2 of 3 results")
+
+
+# --- the silent cap ---------------------------------------------------------
+#
+# `--limit` truncates; the count line used to report the size of the page, so a
+# reader could not tell twenty results from the first twenty of two hundred.
+
+CAPPED = """\
+2 of 3 results for "alpha"
+
+[bd:doc:p1.c1:447d]  doc p1
+  alpha one
+
+[bd:doc:p2.c1:e902]  doc p2
+  alpha two
+
+[Read the page: backdraft read doc p1]
+[Read the page: backdraft read doc p2]
+[See all 3: backdraft search alpha --limit 3]"""
+
+
+def _three_alphas() -> FakeDocumentRegistry:
+    return FakeDocumentRegistry().add(
+        pdf_document("doc", "doc.pdf", [["alpha one"], ["alpha two"], ["alpha three"]])
+    )
+
+
+def test_a_capped_search_names_the_total_and_how_to_widen() -> None:
+    assert search(_three_alphas(), "alpha", limit=2, session="s") == CAPPED
+
+
+def test_an_uncapped_search_is_unchanged() -> None:
+    """Most runs are uncapped and their output is a contract — pin it byte for byte."""
+    assert search(_three_alphas(), "alpha", limit=20, session="s") == """\
+3 results for "alpha"
+
+[bd:doc:p1.c1:447d]  doc p1
+  alpha one
+
+[bd:doc:p2.c1:e902]  doc p2
+  alpha two
+
+[bd:doc:p3.c1:9025]  doc p3
+  alpha three
+
+[Read the page: backdraft read doc p1]
+[Read the page: backdraft read doc p2]
+[Read the page: backdraft read doc p3]"""
+
+
+def test_a_search_cut_to_exactly_its_matches_says_nothing_new() -> None:
+    """The boundary: three of three is the whole answer, not a page of it."""
+    output = search(_three_alphas(), "alpha", limit=3, session="s")
+    assert output.startswith("3 results")
+    assert "See all" not in output
+
+
+def test_the_widen_hint_scopes_itself() -> None:
+    output = search(_three_alphas(), "alpha", slug="doc", limit=1, session="s")
+    assert output.startswith('1 of 3 results for "alpha" in doc')
+    assert output.endswith("[See all 3: backdraft search alpha --in doc --limit 3]")
+
+
+def test_the_widen_hint_is_a_command_a_shell_can_run() -> None:
+    """A hint carrying `$` or a space must survive being pasted, unedited."""
+    registry = FakeDocumentRegistry().add(
+        pdf_document("doc", "doc.pdf", [["net $4,102,880 here"], ["net $4,102,880 twice"]])
+    )
+    hint = search(registry, "net $4,102,880", limit=1, session="s").splitlines()[-1]
+    assert hint == "[See all 2: backdraft search 'net $4,102,880' --limit 2]"
+
+
+def test_a_result_list_with_no_total_renders_uncapped() -> None:
+    """`render_search` reads `total` defensively, as it reads the fallback flag."""
+    from backdraft.gate.searcher import render_search
+
+    assert render_search("anything", []) == '''\
+No results for "anything".
+
+[List documents: backdraft read]'''
 
 
 # --- the phrase fallback ----------------------------------------------------

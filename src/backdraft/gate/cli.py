@@ -132,7 +132,10 @@ def search(
         str | None, typer.Option("--in", help="Restrict to one document slug.")
     ] = None,
     session: _SessionOption = None,
-    limit: Annotated[int, typer.Option("--limit", help="Maximum results.")] = 20,
+    limit: Annotated[
+        int,
+        typer.Option("--limit", help="Maximum results shown; a run that hits it says so."),
+    ] = 20,
 ) -> None:
     """Search every anchor's snippet. Results are citable without a page read."""
     session_id = resolve_session(session)

@@ -70,6 +70,10 @@ Query notes that matter in practice:
 - Search the number as the source writes it. A spreadsheet cell holding
   `1487400` will not be found by `$1,487,400`.
 - `--in <slug>` narrows to one document when a term is common.
+- A count line reading `20 of 56 results` means `--limit` cut the rest. Backfill
+  is exactly the case where that matters — the sentence supporting the claim may
+  be below the cut — so run the widening command the last line names, or narrow
+  the query, rather than concluding the claim is unsupported.
 
 Then read the surrounding page when you need context to judge the hit:
 

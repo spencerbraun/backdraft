@@ -166,6 +166,40 @@ def test_search_honours_its_limit(registry: Registry, note: Path) -> None:
     assert len(registry.search("the", limit=1)) == 1
 
 
+def test_search_carries_the_total_it_truncated(registry: Registry, note: Path) -> None:
+    """A page of one and an answer of one must not look the same to a caller."""
+    registry.ingest(note)
+    everything = registry.search("the", limit=1000)
+    assert len(everything) > 1
+    capped = registry.search("the", limit=1)
+    assert len(capped) == 1
+    assert capped.total == len(everything)
+
+
+def test_an_uncapped_search_totals_what_it_returned(registry: Registry, note: Path) -> None:
+    registry.ingest(note)
+    hits = registry.search("covenant")
+    assert hits.total == len(hits)
+    assert registry.search("zzzznothing").total == 0
+
+
+def test_the_total_counts_within_the_scope(registry: Registry, note: Path, workbook: Path) -> None:
+    """`--in` narrows the answer, so it narrows the size of the answer too."""
+    registry.ingest(note)
+    registry.ingest(workbook)
+    scoped = registry.search("the", slug="quarterly-notes", limit=1)
+    unscoped = registry.search("the", limit=1)
+    assert scoped.total == len(registry.search("the", slug="quarterly-notes", limit=1000))
+    assert scoped.total <= unscoped.total
+
+
+def test_a_retried_query_still_carries_its_total(registry: Registry, note: Path) -> None:
+    registry.ingest(note)
+    hits = registry.search("1.42x", limit=1)
+    assert hits.phrase_fallback is True
+    assert hits.total == len(registry.search("1.42x", limit=1000))
+
+
 def test_search_does_not_return_whole_page_anchors(registry: Registry, note: Path) -> None:
     registry.ingest(note)
     assert all(hit.anchor.kind != "page" for hit in registry.search("covenant OR NOI"))

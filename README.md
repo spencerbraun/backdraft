@@ -103,6 +103,11 @@ $ backdraft search "24850000"
 [Read the page: backdraft read underwriting-model p2]
 ```
 
+Search shows twenty results by default. A run that hit the limit says so —
+`20 of 56 results` — and closes with the command that shows the rest, because
+"20 results" over an answer of 56 is how a reader concludes it has seen
+everything when it has seen a third.
+
 A cell you can already see mints directly:
 
 ```console

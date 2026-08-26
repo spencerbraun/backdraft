@@ -90,7 +90,15 @@ backdraft read                              # list documents
 backdraft read <slug>                       # table of contents
 backdraft read <slug> p3                    # page/range/sheet; chunks arrive
                                             # with tokens: [bd:slug:p3.c2:7f11]
-backdraft search "24850000"                 # hits are citable directly
+backdraft search "24850000"                 # hits are citable directly.
+                                            # A count line reading "2 of 56
+                                            # results" means --limit cut the
+                                            # rest: the best evidence may be
+                                            # below the cut, so run the widening
+                                            # command the last line names rather
+                                            # than settling for what you were
+                                            # shown. A bare "N results" is all
+                                            # of them.
 backdraft cell <slug> "sheet!D24"           # mint a specific cell's token
 backdraft show bd:slug:p3.c2:7f11 ...       # the inverse: what a token says.
                                             # Status + locator + verbatim

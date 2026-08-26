@@ -95,6 +95,12 @@ backdraft search "24850000"           # results are citable without a page read
 backdraft search "cap rate" --in underwriting-model
 ```
 
+Search shows 20 results by default. When the count line reads `2 of 56 results`,
+`--limit` cut the rest and the last line names the command that shows them —
+run it rather than picking the best of what you were shown, because relevance
+order is not the same as the sentence you needed. A bare `56 results` is the
+whole answer.
+
 A page read arrives with a token over each chunk:
 
 ```

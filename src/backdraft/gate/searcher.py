@@ -11,6 +11,7 @@ Consumes the pinned registry surface (SPEC Addendum A) and nothing else.
 
 from __future__ import annotations
 
+import shlex
 from typing import TYPE_CHECKING
 
 from ..kernel.hashing import normalize
@@ -68,14 +69,17 @@ def search(
 def render_search(query: str, hits: Iterable[SearchHit], *, slug: str | None = None) -> str:
     """Render search results. Pure: minting happens in `search`.
 
-    NOTE: the `phrase_fallback` flag is read *before* `hits` is copied into a
-    plain list — it rides on the result object the registry returned.
+    NOTE: `phrase_fallback` and `total` are read *before* `hits` is copied into
+    a plain list — they ride on the result object the registry returned.
     """
     retried = bool(getattr(hits, "phrase_fallback", False))
+    total = getattr(hits, "total", None)
     hits = list(hits)
+    if total is None:
+        total = len(hits)
     scope = f" in {slug}" if slug else ""
     note = [PHRASE_FALLBACK_NOTE] if retried else []
-    if not hits:
+    if not hits and not total:
         return "\n".join(
             [
                 f'No results for "{query}"{scope}.',
@@ -85,7 +89,10 @@ def render_search(query: str, hits: Iterable[SearchHit], *, slug: str | None = N
             ]
         )
 
-    count = f"{len(hits)} result" if len(hits) == 1 else f"{len(hits)} results"
+    if total > len(hits):
+        count = f"{len(hits)} of {total} results"
+    else:
+        count = f"{len(hits)} result" if len(hits) == 1 else f"{len(hits)} results"
     lines = [f'{count} for "{query}"{scope}', *note, ""]
     for hit in hits:
         lines.append(f"[{hit.anchor.token}]  {hit.slug} p{hit.page_number}")
@@ -97,7 +104,23 @@ def render_search(query: str, hits: Iterable[SearchHit], *, slug: str | None = N
         if (hit.slug, hit.page_number) not in seen:
             seen.append((hit.slug, hit.page_number))
     lines += [f"[Read the page: backdraft read {s} p{n}]" for s, n in seen]
+    if total > len(hits):
+        lines.append(_widen_hint(query, slug, total))
     return "\n".join(line.rstrip() for line in lines).rstrip("\n")
+
+
+def _widen_hint(query: str, slug: str | None, total: int) -> str:
+    """The line that names the command showing the results `--limit` cut.
+
+    `read`'s continuation hint is the model: say what was withheld and give the
+    exact command that produces it, rather than leaving the caller to work out
+    which flag to move. The query is shell-quoted because a real one carries `$`
+    and commas, and a hint that has to be repaired before it runs is not a hint.
+    """
+    scope = f" --in {slug}" if slug else ""
+    return (
+        f"[See all {total}: backdraft search {shlex.quote(query)}{scope} --limit {total}]"
+    )
 
 
 def _excerpt(snippet: str) -> str:
