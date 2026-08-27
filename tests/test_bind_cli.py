@@ -11,6 +11,8 @@ from typer.testing import CliRunner
 from backdraft import cli_context
 from backdraft.bind import cli as bind_cli
 from backdraft.bind.binder import bound_path, sidecar_path
+from backdraft.bind.verify import VERIFIERS
+from backdraft.kernel.model import Verdict, VerdictStatus
 from backdraft.registry import DIRECTORY
 
 RUNNER = CliRunner()
@@ -29,6 +31,43 @@ def fake_bind_registry(monkeypatch) -> FakeAnchorRegistry:
 
 def token(fake_bind_registry: FakeAnchorRegistry) -> str:
     return next(iter(fake_bind_registry._anchors))
+
+
+class _Skipper:
+    """A verifier that only ever skips, with the reasons a test hands it.
+
+    Registered per-test rather than driving `entail`, whose several skip reasons
+    all need a model call or the absence of one.
+    """
+
+    def __init__(self, method: str, *reasons: str) -> None:
+        self.method = method
+        self._reasons = reasons
+        self._calls = 0
+
+    def applies(self, claim, citation) -> bool:  # noqa: ANN001
+        return True
+
+    def verify(self, claim, citation, anchor):  # noqa: ANN001
+        reason = self._reasons[self._calls % len(self._reasons)]
+        self._calls += 1
+        return Verdict(method=self.method, status=VerdictStatus.SKIP, detail=reason)
+
+
+@pytest.fixture
+def two_reasons(monkeypatch):
+    """`two-reasons` skips twice for "the even one" and once for "the odd one"."""
+    verifier = _Skipper("two-reasons", "the odd one", "the even one", "the even one")
+    monkeypatch.setitem(VERIFIERS, verifier.method, verifier)
+    return verifier
+
+
+@pytest.fixture
+def silent_skipper(monkeypatch):
+    """`silent` skips and records no detail at all."""
+    verifier = _Skipper("silent", "")
+    monkeypatch.setitem(VERIFIERS, verifier.method, verifier)
+    return verifier
 
 
 def write(tmp_path, source: str):
@@ -211,6 +250,94 @@ def test_an_unmatched_line_item_is_unchanged(tmp_path, fake_bind_registry) -> No
     doc = write(tmp_path, "Net operating income was 4,120,000 last year.\n")
     result = run(str(doc), "--mode", "backfill")
     assert "  ! unmatched: Net operating income was 4,120,000 last year." in result.output
+
+
+# --- why a verifier skipped ------------------------------------------------
+#
+# `overlap: pass 13, skip 4` says four citations went unchecked and not whether
+# that is benign. The reason is on every one of those verdicts already; these
+# pin that it reaches the line a person reads, grouped, and that a run without
+# a skip is unchanged.
+
+
+def test_a_skip_says_why_under_its_method_line(tmp_path, fake_bind_registry) -> None:
+    cell = fake_bind_registry.add_anchor("model", "rent-roll!B10", "24850000")
+    fake_bind_registry.show("s1", cell.token)
+    doc = write(tmp_path, f"[The purchase price is $24.85 million]({cell.token}).\n")
+    result = run(str(doc), "--session", "s1", "--check", "overlap")
+    assert result.exit_code == 0, result.output
+    lines = result.output.splitlines()
+    method = lines.index("  overlap: skip 1")
+    assert lines[method + 1] == (
+        "    skip 1 — wording overlap does not apply to a single cell"
+    )
+
+
+def test_a_run_with_no_skips_is_unchanged(tmp_path, fake_bind_registry) -> None:
+    """Byte-identical to the report before skips gained a reason: a method that
+    skipped nothing gains no line."""
+    resolved = token(fake_bind_registry)
+    fake_bind_registry.show("s1", resolved)
+    doc = write(tmp_path, f"[Net operating income was 4,120,000]({resolved}).\n")
+    result = run(str(doc), "--session", "s1", "--check", "value-trace,overlap")
+    assert result.output == (
+        "bound 1 claim(s), 1 citation(s) [frontwalk]\n"
+        "  resolved: 1\n"
+        "  overlap: pass 1\n"
+        "  value-trace: pass 1\n"
+        f"wrote {sidecar_path(doc)}\n"
+    )
+
+
+def test_two_reasons_under_one_method_are_two_lines(
+    tmp_path, fake_bind_registry, two_reasons
+) -> None:
+    """Grouped by reason, dominant cause first, and the counts add up to the
+    method's own `skip N`."""
+    resolved = token(fake_bind_registry)
+    fake_bind_registry.show("s1", resolved)
+    doc = write(
+        tmp_path,
+        f"[one]({resolved}) [two]({resolved}) [three]({resolved}).\n",
+    )
+    result = run(str(doc), "--session", "s1", "--check", "two-reasons")
+    lines = result.output.splitlines()
+    method = lines.index("  two-reasons: skip 3")
+    assert lines[method + 1 : method + 3] == [
+        "    skip 2 — the even one",
+        "    skip 1 — the odd one",
+    ]
+
+
+def test_a_skip_with_no_detail_says_the_reason_is_missing(
+    tmp_path, fake_bind_registry, silent_skipper
+) -> None:
+    """`Verdict.detail` is optional; a bare count is the silence this ends."""
+    resolved = token(fake_bind_registry)
+    fake_bind_registry.show("s1", resolved)
+    doc = write(tmp_path, f"[a claim]({resolved}).\n")
+    result = run(str(doc), "--session", "s1", "--check", "silent")
+    assert f"    skip 1 — {bind_cli.NO_REASON}" in result.output
+
+
+def test_the_skip_reason_does_not_reach_the_record(
+    tmp_path, fake_bind_registry
+) -> None:
+    """Output only: the verdicts the sidecar carries are what they always were."""
+    cell = fake_bind_registry.add_anchor("model", "rent-roll!B11", "412300")
+    fake_bind_registry.show("s1", cell.token)
+    doc = write(tmp_path, f"[Taxes are $412,300]({cell.token}).\n")
+    run(str(doc), "--session", "s1", "--check", "overlap")
+    payload = json.loads(sidecar_path(doc).read_text(encoding="utf-8"))
+    verdicts = payload["claims"][0]["citations"][0]["verdicts"]
+    assert verdicts == [
+        {
+            "method": "overlap",
+            "status": "skip",
+            "detail": "wording overlap does not apply to a single cell",
+        }
+    ]
+    assert payload["summary"]["by_method"] == {"overlap": {"skip": 1}}
 
 
 # --- behavior --------------------------------------------------------------

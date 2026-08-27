@@ -201,6 +201,18 @@ Optional deterministic checks, off by default:
 `backdraft bind memo.md --check value-trace,overlap`. Verdicts are recorded
 evidence, never gates — a `partial` is not a problem to fix.
 
+```
+  overlap: pass 13, skip 4
+    skip 4 — wording overlap does not apply to a single cell
+  value-trace: pass 17
+```
+
+A `skip` is the check declining to apply, and the line under it says why — most
+often that a claim cites a single spreadsheet cell, where measuring wording
+overlap against a bare number would mean nothing. **A skip with a reason is not
+a hole to fix**: do not re-cite, re-word or drop a claim over one, and do not
+report it to the user as a verification gap. Relay the reason as it is printed.
+
 ## Exit codes
 
 | Code | Means | Do |

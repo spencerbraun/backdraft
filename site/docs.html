@@ -317,9 +317,11 @@ source, reading through thousands separators, currency, scale suffixes
 and dates; a match that only works after rounding is <code>partial</code>,
 and a miss names the figure. <code>overlap</code> measures how much of a
 claim's wording appears in its source (and skips single-cell sources, where
-the question is meaningless). <code>entail</code> (extra) asks a model
-whether the source supports the claim. Verdicts appear in the artifact's
-Record layer in plain language.</p>
+the question is meaningless). A <code>skip</code> is never bare: the bind
+report prints the reason under its method's line, grouped, so a count of
+unchecked citations can be told apart from a hole in the verification.
+<code>entail</code> (extra) asks a model whether the source supports the
+claim. Verdicts appear in the artifact's Record layer in plain language.</p>
 </section>
 
 <section id="files">

@@ -29,6 +29,16 @@ which one:
 what tells two line items carrying the same token apart. The record JSON says
 all of this already, nested; this is the same fact on one line.
 
+A verifier's `skip` count gets the same treatment one level up. `overlap: pass
+13, skip 4` names four citations nobody checked without saying whether that is
+benign, so the reasons print under it, grouped:
+
+      overlap: pass 13, skip 4
+        skip 4 — wording overlap does not apply to a single cell
+
+Grouped rather than listed per citation, per the 2026-08-13 rule: one cause
+explains the whole cluster and there is nothing per-citation to go fix.
+
 Registry discovery and session resolution come from `backdraft.cli_context`
 (SPEC Addendum B), imported at module level like every other sub-app's. The
 registry is opened from the *document's* directory rather than the process's
@@ -63,7 +73,7 @@ from ..cli_context import (
     resolve_session,
 )
 from ..kernel.artifact import bound_path, sidecar_path
-from ..kernel.model import Citation, CitationStatus, Claim
+from ..kernel.model import Citation, CitationStatus, Claim, VerdictStatus
 from .binder import bind as run_bind, record_target
 
 __all__ = ["app", "bind", "EXIT_USAGE", "EXIT_UNRESOLVED"]
@@ -137,9 +147,12 @@ def _print_report(report, doc: Path, *, bound: bool = False, record: Path | None
     )
     for status, count in sorted(summary["by_status"].items()):
         typer.echo(f"  {status}: {count}")
+    skipped = _skip_reasons(report)
     for method, statuses in sorted(summary["by_method"].items()):
         detail = ", ".join(f"{key} {value}" for key, value in sorted(statuses.items()))
         typer.echo(f"  {method}: {detail}")
+        for reason, count in skipped.get(method, ()):
+            typer.echo(f"    skip {count} — {reason}")
     for claim, citation in _line_items(report):
         reason = f" — {citation.error}" if citation.error else ""
         typer.echo(
@@ -152,6 +165,53 @@ def _print_report(report, doc: Path, *, bound: bool = False, record: Path | None
     if bound:
         typer.echo(f"wrote {bound_path(doc)}")
     typer.echo(f"wrote {_as_typed(record or sidecar_path(doc))}")
+
+
+NO_REASON = "no reason recorded"
+"""Stand-in for a `skip` verdict whose `detail` is empty.
+
+`Verdict.detail` is optional, so a verifier can record a skip and say nothing.
+Printing the count alone would put back exactly the silence this line exists to
+end, so the report says the reason is missing rather than omitting the line.
+"""
+
+
+def _skip_reasons(report) -> dict[str, list[tuple[str, int]]]:  # noqa: ANN001 - BindReport
+    """Why each method skipped, grouped by reason: `{method: [(reason, count)]}`.
+
+    A `skip` is the one verdict a reader cannot interpret from the summary
+    alone. `overlap: pass 13, skip 4` says four citations went unchecked and
+    not whether that is benign — and the reason is already in the record, on
+    every one of those verdicts, nested where the line a person reads is not.
+    Verifiers never gate (DESIGN, 2026-07-27), which makes an uninterpretable
+    skip the one way a non-gating verifier can still mislead — and that same row
+    put the reason on the verdict, so this prints a fact bind already had.
+
+    Grouped by reason rather than listed per citation, the distinction the
+    2026-08-13 row draws: skips of one method cluster on one cause the way a
+    missing poppler explains every unsnapshotted document at once, and there is
+    no per-citation action to take, so the source is not what the caller has to
+    go fix.
+
+    Counted per verdict, exactly as `summary['by_method']` counts, so the
+    reasons under a method always add up to its `skip N`.
+
+    Ordered by count descending, then by reason, so the dominant cause reads
+    first and the output stays a pure function of the report.
+    """
+    reasons: dict[str, dict[str, int]] = {}
+    for claim in report.claims:
+        for citation in claim.citations:
+            for verdict in citation.verdicts:
+                if verdict.status is not VerdictStatus.SKIP:
+                    continue
+                reason = verdict.detail.strip() or NO_REASON
+                counts = reasons.setdefault(verdict.method, {})
+                counts[reason] = counts.get(reason, 0) + 1
+    return {
+        method: sorted(counts.items(), key=lambda row: (-row[1], row[0]))
+        for method, counts in reasons.items()
+    }
 
 
 def _line_items(report) -> Iterator[tuple[Claim, Citation]]:  # noqa: ANN001 - BindReport, kernel-typed

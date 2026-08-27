@@ -154,7 +154,9 @@ receipts + evidence, one file, no network) · the record lives at
 .backdraft/records/<doc>.backdraft.json. `backdraft verify` reads either the
 artifact or the record. `backdraft clean` tidies strays.
 Verification (--check) is evidence, never a gate: a partial is not a problem
-to fix.
+to fix, and a skip prints the reason it declined on the line under its method
+(most often: a claim citing a single cell, where wording overlap means nothing)
+— also not a problem to fix.
 
 ## Format
 

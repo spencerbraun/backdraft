@@ -150,6 +150,7 @@ bound 17 claim(s), 18 citation(s) [frontwalk]
   resolved: 17
   unresolved: 1
   overlap: pass 13, skip 4
+    skip 4 — wording overlap does not apply to a single cell
   value-trace: pass 17
   ! unresolved: bd:t12-summary:p4.c1:1a2b — replacement reserve of $250 per unit per year @3629
 wrote .backdraft/records/memo.backdraft.json

@@ -408,6 +408,7 @@ bound 17 claim(s), 18 citation(s) [frontwalk]
   resolved: 17
   unresolved: 1
   overlap: pass 13, skip 4
+    skip 4 — wording overlap does not apply to a single cell
   value-trace: pass 17
   ! unresolved: bd:t12-summary:p4.c1:1a2b — replacement reserve of $250 per unit per year @3629
 wrote .backdraft/records/memo.backdraft.json
@@ -439,13 +440,20 @@ against a cell whose snippet is the eight characters `24850000`.
 
 **`overlap: pass 13, skip 4`.** Word-overlap between claim and snippet,
 report-only by construction — it never returns `fail`, because a faithful summary
-can share almost no vocabulary with its source. The four `skip`s are the overlap
-check declining to measure wording against single-cell sources: those claims cite
-Excel cells, and a bare number is not a sentence, so the record says it declined
-instead of emitting a low score as though it meant something. Where it does
-measure and finds little it says `partial` — a signal, not a fault. The quoted
-claim in the memo is checked differently: a quotation is an exact-substring
-assertion, and it passes.
+can share almost no vocabulary with its source. Where it does measure and finds
+little it says `partial` — a signal, not a fault. The quoted claim in the memo is
+checked differently: a quotation is an exact-substring assertion, and it passes.
+
+**A `skip` says why, on the line under its method.** Four citations went
+unchecked, and a count alone cannot tell a benign skip from a hole in the
+verification — which matters more, not less, for a check that never gates. Here
+all four share one cause and read as one line: those claims cite Excel cells,
+and a bare number is not a sentence, so overlap declined to measure wording
+against them instead of emitting a low score as though it meant something. The
+reasons under a method always add up to its `skip` count, and a method that
+skipped for two different causes prints two lines. Nothing here is a failure:
+the exit code does not move, and a run whose checks skipped nothing prints
+exactly what it printed before.
 
 Both checks are off by default. Out of the box, bind is pure provenance.
 

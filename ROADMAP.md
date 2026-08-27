@@ -32,40 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. The bind report says why a verifier skipped
-
-**Intent.** A bind report prints `overlap: pass 11, skip 4` and stops. Four
-citations were not checked and the report does not say why, so a reader cannot
-tell a benign skip from a hole in the verification — and the reason exists
-already: the record's verdicts carry `"detail": "wording overlap does not apply
-to a single cell"` for every one of those four. This is the same gap the
-2026-08-13 line-item work closed one level up, where the token was printed and
-the claim it sat on was not: the record says it, nested, and the line a person
-reads does not. `DESIGN.md` holds that verifiers are evidence and never gate,
-which makes the reason *more* important, not less — a skip nobody can interpret
-is the one way a non-gating verifier can still mislead.
-
-**Shape.** `bind/cli.py`'s `_print_report`, output only; no verifier, record or
-artifact change. Skips of one method cluster on one reason, so group by reason
-the way `ingest`'s snapshot note groups (`cli.py`'s `unsnapshot` dict) rather
-than listing one line per citation the way its unread-source report does — the
-distinction is written down in the 2026-08-13 decision row and this is the
-grouping case. Keep it under the method's existing summary line and keep it one
-line per distinct reason. `fail` is not involved: a skip is not a failure, the
-exit code does not move, and a run whose verifiers all passed prints exactly
-what it prints today.
-
-**Acceptance.** Binding the demo (`bind memo.md --session s-bridgeview --check
-value-trace,overlap`) prints the four skips' reason under the `overlap` line;
-exit code is still 2 for the unresolved citation and would be 0 without it. A
-run with no skips is byte-identical to today's, pinned as a test. A method
-skipping for two different reasons prints two lines. `demo/walkthrough.md`'s
-bind blocks, `README.md`'s, and `skills/backdraft/SKILL.md`'s show the real new
-output, and the skill says a skip with a reason is not a hole to fix.
-
-**Size.** One day.
-
-### 2. `session show` says what the ledger holds
+### 1. `session show` says what the ledger holds
 
 **Intent.** The ledger is the mechanism the design rests on — the set of citable
 tokens is exactly the set the gate emitted — and nothing reads it back.
@@ -102,7 +69,7 @@ a stated tradeoff.
 
 **Size.** Two days.
 
-### 3. An unreadable source says what to do, not what errno it was
+### 2. An unreadable source says what to do, not what errno it was
 
 **Intent.** `ingest` now finishes its list and names each failure (2026-08-13),
 which turned the reason string into something a calling agent actually reads —
@@ -137,7 +104,7 @@ actionable so an agent surfaces them to the user rather than paraphrasing.
 
 **Size.** One day.
 
-### 4. A registry can forget a source
+### 3. A registry can forget a source
 
 **Intent.** Ingest is one-way. An agent working unattended over a folder — which
 is now the normal case, since `ingest` finishes its list — will ingest something
@@ -177,7 +144,7 @@ registry never actually shrinks.
 
 **Size.** Three days.
 
-### 5. Bind's markdown names a fetched source by a file nobody has
+### 4. Bind's markdown names a fetched source by a file nobody has
 
 **Intent.** The 2026-08-18 row made `gate.source_name` the one owner of what a
 source is called and named the one surface it could not reach — bind, because
@@ -218,7 +185,7 @@ should say how.
 
 **Size.** Two days.
 
-### 6. A web page has a name, and `read` shows it the navigation menu instead
+### 5. A web page has a name, and `read` shows it the navigation menu instead
 
 **Intent.** `backdraft read franklin-county` — the demo's own web source —
 prints `p1  Franklin County, Ohio - Wikipedia  Jump to content Main menu Main
@@ -260,7 +227,7 @@ blocks and `README.md`'s show the real output. DESIGN row.
 
 **Size.** Three days.
 
-### 7. A page read has no budget and no closing line
+### 6. A page read has no budget and no closing line
 
 **Intent.** `backdraft read franklin-county p1` prints 36,442 characters and
 stops, with nothing to say how much that was or whether it was all of it — it
@@ -298,7 +265,7 @@ the agent to continue rather than assume it saw the page. DESIGN row.
 
 **Size.** Two days.
 
-### 8. The thin-source signal exists only in the ingest that printed it
+### 7. The thin-source signal exists only in the ingest that printed it
 
 **Intent.** 2026-08-20 gave `ingest` a character count and a `note: little text
 extracted` naming the likely cause — the signal that a source is a shell and
@@ -332,7 +299,7 @@ document list is where it learns this, not only the ingest it may not have run.
 
 **Size.** Two days.
 
-### 9. What a URL will be called, before the answer is permanent
+### 8. What a URL will be called, before the answer is permanent
 
 **Intent.** Three docs now tell an agent to pass `--slug` when it ingests a URL,
 because a slug is permanent once tokens carry it and the default may name a
