@@ -335,6 +335,197 @@ it.
 
 **Size.** One day.
 
+### 9. A calling agent parses prose to find out what happened
+
+**Intent.** `bind` and `verify` are the two commands whose *output* is the
+product — the exit code says clean or not, and everything actionable is in the
+lines. An agent is the primary caller of both, and today it must scrape them:
+`! unresolved: <token> — <reason> — <claim words> @<start>`, or `! receipt:`,
+or `receipts: 16 of 17 hold`. Every wording fix this repo lands — and it lands
+them often, four this week alone — is a silent breaking change for anything
+that scraped the last wording. Worse, the shapes collide: `verify` exits 2 both
+for a receipt that did not hold, which means the file was edited, and for a
+source that moved since binding, which means the file is honest and stale. Those
+demand opposite responses and the exit code cannot tell them apart, so the agent
+is pushed back to the prose to find out which it got.
+
+**Shape.** `--json` on `bind` and on `verify`, writing one object to stdout and
+nothing else, with the human report suppressed. For `bind` the object already
+exists — it is the sidecar payload `render.sidecar.dumps` writes, which the
+artifact spec already governs — so this is a flag choosing the existing
+serialization, not a new format. `verify` needs a small one of its own, and it
+belongs in `spec/artifact.md` § Checking an artifact beside the checks it
+reports: the format string, the two tiers with a ran/not-ran flag each, per
+citation the token and what failed, and a `findings` list whose entries carry a
+kind (`receipt`, `source`, `recount`) so the two exit-2 causes are separable
+without reading a sentence. Exit codes do not move — the codes are the contract
+and a third one would break every hook written against 0/1/2; the distinction
+lives in the payload, which is exactly what the payload is for. `--json` with
+`-o -` on `render` is the precedent for writing structured output to stdout.
+
+**Acceptance.** `backdraft bind memo.md --json` in `demo/` emits a single JSON
+object, exits 2 as it does today, and prints no report lines; the object parses
+and equals the sidecar it wrote. `backdraft verify memo.backdraft.html --json`
+emits an object naming both tiers, and in `demo/` its `findings` carries one
+entry of kind `source` and none of kind `receipt`; with a snippet edited by one
+byte it carries a `receipt` entry. A test asserts the two kinds are
+distinguishable without any string matching on prose. `spec/artifact.md`,
+`site/llms.txt` and `skills/backdraft/SKILL.md` and
+`skills/backdraft-artifact/SKILL.md` tell the agent to prefer `--json` and to
+relay the human report to the user.
+
+**Size.** Two to three days.
+
+### 10. An artifact you were sent cannot be checked against a registry you have
+
+**Intent.** `verify`'s second tier runs only where a `.backdraft/` is
+discoverable from cwd, and the reason is good: an artifact is a file people
+forward, so the folder it landed in says nothing about which registry produced
+it (2026-08-24). But the rule leaves no way to say what the agent often knows —
+"this artifact came out of *that* project" — so the only route to a source check
+is to copy the artifact into the project directory first, which is a filesystem
+move performed to change a discovery result. An agent auditing several
+artifacts against one registry does this repeatedly, and a reviewer holding a
+colleague's artifact next to a shared checkout cannot do it at all without
+write access to that checkout.
+
+**Shape.** One option on `verify`: a path naming the project root or the
+`.backdraft` directory itself, accepted in both forms exactly as
+`cli_context.find_root` accepts `BACKDRAFT_HOME`, and bypassing the cwd walk
+when given. It answers rather than violates the 2026-08-24 objection, and the
+DESIGN row must say so: discovery stays refusal-by-default and the flag is the
+recipient asserting a link the tool must never infer, which is the same shape
+as `--slug` overruling a derived name. The `sources:` line names the registry it
+used either way, so a report never leaves which registry answered ambiguous.
+`BACKDRAFT_HOME` already overrides discovery process-wide and must keep
+working; the flag wins over it, and a test pins that order.
+
+**Acceptance.** From a directory with no `.backdraft/` anywhere above it,
+`backdraft verify memo.backdraft.html --against ../backdraft/demo` re-resolves
+every citation and prints the same `sources:` line the in-project run prints,
+naming that root. Pointing it at `demo/.backdraft` works identically. Pointing
+it at a directory with no registry is a usage error naming what was expected,
+not a silent fall back to tier one. Without the flag, behaviour is byte-identical
+to today. `README.md`, `site/docs.html`, `site/llms.txt` and
+`skills/backdraft-artifact/SKILL.md` name it where they currently say the check
+runs only in the project it was bound in.
+
+**Size.** One day.
+
+### 11. A claim that straddles a chunk boundary gets one token instead of two
+
+**Intent.** `skills/backdraft/SKILL.md` tells the writing agent that "a claim
+that spans two chunks needs both tokens, not the nearest one" — a correct
+instruction with no support behind it. The gate hands back chunks; whether the
+sentence the agent is about to cite ends inside one is something the agent must
+notice by eye, in the middle of drafting, against text it is reading for
+meaning. When it misses, nothing downstream complains: one token resolves, the
+receipt is real, the artifact renders clean, and the half of the claim living in
+the next chunk is uncited while looking cited. That is the one failure mode this
+product cannot detect and cannot afford — a claim whose evidence covers part of
+it is worse than an unresolved one, because an unresolved one says so.
+
+**Shape.** The gate's, and display-only: no token, anchor or receipt moves. A
+search hit whose snippet begins or ends mid-sentence is at a boundary, and the
+neighbour is `ordinal ± 1` on the same page, which `Registry.anchors_for_page`
+already returns — so the hit can carry the neighbour's token and be rendered
+with it, in `gate/searcher.py`'s existing line shape. Decide "mid-sentence" by
+the chunk's own edges rather than by parsing prose: the chunker (spec/chunking.md)
+splits on paragraph boundaries, so a chunk that does not end at one is the
+signal, and the rule must be stated in the DESIGN row because a heuristic that
+guesses at sentences would be the kind this repo refuses. Emitting the neighbour
+is minting it, per the gate's own rule, so the ledger records it and the run says
+so — that is a cost to name, not to hide. The same treatment belongs on a page
+read's last chunk, where the next page's first chunk is the neighbour.
+
+**Acceptance.** Ingest a source whose paragraph runs across a page break, search
+for a phrase landing in the tail chunk, and the hit names the adjoining token on
+its own line; the ledger shows both minted. A hit sitting wholly inside a
+paragraph gains nothing and its output is byte-identical to today, pinned by a
+test. `skills/backdraft/SKILL.md` replaces "needs both tokens, not the nearest
+one" with the surface that now says which both are.
+
+**Size.** Two to three days.
+
+### 12. A re-ingested source strands citations one at a time
+
+**Intent.** This is DESIGN.md's oldest Open line — "re-bind/orphan pass on
+re-ingest of changed docs (chunk ordinal drift)" — and the week that taught
+`ingest` to announce a `new generation` (2026-08-20) made it sharper rather than
+smaller: the agent is now told the moment its citations may have moved, and
+still has nothing to do about it but re-bind and read a list of failures. A
+changed source re-chunks, so an edit near the top of a page shifts every ordinal
+below it; citations that pointed at unchanged text come back `drifted` or
+`unresolved` en masse, each one a separate manual hunt for where that sentence
+went. The system knows both sides — the cited snippet and the current
+extraction — and makes the human do the matching.
+
+**Shape.** Read-only and advisory; it proposes, it never rewrites. A command
+over one document that, for every citation in its bindings that no longer
+resolves against the current generation, looks for the cited snippet in the
+current extraction and reports what it found: the old token, the new token if
+the text is there under a new locator, and plainly nothing when it is not.
+Matching is on the normalized snippet hash first (`kernel.hashing`), which is
+exact and is the only claim worth making automatically; a near match is a
+different and harder question and must be left out, said out loud in the DESIGN
+row, because a wrong proposal here rewrites provenance. The registry already
+holds every generation and `registry.current_at` is the existing half of this —
+so the new part is the reverse lookup by snippet hash within a document, which
+is one indexed query, and the walk over `bindings` the registry already stores.
+Output is the same line shape `bind` and `verify` use.
+
+Not Later's "living documents", and the boundary is worth holding: that item is
+a *presentation* — cited-then vs. now, diff-shaped, with a demo — and answers
+"what changed". This one answers "where did it go", is the Open list's line
+rather than Later's, and is the primitive the presentation would rest on.
+
+**Acceptance.** Ingest a document, bind a memo citing three chunks, edit the
+source so a paragraph is inserted above them, re-ingest, and the command reports
+all three as moved with their new tokens; applying those tokens by hand and
+re-binding gives a clean run. A citation whose text was deleted outright is
+reported as gone, with no token proposed. A document with no new generation
+reports nothing and exits 0. Nothing is written: the registry's document,
+extraction and ledger counts are identical before and after.
+
+**Size.** Three days.
+
+### 13. What this install can do, said before a verb needs it
+
+**Intent.** backdraft degrades rather than fails, which is right, and the price
+is that its capabilities are discovered one at a time at the moment each is
+missed: poppler tells you at ingest, the vision model tells you at ingest, a
+thin extraction tells you after the fact, `[xls]` tells you when a workbook
+arrives, and `[math]` now tells you at render — each a different note at a
+different moment, none of them askable in advance. An agent planning a job
+cannot say "this machine can ingest scanned PDFs" without attempting one, so it
+either promises the user something it cannot deliver or hedges everything. The
+notes are good; there is no way to read them before the work.
+
+**Shape.** One read-only command reporting each optional capability, what it
+affects in terms of the four verbs, and the exact command that installs it —
+reusing the message each site already owns rather than writing a second copy of
+any of them, which is the whole risk here. The sites are known:
+`extract.snapshots`'s poppler check, `extract.vlm_settings.vlm_ready`, the
+`[xls]`, `[entail]` and `[math]` imports, and the registry's own presence. Each
+must be asked the way the real path asks it, so the report cannot say yes where
+the verb would say no. Credentials are named as present or absent and **never
+printed, echoed or logged**, per the credentials rule. Exit 0 always: a missing
+optional capability is not an error, and gating on it would make the report a
+second, worse failure surface.
+
+**Acceptance.** On a machine without poppler, the command names it, says page
+images will be missing and citations unaffected, and gives the install line —
+matching what `ingest` prints when it actually happens, asserted against the
+same constant. With `[math]` uninstalled it says formulas render verbatim; with
+it installed it says nothing is missing. It exits 0 in both cases, and in a
+directory with no registry it still runs and says the registry is the one thing
+absent. No key value appears in the output under any state, pinned by a test
+that sets a fake key and greps the output for it. `README.md`, `site/docs.html`,
+`site/llms.txt` and `skills/backdraft/SKILL.md` name it as the first thing to
+run in an unfamiliar environment.
+
+**Size.** Two days.
+
 ## Parked
 
 Deliberately not queued, each with the reason, so picking one up starts from
