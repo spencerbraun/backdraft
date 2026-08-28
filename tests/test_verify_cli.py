@@ -302,6 +302,36 @@ def test_a_page_with_no_record_island_is_a_usage_error(tmp_path: pathlib.Path) -
     assert ISLAND_ID in result.output
 
 
+# A page *is* ours and the island is still unusable: two ways an artifact gets
+# damaged in transit — truncated on the way out, or edited by hand into invalid
+# JSON. Both must say which of the two it was, because the fixes differ (ask for
+# the file again; undo the edit), and neither may reach the user as a traceback.
+
+
+def _islanded(body: str) -> str:
+    return f'<html><script type="application/json" id="{ISLAND_ID}">{body}</script></html>'
+
+
+def test_a_truncated_record_island_says_it_was_truncated(tmp_path: pathlib.Path) -> None:
+    page = tmp_path / "cut.backdraft.html"
+    head = _islanded("{}").split("</script>")[0]
+    page.write_text(head + '{"claims"', encoding="utf-8")
+    result = runner.invoke(app, ["verify", str(page)])
+    assert result.exit_code == EXIT_USAGE
+    assert "unterminated" in result.output
+
+
+def test_a_record_island_that_is_not_json_says_where_it_broke(
+    tmp_path: pathlib.Path,
+) -> None:
+    page = tmp_path / "edited.backdraft.html"
+    page.write_text(_islanded('{"$format": "backdraft/artifact-v1",}'), encoding="utf-8")
+    result = runner.invoke(app, ["verify", str(page)])
+    assert result.exit_code == EXIT_USAGE
+    assert "is not valid JSON" in result.output
+    assert "char" in result.output, "the parser names the byte, which is the fix"
+
+
 # ---- tier one: what is not an artifact --------------------------------------
 
 

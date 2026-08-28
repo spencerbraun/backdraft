@@ -330,7 +330,7 @@ Three extras:
 |---|---|---|
 | `[entail]` | `anthropic` | `bind --check entail`, the model-judge verifier |
 | `[xls]` | `python-calamine` | legacy `.xls` workbooks, values only, rendered the same shape as xlsx |
-| `[math]` | `latex2mathml` | LaTeX in a document becomes MathML in the artifact; without it, formulas render verbatim |
+| `[math]` | `latex2mathml` | LaTeX in a document becomes MathML in the artifact; without it, formulas render verbatim and `render` says so |
 
 `backdraft[vlm]` still installs: it is an empty compat alias from when the
 vision deps were an extra.

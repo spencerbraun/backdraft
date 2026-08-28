@@ -27,7 +27,8 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # succeeds, notes it, and `backdraft snapshot-pages <slug>` backfills later.
 # LaTeX written in a document renders as math in the artifact when the [math]
 # extra is installed ($...$, $$...$$, \(...\), \[...\]); without it a formula
-# renders verbatim, never corrupted. Currency like $250 is never read as math.
+# renders verbatim, never corrupted, and `render` says so at exit 0 and names
+# the install. Currency like $250 is never read as math.
 # Formats: pdf, xlsx/xlsm, xls (via [xls]), csv/tsv, docx, pptx,
 # png/jpeg/tiff, html/htm, txt/md. pptx is slide text only; export visual-heavy
 # decks to PDF and ingest via the vision extractor.

@@ -174,6 +174,12 @@ verbatim instead; it is never silently rewritten either way, so there is no
 reason to avoid math or to spell a formula out in words. Currency (`$250`,
 `$1.2M`) and shell variables in backticks are never read as math.
 
+You do not have to guess which happened. When the extra is missing and the
+document has formulas, `render` says so at exit 0 — `note: 2 formula(s) rendered
+verbatim rather than as math` — and names the install. Relay that note to the
+user rather than acting on it: installing packages is their call, and the
+artifact is correct either way.
+
 ```bash
 backdraft bind memo.md --session s-<short-name>
 backdraft render memo.md --to html

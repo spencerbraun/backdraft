@@ -15,7 +15,7 @@ import typer
 from typer.testing import CliRunner
 
 from backdraft.kernel.model import BindReport
-from backdraft.render import sidecar
+from backdraft.render import math as render_math, sidecar
 from backdraft.render.cli import app as render_app
 
 from conftest_render import DEMO_DOC
@@ -328,3 +328,62 @@ def test_renders_with_the_registry_deleted(
     # actual URL forms.
     assert "http://" not in artifact
     assert "https://" not in artifact
+
+
+# ---- math the artifact could not typeset ------------------------------------
+#
+# `render` prints its target path and nothing else, so an artifact full of raw
+# TeX looks exactly like an artifact full of MathML. The writing skill tells an
+# agent to write LaTeX freely — true, and it needs a way to learn which of the
+# two happened.
+
+
+MATH_DOC = DEMO_DOC.replace(
+    "## What the file says",
+    "Coverage is $\\frac{NOI}{D}$ today.\n\n## What the file says",
+)
+
+
+@pytest.fixture
+def no_math_extra(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The `[math]` extra uninstalled, without uninstalling it."""
+    monkeypatch.setattr(render_math, "_LOOKED", True)
+    monkeypatch.setattr(render_math, "_CONVERTER", None)
+
+
+def test_math_without_the_extra_says_so_and_names_the_install(
+    bound: pathlib.Path, no_math_extra: None
+) -> None:
+    bound.write_text(MATH_DOC, encoding="utf-8")
+    result = runner.invoke(app, ["render", str(bound)])
+    assert result.exit_code == 0, result.output
+    assert "1 formula(s) rendered verbatim" in result.output
+    assert "pip install 'backdraft[math]'" in result.output
+    assert "no citation is affected" in result.output
+
+
+def test_the_note_is_silent_when_the_extra_is_installed(bound: pathlib.Path) -> None:
+    pytest.importorskip("latex2mathml", reason="[math] extra not installed")
+    bound.write_text(MATH_DOC, encoding="utf-8")
+    result = runner.invoke(app, ["render", str(bound)])
+    assert result.exit_code == 0, result.output
+    assert "formula(s) rendered verbatim" not in result.output
+
+
+def test_a_document_with_no_math_never_mentions_math(
+    bound: pathlib.Path, no_math_extra: None
+) -> None:
+    """Byte-identical to what render printed before the note existed."""
+    result = runner.invoke(app, ["render", str(bound)])
+    assert result.exit_code == 0, result.output
+    assert result.output == f"{bound.with_name('memo.backdraft.html')}\n"
+
+
+def test_the_note_belongs_to_the_artifact_not_the_projections(
+    bound: pathlib.Path, no_math_extra: None
+) -> None:
+    """`--to footnotes` never typesets math, so it has nothing to apologize for."""
+    bound.write_text(MATH_DOC, encoding="utf-8")
+    result = runner.invoke(app, ["render", str(bound), "--to", "footnotes"])
+    assert result.exit_code == 0, result.output
+    assert "formula(s) rendered verbatim" not in result.output

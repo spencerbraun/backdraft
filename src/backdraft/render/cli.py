@@ -53,7 +53,7 @@ from ..kernel.hashing import snippet_hash
 from ..kernel.model import BindReport, Citation, CitationStatus, Claim
 from ..kernel.tokens import format_locator, parse as parse_token
 from ..registry import Registry, citation_for
-from . import footnotes, html, sidecar, theme as theming
+from . import footnotes, html, math as math_module, sidecar, theme as theming
 
 __all__ = ["app", "theme_app", "Target", "verify"]
 
@@ -153,6 +153,47 @@ def render(
     target = out or doc.with_name(doc.stem + _SUFFIX[to])
     target.write_text(text, encoding="utf-8")
     typer.secho(str(target), fg=typer.colors.GREEN)
+    if to is Target.HTML and (note := _unrendered_math_note(source)) is not None:
+        typer.echo(note)
+
+
+VERBATIM_MATH_NOTE = (
+    "note: {count} formula(s) rendered verbatim rather than as math — the "
+    "`[math]` extra is not installed. Nothing was corrupted and no citation is "
+    "affected; the artifact just shows the LaTeX as written. Install it with "
+    "`pip install 'backdraft[math]'` (or `uv tool install 'backdraft[math]'`) "
+    "and render again."
+)
+"""Said at exit 0, in the shape `ingest`'s poppler note uses: what happened,
+what it did not cost, and the one command that fixes it.
+
+Not printed when the artifact goes to stdout (`-o -`): the note would land in
+the middle of the file it is about.
+"""
+
+
+def _unrendered_math_note(source: str) -> str | None:
+    """The advisory for a document whose math could not become math, or None.
+
+    The gap this closes is an agent's: the writing skill tells it to write LaTeX
+    freely because a formula is never corrupted either way, which is true — and
+    leaves it no way to find out which way happened. `render` printed the target
+    path and nothing else, so an artifact full of raw TeX looked exactly like an
+    artifact full of MathML.
+
+    Only asked when the converter is missing, which is why the second scan it
+    costs is affordable: the common render does not run it, and an installed
+    extra prints nothing new. `math.protect` is the same call the renderer makes,
+    so what counts as a formula is decided in one place — the count can differ by
+    one from the render's own only where a claim span splits a formula in half,
+    and being off by one in a sentence of advice is not a cost worth a second
+    owner of the rule.
+    """
+    if math_module.available():
+        return None
+    found: list[math_module.Math] = []
+    math_module.protect(source, found)
+    return VERBATIM_MATH_NOTE.format(count=len(found)) if found else None
 
 
 # ---- verify -----------------------------------------------------------------

@@ -204,7 +204,9 @@ verifier, keyed separately by <code>BACKDRAFT_ENTAIL_API_KEY</code>.
 <code>$$...$$</code>, <code>\(...\)</code>, <code>\[...\]</code> — into
 MathML the browser lays out itself, so the artifact stays one file with no
 script and no font to fetch. Without it a formula renders verbatim rather
-than wrong. Dollar amounts are never mistaken for math.</p>
+than wrong, and <code>render</code> says so at exit 0 and names the install,
+so an artifact of raw TeX never passes for one of typeset math. Dollar
+amounts are never mistaken for math.</p>
 </section>
 
 <section id="concepts">
