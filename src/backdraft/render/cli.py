@@ -173,16 +173,15 @@ def verify(
 ) -> None:
     """Check an artifact against itself, and against the sources when they are here.
 
-    Two tiers, and the output names which ran. **The record against itself**
-    needs nothing but the file: every `snippet_sha256` is recomputed from the
-    snippet the file carries, every token is checked against the anchor it
-    names, and `summary` is recounted from `claims`. That is
-    `spec/artifact.md` § Checking an artifact, and it catches an edited
-    artifact. **Against the sources** runs only when a `.backdraft/` is found
-    from the current directory — not from the artifact's, because an artifact is
-    a file people forward and the folder it landed in says nothing about which
-    registry it came from. It re-resolves every token and reports the statuses
-    as `bind` would.
+    Two tiers, and the output names which ran. The record against itself needs
+    nothing but the file: every `snippet_sha256` is recomputed from the snippet
+    the file carries, every token is checked against the anchor it names, and
+    `summary` is recounted from `claims`. That is `spec/artifact.md` § Checking
+    an artifact, and it catches an edited artifact. Against the sources runs
+    only when a `.backdraft/` is found from the current directory — not from the
+    artifact's, because an artifact is a file people forward and the folder it
+    landed in says nothing about which registry it came from. It re-resolves
+    every token and reports the statuses as `bind` would.
 
     Read-only. It opens no session and mints nothing, which is what separates it
     from `backdraft show`: showing is minting, and an audit must not make its
@@ -214,9 +213,16 @@ def verify(
         if (reason := _receipt_problem(citation)) is not None
     ]
     summary = report.summary
-    recount = "the summary recount agrees"
-    if payload.get("summary") != summary:
-        recount = "the summary does NOT agree with a recount of claims — trust claims"
+    # The finding is the boolean; the sentence is how it is said. Keeping the
+    # two apart matters because the exit code below is one of the checks, and a
+    # check that re-reads its own prose to decide would change meaning the next
+    # time someone improves the wording.
+    recounts = payload.get("summary") == summary
+    recount = (
+        "the summary recount agrees"
+        if recounts
+        else "the summary does NOT agree with a recount of claims — trust claims"
+    )
 
     typer.echo(f"checked {artifact} [{payload['$format']}]")
     typer.echo(f"  receipts: {len(receipts) - len(broken)} of {len(receipts)} hold")
@@ -252,7 +258,7 @@ def verify(
         typer.echo(
             "[Re-check against the sources: run this inside the project it was bound in.]"
         )
-    if broken or recount.startswith("the summary does NOT") or any(
+    if broken or not recounts or any(
         fresh.status is not CitationStatus.RESOLVED for _, _, fresh in against
     ):
         raise typer.Exit(EXIT_UNRESOLVED)
