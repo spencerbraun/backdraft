@@ -24,9 +24,17 @@ from typing import Annotated
 
 import typer
 
-from ..cli_context import EXIT_USAGE, SESSION_ENV, opened_registry, resolve_session
+from ..cli_context import (
+    DEFAULT_SESSION,
+    EXIT_USAGE,
+    SESSION_ENV,
+    opened_registry,
+    resolve_session,
+)
+from .reader import DEFAULT_SESSION_NOTE
 from .reader import cells as mint_cells
 from .reader import read as read_pages
+from .reader import render_session
 from .reader import show as show_tokens
 from .searcher import search as run_search
 
@@ -54,6 +62,14 @@ _SessionOption = Annotated[
     str | None,
     typer.Option("--session", "-s", help="Ledger session to mint into."),
 ]
+
+_InspectedSession = Annotated[
+    str | None,
+    typer.Option("--session", "-s", help="Ledger session to inspect."),
+]
+"""`session show`'s own, because it is the one command taking this flag that
+mints nothing: told it would mint into the session it is inspecting, a caller
+reasonably avoids running it."""
 
 
 @app.command()
@@ -158,10 +174,31 @@ def session_start(
 
 
 @session_app.command("show")
-def session_show(session: _SessionOption = None) -> None:
-    """Show which session reads and searches would mint into."""
+def session_show(session: _InspectedSession = None) -> None:
+    """What this session holds: which one it is, and what it has been shown.
+
+    The ledger read back before the draft exists. Per document a slug and a
+    count of distinct anchors, under a total — the answer to "have I read enough
+    to write this yet?", which was otherwise only reachable by binding a draft
+    and counting `not_shown`.
+
+    The default session says at exit 0 that it accumulates across every run in
+    the registry, because that is what makes `not_shown` weaker than it reads.
+    """
     resolved = resolve_session(session)
     with opened_registry() as registry:
         typer.echo(
-            f"session {registry.ensure_session(resolved)}  (from {_session_source(session)})"
+            render_session(
+                registry,
+                registry.ensure_session(resolved),
+                source=_session_source(session),
+                # Keyed on the id rather than on which rule supplied it: an
+                # explicit `--session default` lands in the same shared ledger
+                # and costs the same thing.
+                note=(
+                    DEFAULT_SESSION_NOTE.format(env=SESSION_ENV)
+                    if resolved == DEFAULT_SESSION
+                    else None
+                ),
+            )
         )

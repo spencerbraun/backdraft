@@ -267,6 +267,59 @@ def test_recording_the_same_anchor_twice_is_harmless(registry: Registry, note: P
     assert registry.was_shown(session, anchor.token) is True
 
 
+def test_shown_by_document_counts_each_document_the_session_saw(
+    registry: Registry, note: Path, workbook: Path
+) -> None:
+    """The ledger read back the other way: per document, how much of it was shown."""
+    registry.ingest(note)
+    registry.ingest(workbook)
+    session = registry.ensure_session("s1")
+    registry.record_shown(
+        session, [anchor.id for anchor in registry.anchors_for_page("quarterly-notes", 1)[:2]]
+    )
+    registry.record_shown(session, [registry.anchors_for_page("model", 1)[0].id])
+
+    # Ingest order, which is `documents()` order: the note, then the workbook.
+    assert registry.shown_by_document(session) == [("quarterly-notes", 2), ("model", 1)]
+
+
+def test_shown_by_document_omits_a_document_nothing_was_shown_from(
+    registry: Registry, note: Path, workbook: Path
+) -> None:
+    registry.ingest(note)
+    registry.ingest(workbook)
+    session = registry.ensure_session("s1")
+    registry.record_shown(session, [registry.anchors_for_page("quarterly-notes", 1)[0].id])
+
+    assert registry.shown_by_document(session) == [("quarterly-notes", 1)]
+    assert registry.shown_by_document("never-used") == []
+
+
+def test_shown_by_document_counts_a_carried_over_token_once(
+    registry: Registry, tmp_path: Path, paged: object
+) -> None:
+    """A re-ingest makes a second anchor row for the same token; the writer saw one.
+
+    The count is by distinct token for the reason `was_shown` matches by token —
+    counting ledger rows would say a session read twice as much as it did the
+    moment a source was re-ingested.
+    """
+    path = tmp_path / "quarterly-notes.md"
+    path.write_text("Page one stands.\n---\nPage two moves.", encoding="utf-8")
+    registry.ingest(path, extractor="paged")
+    session = registry.ensure_session("s1")
+    first = registry.anchors_for_page("quarterly-notes", 1)[0]
+    registry.record_shown(session, [first.id])
+
+    path.write_text("Page one stands.\n---\nPage two moved.", encoding="utf-8")
+    registry.ingest(path, extractor="paged")
+    carried = registry.anchors_for_page("quarterly-notes", 1)[0]
+    assert carried.token == first.token and carried.id != first.id
+    registry.record_shown(session, [carried.id])
+
+    assert registry.shown_by_document(session) == [("quarterly-notes", 1)]
+
+
 def test_save_binding_stores_the_report(registry: Registry) -> None:
     binding_id = registry.save_binding(
         doc_path="memo.md", session_id="s1", mode="frontwalk", report_json='{"claims": []}'

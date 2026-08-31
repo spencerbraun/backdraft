@@ -202,7 +202,8 @@ def test_session_start_generates_an_id(runner: CliRunner, wired: FakeDocumentReg
 
 def test_session_show_default(runner: CliRunner, wired: FakeDocumentRegistry) -> None:
     result = runner.invoke(cli.app, ["session", "show"])
-    assert result.output.strip() == "session default  (from default)"
+    assert result.exit_code == 0
+    assert result.output.startswith("session default  (from default)")
 
 
 def test_session_show_env(
@@ -210,7 +211,7 @@ def test_session_show_env(
 ) -> None:
     monkeypatch.setenv(cli.SESSION_ENV, "from-env")
     result = runner.invoke(cli.app, ["session", "show"])
-    assert result.output.strip() == f"session from-env  (from {cli.SESSION_ENV})"
+    assert result.output.startswith(f"session from-env  (from {cli.SESSION_ENV})")
 
 
 def test_session_show_flag_wins(
@@ -218,7 +219,57 @@ def test_session_show_flag_wins(
 ) -> None:
     monkeypatch.setenv(cli.SESSION_ENV, "from-env")
     result = runner.invoke(cli.app, ["session", "show", "--session", "from-flag"])
-    assert result.output.strip() == "session from-flag  (from --session)"
+    assert result.output.startswith("session from-flag  (from --session)")
+
+
+def test_session_show_reports_what_the_ledger_holds(
+    runner: CliRunner, wired: FakeDocumentRegistry
+) -> None:
+    """The acceptance question: read one document, search another, then ask."""
+    runner.invoke(cli.app, ["read", "t12-audit", "p2", "--session", "s-deal"])
+    runner.invoke(cli.app, ["search", "Vacancy", "--session", "s-deal"])
+
+    result = runner.invoke(cli.app, ["session", "show", "--session", "s-deal"])
+    assert result.exit_code == 0
+    assert "4 anchors shown across 2 documents" in result.output
+    assert "t12-audit   2" in result.output
+    assert "rent-model  2" in result.output
+
+
+def test_session_show_on_an_empty_session_names_read(
+    runner: CliRunner, wired: FakeDocumentRegistry
+) -> None:
+    result = runner.invoke(cli.app, ["session", "show", "--session", "s-fresh"])
+    assert result.exit_code == 0
+    assert "nothing shown yet" in result.output
+    assert "backdraft read" in result.output
+
+
+def test_the_default_session_says_it_accumulates(
+    runner: CliRunner, wired: FakeDocumentRegistry
+) -> None:
+    """The cost of never exporting a session, said where a caller meets it."""
+    result = runner.invoke(cli.app, ["session", "show"])
+    assert "note: this is the default session" in result.output
+    assert f"exported `{cli.SESSION_ENV}`" in result.output
+
+
+def test_a_named_session_carries_no_accumulation_note(
+    runner: CliRunner, wired: FakeDocumentRegistry, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(cli.SESSION_ENV, "s-x")
+    result = runner.invoke(cli.app, ["session", "show"])
+    assert result.output.startswith(f"session s-x  (from {cli.SESSION_ENV})")
+    assert "note:" not in result.output
+
+
+def test_naming_the_default_session_explicitly_still_notes(
+    runner: CliRunner, wired: FakeDocumentRegistry
+) -> None:
+    """The note is about the shared ledger, not about which rule chose it."""
+    result = runner.invoke(cli.app, ["session", "show", "--session", "default"])
+    assert result.output.startswith("session default  (from --session)")
+    assert "note: this is the default session" in result.output
 
 
 # ---------------------------------------------------------------------------

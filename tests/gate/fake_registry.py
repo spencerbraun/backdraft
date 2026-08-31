@@ -170,6 +170,26 @@ class FakeDocumentRegistry:
             if anchor.token == token
         )
 
+    def shown_by_document(self, session_id: str) -> list[tuple[str, int]]:
+        """`(slug, distinct tokens shown)`, in ingest order, empty docs omitted.
+
+        Distinct tokens rather than anchor ids, the way the real store counts:
+        one anchor per token here, so the two agree, and a fake that counted
+        rows would hide the re-ingest case the real query exists to handle.
+        """
+        shown = self._ledger.get(session_id, set())
+        rows = []
+        for slug, loaded in self._docs.items():
+            tokens = {
+                anchor.token
+                for anchors in loaded.anchors.values()
+                for anchor in anchors
+                if anchor.id in shown
+            }
+            if tokens:
+                rows.append((slug, len(tokens)))
+        return rows
+
     def close(self) -> None:
         self.closed = True
 

@@ -10,7 +10,15 @@ from __future__ import annotations
 import pytest
 from fake_registry import FakeDocumentRegistry, pdf_document, sheet_document
 
-from backdraft.gate.reader import GateError, read, select_pages
+from backdraft.cli_context import SESSION_ENV
+from backdraft.gate.reader import (
+    DEFAULT_SESSION_NOTE,
+    GateError,
+    read,
+    render_session,
+    select_pages,
+)
+from backdraft.gate.searcher import search
 
 COUNTY_URL = "https://en.wikipedia.org/w/index.php?title=Franklin_County&oldid=1367935775"
 
@@ -464,3 +472,90 @@ def test_unknown_slug(fake_gate_registry: FakeDocumentRegistry) -> None:
         read(fake_gate_registry, "nope")
     with pytest.raises(GateError):
         read(fake_gate_registry, "nope", "p1")
+
+
+# ---------------------------------------------------------------------------
+# session
+# ---------------------------------------------------------------------------
+
+
+SESSION_EMPTY = """\
+session s-fresh  (from --session)
+
+nothing shown yet — a citation bound against it reports `not_shown`
+
+[Start reading: backdraft read]"""
+
+SESSION_HELD = """\
+session s-deal  (from BACKDRAFT_SESSION)
+
+5 anchors shown across 2 documents
+
+  t12-audit   3
+  rent-model  2
+
+[Read more: backdraft read <slug> <page>]"""
+
+
+def test_a_session_holding_nothing_says_so_and_names_read(
+    fake_gate_registry: FakeDocumentRegistry,
+) -> None:
+    """A bare zero would be the answer without the next command attached."""
+    assert (
+        render_session(fake_gate_registry, "s-fresh", source="--session") == SESSION_EMPTY
+    )
+
+
+def test_a_session_names_each_document_and_totals_them(
+    fake_gate_registry: FakeDocumentRegistry,
+) -> None:
+    """Two page reads and a search that lands elsewhere: two rows and a total.
+
+    The search matches the sheet's page anchor and the cell inside it, which is
+    the point of counting anchors rather than commands — coverage is spans.
+    """
+    read(fake_gate_registry, "t12-audit", "p2", session="s-deal")
+    read(fake_gate_registry, "t12-audit", "p3", session="s-deal")
+    search(fake_gate_registry, "Vacancy", session="s-deal")
+
+    assert (
+        render_session(fake_gate_registry, "s-deal", source=SESSION_ENV) == SESSION_HELD
+    )
+
+
+def test_a_document_nothing_was_shown_from_is_absent_rather_than_zero(
+    fake_gate_registry: FakeDocumentRegistry,
+) -> None:
+    read(fake_gate_registry, "t12-audit", "p1", session="s-one")
+    rendered = render_session(fake_gate_registry, "s-one", source="--session")
+    assert "t12-audit" in rendered
+    assert "rent-model" not in rendered
+    assert "1 anchor shown across 1 document" in rendered
+
+
+def test_the_note_closes_the_block_when_it_is_handed_one(
+    fake_gate_registry: FakeDocumentRegistry,
+) -> None:
+    """The default-session warning is the CLI's to decide and the reader's to place.
+
+    Both shapes of block take it: the empty one, where there is nothing above it
+    to qualify, and the populated one, where the counts are what it is about.
+    """
+    note = DEFAULT_SESSION_NOTE.format(env=SESSION_ENV)
+    read(fake_gate_registry, "t12-audit", "p1", session="s-held")
+
+    for session in ("s-empty", "s-held"):
+        rendered = render_session(fake_gate_registry, session, source="default", note=note)
+        assert rendered.endswith(note)
+        assert SESSION_ENV in rendered
+
+    # No note handed over, none printed: the reader decides nothing here.
+    assert "note:" not in render_session(fake_gate_registry, "s-held", source="--session")
+
+
+def test_the_session_summary_mints_nothing(fake_gate_registry: FakeDocumentRegistry) -> None:
+    """Counting what was shown is not being shown it."""
+    read(fake_gate_registry, "t12-audit", "p1", session="s-count")
+    before = fake_gate_registry.shown_tokens("s-count")
+    render_session(fake_gate_registry, "s-count", source="--session")
+    assert fake_gate_registry.shown_tokens("s-count") == before

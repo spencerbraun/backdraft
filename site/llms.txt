@@ -84,8 +84,11 @@ construct or edit a token by hand; copy it from gate output.
 backdraft init                              # once per project
 backdraft ingest report.pdf model.xlsx      # every source up front
 backdraft ingest <url> --slug <name>        # a URL is a source too
-backdraft session start --id s-<name>       # enables not_shown detection
-export BACKDRAFT_SESSION=s-<name>
+backdraft session start --id s-<name>       # do this. Without it every run in
+export BACKDRAFT_SESSION=s-<name>           # the project shares one ledger that
+                                            # is never reset, so not_shown drops
+                                            # from "this writer never saw it" to
+                                            # "nothing here ever did".
 
 backdraft read                              # list documents
 backdraft read <slug>                       # table of contents
@@ -106,6 +109,16 @@ backdraft show bd:slug:p3.c2:7f11 ...       # the inverse: what a token says.
                                             # snippet, in argument order; also
                                             # mints, so a shown token is citable.
                                             # Exit 1 if any named nothing.
+backdraft session show                      # coverage, before you write: which
+                                            # session is in effect and how many
+                                            # distinct anchors it holds per
+                                            # document. What is counted binds
+                                            # resolved; everything else in the
+                                            # registry binds not_shown, so a
+                                            # source ingested and never read is
+                                            # the row that is missing. Mints
+                                            # nothing. Says at exit 0 when you
+                                            # are in the shared default session.
 
 Write claims as links; multiple tokens are ;-separated in one href:
   [net operating income of $1,429,600](bd:t12:p1.c3:f10b)

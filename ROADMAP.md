@@ -32,44 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. `session show` says what the ledger holds
-
-**Intent.** The ledger is the mechanism the design rests on — the set of citable
-tokens is exactly the set the gate emitted — and nothing reads it back.
-`backdraft session show` prints `session default  (from default)` and stops, so
-an agent cannot answer "have I read enough to write this yet?" except by binding
-and reading the `not_shown` count, which means finding out after the draft
-exists. Worse, the default session is documented as stable across invocations
-*so reads accumulate*, which means an agent that never exported
-`BACKDRAFT_SESSION` has its `not_shown` judged against everything ever read in
-that registry by any previous run on any document — a real weakening of the
-system's strongest check, currently invisible at every surface. `skills/
-backdraft/SKILL.md` tells the agent to start a named session and calls it
-optional; nothing shows it what optional costs.
-
-**Shape.** `gate/cli.py`'s `session show` and `gate/reader.py` (the ledger is
-the gate's, and `session start` already lives there). Report what the session
-holds: how many anchors, across how many documents, and per document a slug and
-a count — read off the `shown` rows the registry already keeps, which may need
-one accessor on `Registry` beside `was_shown` (SPEC Addendum A, so state it
-there). When the session is the default one, say plainly that it accumulates
-across runs and that a named session is what makes `not_shown` mean "this
-draft's author saw it" — the same voice the `--config` and poppler notes use, a
-note at exit 0 and never a failure. An empty session says so and names
-`backdraft read` rather than printing a bare zero.
-
-**Acceptance.** After reading two pages of one document and searching another,
-`backdraft session show` names both documents with their counts and a total; on
-a fresh registry it says the session is empty and what to run. Running under
-`BACKDRAFT_SESSION=s-x` shows `s-x` and no accumulation note; running with
-nothing set shows the default and the note. `README.md`, `site/docs.html`,
-`site/llms.txt` and `skills/backdraft/SKILL.md` point at it as the way to check
-coverage before binding, and the skill's "optional" for `session start` becomes
-a stated tradeoff.
-
-**Size.** Two days.
-
-### 2. An unreadable source says what to do, not what errno it was
+### 1. An unreadable source says what to do, not what errno it was
 
 **Intent.** `ingest` now finishes its list and names each failure (2026-08-13),
 which turned the reason string into something a calling agent actually reads —
@@ -104,7 +67,7 @@ actionable so an agent surfaces them to the user rather than paraphrasing.
 
 **Size.** One day.
 
-### 3. A registry can forget a source
+### 2. A registry can forget a source
 
 **Intent.** Ingest is one-way. An agent working unattended over a folder — which
 is now the normal case, since `ingest` finishes its list — will ingest something
@@ -144,7 +107,7 @@ registry never actually shrinks.
 
 **Size.** Three days.
 
-### 4. Bind's markdown names a fetched source by a file nobody has
+### 3. Bind's markdown names a fetched source by a file nobody has
 
 **Intent.** The 2026-08-18 row made `gate.source_name` the one owner of what a
 source is called and named the one surface it could not reach — bind, because
@@ -185,7 +148,7 @@ should say how.
 
 **Size.** Two days.
 
-### 5. A web page has a name, and `read` shows it the navigation menu instead
+### 4. A web page has a name, and `read` shows it the navigation menu instead
 
 **Intent.** `backdraft read franklin-county` — the demo's own web source —
 prints `p1  Franklin County, Ohio - Wikipedia  Jump to content Main menu Main
@@ -227,7 +190,7 @@ blocks and `README.md`'s show the real output. DESIGN row.
 
 **Size.** Three days.
 
-### 6. A page read has no budget and no closing line
+### 5. A page read has no budget and no closing line
 
 **Intent.** `backdraft read franklin-county p1` prints 36,442 characters and
 stops, with nothing to say how much that was or whether it was all of it — it
@@ -265,7 +228,7 @@ the agent to continue rather than assume it saw the page. DESIGN row.
 
 **Size.** Two days.
 
-### 7. The thin-source signal exists only in the ingest that printed it
+### 6. The thin-source signal exists only in the ingest that printed it
 
 **Intent.** 2026-08-20 gave `ingest` a character count and a `note: little text
 extracted` naming the likely cause — the signal that a source is a shell and
@@ -299,7 +262,7 @@ document list is where it learns this, not only the ingest it may not have run.
 
 **Size.** Two days.
 
-### 8. What a URL will be called, before the answer is permanent
+### 7. What a URL will be called, before the answer is permanent
 
 **Intent.** Three docs now tell an agent to pass `--slug` when it ingests a URL,
 because a slug is permanent once tokens carry it and the default may name a
@@ -335,7 +298,7 @@ it.
 
 **Size.** One day.
 
-### 9. A calling agent parses prose to find out what happened
+### 8. A calling agent parses prose to find out what happened
 
 **Intent.** `bind` and `verify` are the two commands whose *output* is the
 product — the exit code says clean or not, and everything actionable is in the
@@ -376,7 +339,7 @@ relay the human report to the user.
 
 **Size.** Two to three days.
 
-### 10. An artifact you were sent cannot be checked against a registry you have
+### 9. An artifact you were sent cannot be checked against a registry you have
 
 **Intent.** `verify`'s second tier runs only where a `.backdraft/` is
 discoverable from cwd, and the reason is good: an artifact is a file people
@@ -412,7 +375,7 @@ runs only in the project it was bound in.
 
 **Size.** One day.
 
-### 11. A claim that straddles a chunk boundary gets one token instead of two
+### 10. A claim that straddles a chunk boundary gets one token instead of two
 
 **Intent.** `skills/backdraft/SKILL.md` tells the writing agent that "a claim
 that spans two chunks needs both tokens, not the nearest one" — a correct
@@ -447,7 +410,7 @@ one" with the surface that now says which both are.
 
 **Size.** Two to three days.
 
-### 12. A re-ingested source strands citations one at a time
+### 11. A re-ingested source strands citations one at a time
 
 **Intent.** This is DESIGN.md's oldest Open line — "re-bind/orphan pass on
 re-ingest of changed docs (chunk ordinal drift)" — and the week that taught
@@ -489,7 +452,7 @@ extraction and ledger counts are identical before and after.
 
 **Size.** Three days.
 
-### 13. What this install can do, said before a verb needs it
+### 12. What this install can do, said before a verb needs it
 
 **Intent.** backdraft degrades rather than fails, which is right, and the price
 is that its capabilities are discovered one at a time at the moment each is

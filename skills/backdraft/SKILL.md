@@ -23,9 +23,17 @@ agent config directories; installs from PyPI need no special permissions.
 backdraft init                                    # once per project
 backdraft ingest report.pdf model.xlsx notes.md   # every source, up front
 backdraft ingest <url> --slug <name>              # a URL is a source too
-backdraft session start --id s-<short-name>       # optional; enables not_shown
+backdraft session start --id s-<short-name>       # do this; see below
 export BACKDRAFT_SESSION=s-<short-name>
 ```
+
+**Start a session and export it.** It is skippable and skipping it costs the
+system's strongest check. Without one, every run in the project reads into a
+single shared ledger that is never reset, so `not_shown` stops meaning "this
+draft's writer never saw this" and starts meaning "nothing in this folder has
+ever read it" — a citation you invented can come back `resolved` because some
+earlier run happened to read that page. `backdraft session show` says which
+session you are in and warns when it is the shared one.
 
 Name every source in one `ingest`; it attempts all of them. If one cannot be
 read the command exits 1 and prints `N of M sources ingested` followed by one
@@ -94,6 +102,29 @@ backdraft read t12-summary p1         # p1, p3-5, or a sheet name
 backdraft search "24850000"           # results are citable without a page read
 backdraft search "cap rate" --in underwriting-model
 ```
+
+Before you write, ask what you have actually been shown:
+
+```bash
+backdraft session show
+```
+
+```
+session s-deal  (from BACKDRAFT_SESSION)
+
+24 anchors shown across 3 documents
+
+  t12-summary          9
+  underwriting-model  13
+  franklin-county      2
+
+[Read more: backdraft read <slug> <page>]
+```
+
+Everything counted there binds `resolved`; everything else in the registry binds
+`not_shown`. A source you ingested and never read is missing from that list, and
+finding that out here costs one command — finding it out from `bind` costs the
+draft. `nothing shown yet` means no citation you write can bind cleanly.
 
 Search shows 20 results by default. When the count line reads `2 of 56 results`,
 `--limit` cut the rest and the last line names the command that shows them —

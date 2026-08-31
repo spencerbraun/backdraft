@@ -18,6 +18,7 @@ __all__ = [
     "ensure_session",
     "record_shown",
     "sessions",
+    "shown_by_document",
     "was_shown",
 ]
 
@@ -70,6 +71,34 @@ def was_shown(connection: sqlite3.Connection, session_id: str, token: str) -> bo
         (session_id, token),
     ).fetchone()
     return row is not None
+
+
+def shown_by_document(connection: sqlite3.Connection, session_id: str) -> list[tuple[str, int]]:
+    """`(slug, count)` per document this session was shown anything from.
+
+    Counted by *distinct token* rather than by ledger row, for the reason
+    `was_shown` matches by token: a span that survived a re-ingest is a second
+    anchor row with the same name, and the writer saw one thing, not two. A
+    document nothing was shown from is absent rather than zero — the caller is
+    asking what the session holds, and `documents()` already answers what exists.
+
+    Ordered like `Registry.documents()`, oldest ingest first, so the coverage
+    list and the gate's document list read down in the same order.
+    """
+    return [
+        (row["slug"], int(row["shown"]))
+        for row in connection.execute(
+            "SELECT documents.slug AS slug, COUNT(DISTINCT anchors.token) AS shown "
+            "FROM ledger "
+            "JOIN anchors ON anchors.id = ledger.anchor_id "
+            "JOIN extractions ON extractions.id = anchors.extraction_id "
+            "JOIN documents ON documents.id = extractions.document_id "
+            "WHERE ledger.session_id = ? "
+            "GROUP BY documents.id "
+            "ORDER BY documents.created_at, documents.id",
+            (session_id,),
+        )
+    ]
 
 
 def sessions(connection: sqlite3.Connection) -> list[dict]:

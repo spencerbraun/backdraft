@@ -246,6 +246,7 @@ CLI-facing behavior contract:
 - `search "<query>"` → FTS5 over anchors; each result: token, slug, page, snippet. Results are minted (ledger-recorded) — a searched snippet is citable without a page read.
 - `show <token>...` → the inverse of minting: per token, its bind status, its slug and locator, and the verbatim snippet, in argument order. `resolved` prints the snippet; `drifted` prints both the cited snippet and what stands at the locator now (and mints that anchor too, since it is the one worth citing); `unresolved` says whether the slug or the locator is what named nothing; `malformed` carries the kernel's reason and the grammar. Statuses and resolution are bind's, reached through `kernel.claims.parse_citation` and `Registry.resolve` rather than a second reading of what a token means; `not_shown` cannot occur, because showing mints. Exit 1 if any token was `unresolved` or `malformed`, with the block still on stdout.
 - Every emitted token is recorded to the ledger under the session (`--session` flag or `BACKDRAFT_SESSION` env; auto-created default session otherwise).
+- `session show` reads that ledger back: the session id and which rule chose it, then — off `Registry.shown_by_document` — a total and one line per document with the count of distinct anchors it was shown. It emits no tokens; counting what was shown is not being shown it. A session holding nothing says so and names `backdraft read`. The default session closes with a note, at exit 0 and never a failure, that it is shared by every run in the registry, so `not_shown` is judged against all of them, and names `session start` as what narrows it.
 - Long pages: `--offset/--limit` on chars for PDFs; sheets paginate by rows, never mid-row, header row repeated.
 
 ## Bind (bind/binder.py)
@@ -384,6 +385,15 @@ class Registry:
     def ensure_session(self, session_id: str | None, label: str | None = None) -> str: ...
     def record_shown(self, session_id: str, anchor_ids: Sequence[int]) -> None: ...
     def was_shown(self, session_id: str, token: str) -> bool: ...
+    def shown_by_document(self, session_id: str) -> list[tuple[str, int]]: ...
+        # What the session holds: `(slug, count)` per document it was shown anything from,
+        # in `documents()` order, a document it saw nothing from absent rather than zero.
+        # `was_shown` reads the ledger one token at a time, which is what bind needs and
+        # which leaves nobody able to ask what a session covers before a draft exists;
+        # this is the read-back half, and `session show` is its one consumer.
+        # Counted by DISTINCT token rather than by ledger row, for the reason `was_shown`
+        # matches by token: a span that survived a re-ingest is a second anchor row with
+        # the same name, and the writer saw one thing.
 
     # page snapshots (v0.2: evidence for the artifact)
     def page_image(self, slug: str, number: int) -> PageImage | None: ...

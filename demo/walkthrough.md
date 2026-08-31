@@ -113,12 +113,23 @@ backdraft session show
 session s-bridgeview  started
 [Use it: export BACKDRAFT_SESSION=s-bridgeview]
 session s-bridgeview  (from BACKDRAFT_SESSION)
+
+nothing shown yet — a citation bound against it reports `not_shown`
+
+[Start reading: backdraft read]
 ```
 
 The session is a ledger of every token the tool has put in front of a writer.
 Bind uses it to separate "cited what it read" from "cited a real anchor it was
-never shown". The session is optional; without one, reads mint into a default
-session and `not_shown` stops being meaningful.
+never shown", and `session show` reads it back — empty here, because nothing has
+been read yet.
+
+Starting one is optional and the default costs something specific. Without an
+exported session every run in this project reads into one shared ledger that is
+never reset, so `not_shown` stops asking "did *this* writer see it" and starts
+asking "has anything, ever, in this folder". `session show` says so when you are
+in it. That is the whole tradeoff: one command up front, in exchange for the
+strongest check the system has.
 
 ## 4. Read — list, then table of contents, then page
 
@@ -359,6 +370,31 @@ The note matters when the retry finds *nothing*: a phrase asks whether those
 tokens sit next to each other in that order, which is a narrower question than
 the one you typed. Without the line, an empty result would read as an absent
 fact rather than a changed question.
+
+Before writing, ask what the session actually holds. The count is the coverage
+check: what is in it binds `resolved`, and everything else in the registry binds
+`not_shown`.
+
+```bash
+backdraft session show
+```
+
+```
+session s-bridgeview  (from BACKDRAFT_SESSION)
+
+77 anchors shown across 3 documents
+
+  t12-summary          7
+  underwriting-model  68
+  franklin-county      2
+
+[Read more: backdraft read <slug> <page>]
+```
+
+All three sources are there, which is what makes the memo bindable: a document
+ingested and never read is simply absent from this list, and every citation into
+it would come back `not_shown`. Knowing that before the draft exists costs one
+command; learning it from `bind` costs the draft.
 
 ## 7. Write the memo
 

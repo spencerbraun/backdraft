@@ -25,7 +25,7 @@ import pytest
 from conftest_registry import PAGE_BREAK
 
 from backdraft.bind.binder import bind
-from backdraft.gate.reader import read, show
+from backdraft.gate.reader import read, render_session, show
 from backdraft.gate.searcher import search
 from backdraft.kernel.model import CitationStatus
 from backdraft.registry import Registry
@@ -229,3 +229,62 @@ def test_show_resolves_a_cell_token_off_a_real_workbook(
     assert shown.complete is True
     assert shown.text.splitlines()[0] == f"[{token}]  resolved  model rent-roll-2025!C2"
     assert registry.was_shown("s", token) is True
+
+
+# ---------------------------------------------------------------------------
+# session show
+# ---------------------------------------------------------------------------
+
+
+SESSION_COVER = """\
+session s-cover  (from --session)
+
+3 anchors shown across 2 documents
+
+  quarterly-notes  2
+  model            1
+
+[Read more: backdraft read <slug> <page>]"""
+"""Two chunks off the two pages read, one cell the search matched — the counts
+are the real ledger's, not the renderer's own arithmetic read back."""
+
+
+def test_session_show_reports_the_reads_and_the_search_that_really_happened(
+    registry: Registry, book: Path, workbook: Path
+) -> None:
+    """The acceptance question, over the real ledger: what has this session seen?
+
+    Two page reads and a search into a second document, then the summary — the
+    coverage check an agent makes before writing, which until now could only be
+    answered by binding a draft and counting `not_shown`.
+    """
+    registry.ingest(book, extractor="paged")
+    registry.ingest(workbook)
+
+    read(registry, "quarterly-notes", "p1", session="s-cover")
+    read(registry, "quarterly-notes", "p2", session="s-cover")
+    search(registry, "Acme", session="s-cover")
+
+    assert render_session(registry, "s-cover", source="--session") == SESSION_COVER
+
+
+def test_a_fresh_registry_says_the_session_is_empty_and_what_to_run(
+    registry: Registry,
+) -> None:
+    rendered = render_session(registry, "s-new", source="--session")
+    assert "nothing shown yet" in rendered
+    assert "backdraft read" in rendered
+
+
+def test_reading_under_one_session_leaves_another_empty(
+    registry: Registry, book: Path
+) -> None:
+    """The fact the accumulation note is about, from the other side.
+
+    Reads land in the session that was resolved, so a named session is the only
+    thing that makes `not_shown` mean "this draft's author never saw it".
+    """
+    registry.ingest(book, extractor="paged")
+    read(registry, "quarterly-notes", "p1", session="s-mine")
+    assert registry.shown_by_document("s-mine")
+    assert registry.shown_by_document("default") == []

@@ -134,6 +134,31 @@ source has changed since prints both snippets, the one that was cited and the
 one standing there now; a token that names nothing exits 1 and says whether the
 slug or the locator is the wrong half.
 
+**Check coverage before writing.** The ledger records every token the gate put
+in front of you, and `session show` reads it back — the question "have I read
+enough to write this yet?", asked before the draft exists rather than after
+`bind` reports what it never saw.
+
+```console
+$ backdraft session show
+session s-bridgeview  (from BACKDRAFT_SESSION)
+
+77 anchors shown across 3 documents
+
+  t12-summary          7
+  underwriting-model  68
+  franklin-county      2
+
+[Read more: backdraft read <slug> <page>]
+```
+
+Anything counted there binds `resolved`; anything else in the registry binds
+`not_shown`. Without an exported session, reads land in one default ledger every
+run in the project shares and nothing ever resets — so `not_shown` weakens from
+"this writer never saw it" to "nothing here ever has". `session show` says so at
+exit 0 when you are in it, and `backdraft session start --id s-<name>` is the
+one command that fixes it.
+
 **Cite** by writing the token as the href of a markdown link on the claim span.
 Multiple citations are `;`-separated in one href.
 

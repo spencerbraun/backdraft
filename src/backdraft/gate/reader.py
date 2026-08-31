@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 __all__ = [
     "GateError",
     "cells",
+    "DEFAULT_SESSION_NOTE",
     "GRAMMAR_HINT",
     "LIST_HINT",
     "TOC_PREVIEW_CHARS",
@@ -47,6 +48,7 @@ __all__ = [
     "Shown",
     "read",
     "render_documents",
+    "render_session",
     "render_toc",
     "render_page_read",
     "select_pages",
@@ -733,6 +735,85 @@ def _remember(hints: list[str], hint: str) -> None:
     """Append a hint once, keeping first-seen order."""
     if hint not in hints:
         hints.append(hint)
+
+
+# ---------------------------------------------------------------------------
+# session
+# ---------------------------------------------------------------------------
+
+
+DEFAULT_SESSION_NOTE = (
+    "note: this is the default session, which every run in this registry shares "
+    "when nothing exported `{env}` — so what it holds is whatever anything has "
+    "read here, not what this draft's author read, and `bind` judges `not_shown` "
+    "against all of it. Give this draft its own with `backdraft session start "
+    "--id s-<name>` and export the id it prints; that is what makes `not_shown` "
+    "mean that the writer never saw it."
+)
+"""Said at exit 0 whenever the session is the shared default one.
+
+Same shape as `ingest`'s poppler note and `render`'s math note: what happened,
+what it costs, and the command that changes it. The default session is
+documented as stable across invocations *so reads accumulate*, which is a
+convenience for one agent working in one directory and a real weakening of the
+system's strongest check for everybody else — and until this note it was stated
+nowhere a caller would meet it. Never a failure: reading into the default
+session is allowed and often right.
+
+The wording lives here, with the rest of the block it closes; `{env}` is filled
+in by the CLI, which is the layer that owns the environment variable's name (it
+is `cli_context`'s, and this module may not import it — `cli_context` imports
+typer and this is the gate's library half).
+"""
+
+EMPTY_SESSION_HINT = "[Start reading: backdraft read]"
+"""Where an empty session sends the caller. `backdraft read` with no arguments
+lists what is ingested, which is the first thing to know when nothing has been
+shown — including the case where the registry itself is empty."""
+
+
+def render_session(
+    registry: Registry, session_id: str, *, source: str, note: str | None = None
+) -> str:
+    """What the session holds: the id, then a document and a count per document.
+
+    The ledger is the mechanism the design rests on, and nothing read it back:
+    an agent could only find out what it had been shown by binding a draft and
+    counting `not_shown`, which is finding out after the draft exists. This is
+    the same question asked before writing.
+
+    Emits no tokens — counting what was shown is not being shown it, and a
+    coverage check that minted would answer its own question.
+
+    `source` names which rule chose the id — the `--session` flag, the
+    environment variable, or the default — and `note`, when there is one, closes
+    the block. Both come from the CLI: this module is the gate's library half and
+    reads no environment, and the only note there is today is
+    `DEFAULT_SESSION_NOTE`, whose text is here.
+    """
+    rows = registry.shown_by_document(session_id)
+    total = sum(count for _, count in rows)
+    lines = [f"session {session_id}  (from {source})", ""]
+    if not rows:
+        lines += [
+            "nothing shown yet — a citation bound against it reports `not_shown`",
+            "",
+            EMPTY_SESSION_HINT,
+        ]
+    else:
+        slug_width = max(len(slug) for slug, _ in rows)
+        count_width = max(len(str(count)) for _, count in rows)
+        lines.append(
+            f"{_plural(total, 'anchor')} shown across {_plural(len(rows), 'document')}"
+        )
+        lines.append("")
+        lines += [
+            f"  {slug.ljust(slug_width)}  {count:>{count_width}}" for slug, count in rows
+        ]
+        lines += ["", "[Read more: backdraft read <slug> <page>]"]
+    if note:
+        lines += ["", note]
+    return _block(lines)
 
 
 # ---------------------------------------------------------------------------

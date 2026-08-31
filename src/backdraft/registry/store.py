@@ -668,6 +668,17 @@ class Registry:
         """True if this session was ever shown the anchor this token names."""
         return ledger_module.was_shown(self._connection, session_id, token)
 
+    def shown_by_document(self, session_id: str) -> list[tuple[str, int]]:
+        """What this session holds: `(slug, distinct anchors shown)`, per document.
+
+        The ledger read back the other way round. `was_shown` answers it one
+        token at a time, which is what `bind` needs and what leaves an agent
+        unable to ask "have I read enough to write this yet?" before the draft
+        exists. Documents order matches `documents()`; see the ledger module for
+        why the count is by distinct token.
+        """
+        return ledger_module.shown_by_document(self._connection, session_id)
+
     # ---- bind persistence ---------------------------------------------------
 
     def save_binding(
