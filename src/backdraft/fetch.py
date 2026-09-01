@@ -114,7 +114,7 @@ read as ordinary words.
 
 
 class FetchError(BackdraftError):
-    """A URL could not be fetched."""
+    """A URL could not be fetched, or its bytes could not be staged to a file."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,7 +148,12 @@ def fetch(url: str, *, timeout: float = TIMEOUT, max_bytes: int = MAX_BYTES) -> 
 
     Redirects are followed; the final URL is what comes back. Raises
     `FetchError` for a non-http(s) scheme, a transport failure, an error
-    status, or a response over `max_bytes`.
+    status, an empty body, or a response over `max_bytes`.
+
+    Every one of those messages says what went wrong and what to do next, and
+    none of them repeats the URL: the caller leads with it (`ingest` puts it on
+    the `!` line of its failure report), and a reason that says it again reads
+    as noise exactly where a calling agent is deciding what to tell its user.
     """
     scheme = urlsplit(url).scheme
     if scheme not in SCHEMES:
@@ -170,19 +175,38 @@ def fetch(url: str, *, timeout: float = TIMEOUT, max_bytes: int = MAX_BYTES) -> 
         with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
             final = response.geturl()
             if urlsplit(final).scheme not in SCHEMES:  # pragma: no cover - urllib guards
-                raise FetchError(f"{url} redirected to a non-web URL: {final}")
+                raise FetchError(
+                    f"it redirected to a non-web URL: {final}. Fetch the page "
+                    "it really lives at, or download it and ingest the file."
+                )
             data = response.read(max_bytes + 1)
             content_type = _content_type(response.headers)
     except urllib.error.HTTPError as error:
-        raise FetchError(f"{url} returned HTTP {error.code} {error.reason}") from error
+        raise FetchError(
+            f"the server returned HTTP {error.code} {error.reason}. Check the "
+            "URL, or save the page from a browser and ingest the file — what is "
+            "fetched here is what the server sends unauthenticated."
+        ) from error
     except urllib.error.URLError as error:
-        raise FetchError(f"could not reach {url}: {error.reason}") from error
+        raise FetchError(
+            f"it could not be reached: {error.reason}. Check the host and your "
+            "network, then ingest it again."
+        ) from error
     except OSError as error:  # timeouts, resets, TLS failures
-        raise FetchError(f"could not read {url}: {error}") from error
+        raise FetchError(
+            f"the transfer failed: {error.strerror or error}. Try it again, or "
+            "save the page from a browser and ingest the file."
+        ) from error
+    if not data:
+        raise FetchError(
+            "the server sent an empty body, so there is nothing to snapshot. "
+            "The page may render its content with JavaScript, which this does "
+            "not run — save it from a browser and ingest the file."
+        )
     if len(data) > max_bytes:
         raise FetchError(
-            f"{url} is larger than the {max_bytes // (1024 * 1024)} MiB ingest limit; "
-            "download it and ingest the file if you want it anyway"
+            f"it is larger than the {max_bytes // (1024 * 1024)} MiB ingest "
+            "limit. Download it and ingest the file if you want it anyway."
         )
     return Fetched(
         url=final,

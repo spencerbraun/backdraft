@@ -33,7 +33,11 @@ PPTX, HTML, images (png, jpeg, tiff, through the vision model), plain text and
 Markdown. A source can also be an `http(s)` URL — the page is fetched once and
 snapshotted like any other source, and the URL travels with it. A source that
 cannot be read does not end the run: the rest of the list is ingested anyway,
-and the command exits 1 naming each source that failed and why.
+and the command exits 1 naming each source that failed and why. The why is
+written to be acted on rather than relayed — a directory says to name the files
+inside it or pass a glob, a missing path says to check the spelling, an
+unreadable file says to fix its permissions or ingest a copy, and a source with
+no bytes in it is a failure rather than a document with nothing to cite.
 
 ```console
 $ backdraft init

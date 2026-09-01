@@ -208,7 +208,11 @@ def ingest(
 
     A source that cannot be read does not end the run: the rest of the list is
     ingested anyway, every failure is named at the end with its reason, and the
-    command exits 1. Re-running the same list after a fix re-ingests nothing that
+    command exits 1. Each reason says what to do next — a directory says to name
+    the files inside it or pass a glob, a missing path says to check the
+    spelling, an unreadable file says to fix its permissions or ingest a copy —
+    and a source with no bytes in it is a failure rather than a document with
+    nothing to cite. Re-running the same list after a fix re-ingests nothing that
     already landed unchanged.
 
     Each source that lands prints its slug, its name, its media type, its page
@@ -535,6 +539,12 @@ def _staged(source: str) -> Iterator[tuple[Path, dict[str, str]]]:
     type the server declared, which is what selects the extractor. The
     directory lives until the `with` closes, because page snapshots are
     captured from that file too.
+
+    Staging can fail on its own — a full or unwritable temporary directory —
+    and that is one source's failure like any other, so it becomes a
+    `BackdraftError` rather than a traceback that ends the run the rest of the
+    list was promised. The cause is the machine's, not the source's, so it keeps
+    the system's own wording and offers no guess about the file.
     """
     if not fetch.is_url(source):
         yield Path(source), {}
@@ -542,7 +552,14 @@ def _staged(source: str) -> Iterator[tuple[Path, dict[str, str]]]:
     fetched = fetch.fetch(source)
     with TemporaryDirectory(prefix="backdraft-fetch-") as directory:
         staged = Path(directory) / fetch.filename_for(fetched.url, fetched.content_type)
-        staged.write_bytes(fetched.data)
+        try:
+            staged.write_bytes(fetched.data)
+        except OSError as error:
+            raise fetch.FetchError(
+                "it was fetched but could not be staged for extraction: "
+                f"{error.strerror or error}. Free space in the temporary "
+                "directory, or set TMPDIR somewhere writable."
+            ) from error
         yield staged, {"url": fetched.url, "fetched_at": fetched.fetched_at}
 
 

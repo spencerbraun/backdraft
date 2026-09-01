@@ -390,10 +390,7 @@ class Registry:
         re-implementing `_is_noop`, so it is reported rather than re-derived.
         """
         path = Path(path)
-        try:
-            data = path.read_bytes()
-        except OSError as error:
-            raise RegistryError(f"cannot read {path}: {error}") from error
+        data = _read_source(path)
 
         sha256 = content_hash(data)
         media_type = media_type_for(path)
@@ -1126,6 +1123,55 @@ class Registry:
 
 
 # ---- module helpers ---------------------------------------------------------
+
+
+def _read_source(path: Path) -> bytes:
+    """The bytes to snapshot, or a `RegistryError` written for the caller.
+
+    The three ways a source fails to read are a directory, a path with nothing
+    at it, and a file the process may not open — and the fix differs completely
+    between them and is obvious in each case, which is why the errno text this
+    used to relay (`[Errno 21] Is a directory: 'adir'`) was the wrong output:
+    it named the source three times and the fix zero times. Empty is the fourth,
+    and it is not an `OSError` at all: zero bytes read cleanly and used to land
+    a document with no text in it, citable in name only.
+
+    A cause outside those four keeps the operating system's own wording rather
+    than being guessed at, minus the errno and the repeated path — a cause
+    reported plainly beats a wrong next step. The reason never names the source:
+    every caller leads with it (`ingest`'s report puts it on the `!` line), and
+    the old message said it three times.
+    """
+    try:
+        data = path.read_bytes()
+    except OSError as error:
+        raise RegistryError(_unreadable(error)) from error
+    if not data:
+        raise RegistryError(
+            "it holds no bytes, so there is nothing to snapshot. Check it "
+            "finished downloading or exporting, then ingest it again."
+        )
+    return data
+
+
+def _unreadable(error: OSError) -> str:
+    """Why a source could not be read, and what to do about it."""
+    if isinstance(error, IsADirectoryError):
+        return (
+            "that is a directory, and ingest reads files. Name the files inside "
+            "it, or pass a glob that matches them."
+        )
+    if isinstance(error, FileNotFoundError):
+        return (
+            "nothing is at that path. Check the spelling, and that the path is "
+            "relative to the directory you are running in."
+        )
+    if isinstance(error, PermissionError):
+        return (
+            "permission denied. Change the file's permissions, or copy it "
+            "somewhere readable and ingest the copy."
+        )
+    return f"it could not be read: {error.strerror or error}."
 
 
 def _locations(

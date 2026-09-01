@@ -196,7 +196,7 @@ def test_an_unreachable_host_says_so() -> None:
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         dead = probe.getsockname()[1]
-    with pytest.raises(FetchError, match="could not reach"):
+    with pytest.raises(FetchError, match="could not be reached"):
         fetch(f"http://127.0.0.1:{dead}/page", timeout=5)
 
 
@@ -214,10 +214,18 @@ def test_a_server_that_accepts_and_never_answers_times_out() -> None:
     listener.listen(1)
     port = listener.getsockname()[1]
     try:
-        with pytest.raises(FetchError, match="could not read"):
+        with pytest.raises(FetchError, match="the transfer failed"):
             fetch(f"http://127.0.0.1:{port}/hangs", timeout=0.25)
     finally:
         listener.close()
+
+
+def test_an_empty_body_is_refused_rather_than_staged(serve) -> None:
+    """Zero bytes are not a snapshot. Caught here rather than downstream so the
+    reason can name the likeliest cause — a page that renders with JavaScript."""
+    base = serve({"/spa": (200, "text/html", b"")})
+    with pytest.raises(FetchError, match="empty body"):
+        fetch(f"{base}/spa")
 
 
 def test_a_response_over_the_cap_is_refused_by_name(serve) -> None:

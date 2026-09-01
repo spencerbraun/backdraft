@@ -258,6 +258,121 @@ def test_a_run_where_nothing_fails_prints_one_line_per_source_and_nothing_else(
     assert result.stderr == ""
 
 
+# ---- what a source that cannot be read says ---------------------------------
+
+
+def test_a_directory_says_to_name_the_files_inside_it(
+    project: Path, tmp_path: Path, ingest_failure_reason
+) -> None:
+    """The commonest way an unattended agent ingests the wrong thing: it passes
+    the folder it was pointed at. The old message relayed `[Errno 21] Is a
+    directory` and left the obvious fix unsaid."""
+    folder = tmp_path / "sources"
+    folder.mkdir()
+    (folder / "a.md").write_text(_A, encoding="utf-8")
+    result = runner.invoke(cli.app, ["ingest", str(folder)])
+    assert result.exit_code == cli.EXIT_USAGE
+    reason = ingest_failure_reason(result, str(folder))
+    assert "directory" in reason
+    assert "glob" in reason and "files inside it" in reason
+    # Said once, on the `!` line: the reason itself never repeats the path.
+    assert str(folder) not in reason and folder.name not in reason
+
+
+def test_a_missing_file_says_to_check_the_path(
+    project: Path, tmp_path: Path, ingest_failure_reason
+) -> None:
+    result = runner.invoke(cli.app, ["ingest", str(tmp_path / "nowhere.md")])
+    assert result.exit_code == cli.EXIT_USAGE
+    reason = ingest_failure_reason(result, str(tmp_path / "nowhere.md"))
+    assert "nothing is at that path" in reason
+    assert "spelling" in reason
+    assert "nowhere.md" not in reason
+
+
+def test_an_unreadable_file_says_to_fix_permissions_or_copy_it(
+    project: Path, tmp_path: Path, ingest_failure_reason
+) -> None:
+    locked = tmp_path / "locked.md"
+    locked.write_text(_A, encoding="utf-8")
+    locked.chmod(0o000)
+    try:
+        result = runner.invoke(cli.app, ["ingest", str(locked)])
+    finally:
+        locked.chmod(0o644)
+    assert result.exit_code == cli.EXIT_USAGE
+    reason = ingest_failure_reason(result, str(locked))
+    assert "permission denied" in reason
+    assert "permissions" in reason and "copy it" in reason
+
+
+def test_an_empty_file_is_a_failure_rather_than_a_document_with_nothing_in_it(
+    project: Path, tmp_path: Path, ingest_failure_reason
+) -> None:
+    """Zero bytes read cleanly, so this used to ingest: a document listed by
+    `ls`, offered by `read`, competing in `search`, and citable in name only.
+    The thin-source note is for a real snapshot that came back light; this is
+    not a snapshot at all."""
+    empty = tmp_path / "empty.md"
+    empty.write_bytes(b"")
+    result = runner.invoke(cli.app, ["ingest", str(empty)])
+    assert result.exit_code == cli.EXIT_USAGE
+    reason = ingest_failure_reason(result, str(empty))
+    assert "no bytes" in reason and "nothing to snapshot" in reason
+    with Registry.open(project) as registry:
+        assert registry.documents() == []
+
+
+def test_no_read_failure_makes_the_caller_read_an_errno(
+    project: Path, tmp_path: Path
+) -> None:
+    """The whole point: an agent relaying this to a user must never have to
+    know what errno 21 is. Pinned across all four mapped causes at once."""
+    folder = tmp_path / "sources"
+    folder.mkdir()
+    empty = tmp_path / "empty.md"
+    empty.write_bytes(b"")
+    locked = tmp_path / "locked.md"
+    locked.write_text(_A, encoding="utf-8")
+    locked.chmod(0o000)
+    try:
+        result = runner.invoke(
+            cli.app,
+            ["ingest", str(folder), str(tmp_path / "gone.md"), str(empty), str(locked)],
+        )
+    finally:
+        locked.chmod(0o644)
+    assert "0 of 4 sources ingested; 4 failed:" in result.stderr
+    assert "[Errno" not in result.stderr
+    # Four causes, four different reasons — not one message reused.
+    reasons = {
+        line.split(" — ", 1)[1]
+        for line in result.stderr.splitlines()
+        if line.startswith("  ! ")
+    }
+    assert len(reasons) == 4
+    # Every one of them says what to do next, not only what went wrong.
+    assert all(reason.count(".") >= 2 for reason in reasons)
+
+
+def test_an_unmapped_cause_keeps_the_systems_own_wording(
+    project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ingest_failure_reason
+) -> None:
+    """A cause with no obvious fix is reported plainly rather than guessed at —
+    but still without the errno and without the path said twice."""
+    source = tmp_path / "flaky.md"
+    source.write_text(_A, encoding="utf-8")
+
+    def boom(self: Path) -> bytes:
+        raise OSError(5, "Input/output error", str(self))
+
+    monkeypatch.setattr(Path, "read_bytes", boom)
+    result = runner.invoke(cli.app, ["ingest", str(source)])
+    assert result.exit_code == cli.EXIT_USAGE
+    reason = ingest_failure_reason(result, str(source))
+    assert reason == "it could not be read: Input/output error."
+
+
 # ---- ingest says what it did and what it got --------------------------------
 
 

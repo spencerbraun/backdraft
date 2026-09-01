@@ -29,13 +29,16 @@ backdraft ls
 
 A glob will hand `ingest` a source it cannot read sooner or later. That does not
 end the run: everything else in the list still lands, and the command exits 1
-printing `N of M sources ingested` and one `!` line per failure. `backdraft ls`
-is the confirmation of what is actually there, and re-running the same glob
-after a fix re-ingests nothing that already landed unchanged — those lines say
-`unchanged`. Say which sources are missing before you start attributing claims
-— an unsupported claim is a different finding from one whose source never got
-ingested, and so is one whose source ingested as a shell: a `note: little text
-extracted` line names any source almost no text came out of.
+printing `N of M sources ingested` and one `!` line per failure. Each `!` line
+says what to do next — name the files inside a directory, check a spelling, fix
+a permission — so act on it where you can and hand it to the user as written
+where you cannot. `backdraft ls` is the confirmation of what is actually there,
+and re-running the same glob after a fix re-ingests nothing that already landed
+unchanged — those lines say `unchanged`. Say which sources are missing before
+you start attributing claims — an unsupported claim is a different finding from
+one whose source never got ingested, and so is one whose source ingested as a
+shell: a `note: little text extracted` line names any source almost no text came
+out of.
 
 No session is needed: backfill does not judge against the ledger, because the
 author was never shown anything. Read source files only through `backdraft

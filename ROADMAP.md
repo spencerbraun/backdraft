@@ -32,42 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. An unreadable source says what to do, not what errno it was
-
-**Intent.** `ingest` now finishes its list and names each failure (2026-08-13),
-which turned the reason string into something a calling agent actually reads —
-and the reason is Python. A directory says `cannot read adir: [Errno 21] Is a
-directory: 'adir'`; a locked file says `[Errno 13] Permission denied`; a missing
-one says `[Errno 2] No such file or directory`. Each names the source three
-times, leaks an errno an agent must not have to know, and — the real cost —
-says nothing about the fix, though the fix differs completely between the three
-and is obvious in each case. A directory means "name the files inside it, or
-glob"; the repo's own rule is that an error says what went wrong *and* what to
-do next, and this is the boundary where an unattended agent meets it most.
-
-**Shape.** Wherever the read failure is raised on the ingest path — `cli.py`'s
-`_staged`, `registry/store.py`'s ingest read, and `fetch.py` for the URL half —
-turn the `OSError` into a `BackdraftError` whose message is written for the
-caller: what the source is, why it could not be read, what to do. Map the causes
-worth distinguishing (missing, a directory, unreadable, empty, and the fetch
-side's own) and let anything unmapped keep the underlying text rather than
-guessing — an unknown cause reported plainly beats a wrong suggestion. Say the
-source once: the `!` line already leads with it, so the reason should not repeat
-it. This is *not* the queued "Ingest says what it did and what it got" item, which is about what a successful ingest says
-(no-op, new generation, character count); this is the failure half, and the two
-should not be merged.
-
-**Acceptance.** `backdraft ingest <a-directory>` names the directory once and
-says to pass the files inside it or a glob; a missing file, an unreadable file
-and an empty file each get their own reason and their own next step; none of the
-four prints `[Errno`. A URL that 404s keeps saying so. The count line and the
-closing re-run line are unchanged, and the clean-run stdout byte-identity test
-from 2026-08-13 still passes. `site/llms.txt` says the failure reasons are
-actionable so an agent surfaces them to the user rather than paraphrasing.
-
-**Size.** One day.
-
-### 2. A registry can forget a source
+### 1. A registry can forget a source
 
 **Intent.** Ingest is one-way. An agent working unattended over a folder — which
 is now the normal case, since `ingest` finishes its list — will ingest something
@@ -107,7 +72,7 @@ registry never actually shrinks.
 
 **Size.** Three days.
 
-### 3. Bind's markdown names a fetched source by a file nobody has
+### 2. Bind's markdown names a fetched source by a file nobody has
 
 **Intent.** The 2026-08-18 row made `gate.source_name` the one owner of what a
 source is called and named the one surface it could not reach — bind, because
@@ -148,7 +113,7 @@ should say how.
 
 **Size.** Two days.
 
-### 4. A web page has a name, and `read` shows it the navigation menu instead
+### 3. A web page has a name, and `read` shows it the navigation menu instead
 
 **Intent.** `backdraft read franklin-county` — the demo's own web source —
 prints `p1  Franklin County, Ohio - Wikipedia  Jump to content Main menu Main
@@ -190,7 +155,7 @@ blocks and `README.md`'s show the real output. DESIGN row.
 
 **Size.** Three days.
 
-### 5. A page read has no budget and no closing line
+### 4. A page read has no budget and no closing line
 
 **Intent.** `backdraft read franklin-county p1` prints 36,442 characters and
 stops, with nothing to say how much that was or whether it was all of it — it
@@ -228,7 +193,7 @@ the agent to continue rather than assume it saw the page. DESIGN row.
 
 **Size.** Two days.
 
-### 6. The thin-source signal exists only in the ingest that printed it
+### 5. The thin-source signal exists only in the ingest that printed it
 
 **Intent.** 2026-08-20 gave `ingest` a character count and a `note: little text
 extracted` naming the likely cause — the signal that a source is a shell and
@@ -262,7 +227,7 @@ document list is where it learns this, not only the ingest it may not have run.
 
 **Size.** Two days.
 
-### 7. What a URL will be called, before the answer is permanent
+### 6. What a URL will be called, before the answer is permanent
 
 **Intent.** Three docs now tell an agent to pass `--slug` when it ingests a URL,
 because a slug is permanent once tokens carry it and the default may name a
@@ -298,7 +263,7 @@ it.
 
 **Size.** One day.
 
-### 8. A calling agent parses prose to find out what happened
+### 7. A calling agent parses prose to find out what happened
 
 **Intent.** `bind` and `verify` are the two commands whose *output* is the
 product — the exit code says clean or not, and everything actionable is in the
@@ -339,7 +304,7 @@ relay the human report to the user.
 
 **Size.** Two to three days.
 
-### 9. An artifact you were sent cannot be checked against a registry you have
+### 8. An artifact you were sent cannot be checked against a registry you have
 
 **Intent.** `verify`'s second tier runs only where a `.backdraft/` is
 discoverable from cwd, and the reason is good: an artifact is a file people
@@ -375,7 +340,7 @@ runs only in the project it was bound in.
 
 **Size.** One day.
 
-### 10. A claim that straddles a chunk boundary gets one token instead of two
+### 9. A claim that straddles a chunk boundary gets one token instead of two
 
 **Intent.** `skills/backdraft/SKILL.md` tells the writing agent that "a claim
 that spans two chunks needs both tokens, not the nearest one" — a correct
@@ -410,7 +375,7 @@ one" with the surface that now says which both are.
 
 **Size.** Two to three days.
 
-### 11. A re-ingested source strands citations one at a time
+### 10. A re-ingested source strands citations one at a time
 
 **Intent.** This is DESIGN.md's oldest Open line — "re-bind/orphan pass on
 re-ingest of changed docs (chunk ordinal drift)" — and the week that taught
@@ -452,7 +417,7 @@ extraction and ledger counts are identical before and after.
 
 **Size.** Three days.
 
-### 12. What this install can do, said before a verb needs it
+### 11. What this install can do, said before a verb needs it
 
 **Intent.** backdraft degrades rather than fails, which is right, and the price
 is that its capabilities are discovered one at a time at the moment each is

@@ -9,6 +9,24 @@ from conftest_registry import *  # noqa: E402,F401,F403
 from conftest_render import *  # noqa: E402,F401,F403
 
 
+@pytest.fixture
+def ingest_failure_reason():
+    """The reason on `ingest`'s `!` line for one source, without the source.
+
+    Shared because the rule under test is shared: the report leads with the
+    source and the reason never repeats it, so every assertion about a reason
+    has to strip the same prefix off the same line.
+    """
+
+    def reason(result, source: str) -> str:
+        prefix = f"  ! {source} — "
+        lines = [line for line in result.stderr.splitlines() if line.startswith(prefix)]
+        assert len(lines) == 1, result.stderr
+        return lines[0].removeprefix(prefix)
+
+    return reason
+
+
 @pytest.fixture(scope="session")
 def _empty_config(tmp_path_factory: pytest.TempPathFactory):
     return tmp_path_factory.mktemp("xdg-config")

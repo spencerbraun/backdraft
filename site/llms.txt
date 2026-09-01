@@ -37,6 +37,14 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # per failure with its reason; every source not named there is in the registry.
 # Re-run the same list after a fix — a source already ingested and unchanged
 # re-ingests as a no-op.
+# Each reason says what went wrong AND what to do next — a directory wants the
+# files inside it or a glob, a missing path wants its spelling checked, an
+# unreadable file wants its permissions fixed or a copy, a URL that 404s wants
+# the page saved from a browser. Surface the `!` lines to the user as written
+# rather than paraphrasing them; the next step is the part a paraphrase drops.
+# A source with no bytes in it is a failure too, not a document with nothing to
+# cite: an empty file, and a URL whose server sent an empty body (the shape a
+# JavaScript-rendered page takes — nothing here runs JavaScript).
 # `--config k=v` (repeatable) is checked against the extractor that was chosen,
 # so an unknown key exits 1 naming the ones that apply — it is never ignored.
 # Keys: PDFs (pdf-text, vlm) take dpi, snapshot_quality, snapshot_max_height;

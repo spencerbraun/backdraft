@@ -38,9 +38,14 @@ session you are in and warns when it is the shared one.
 Name every source in one `ingest`; it attempts all of them. If one cannot be
 read the command exits 1 and prints `N of M sources ingested` followed by one
 `!` line per failure with its reason — everything not named there is in the
-registry already. Fix or drop the named sources and re-run the same command:
-one already ingested and unchanged re-ingests as a no-op. Tell the user which
-sources are missing before you write, rather than quietly writing around them.
+registry already. Each reason says what to do next as well as what went wrong:
+a directory wants the files inside it or a glob, a missing path wants its
+spelling checked, an unreadable file wants its permissions fixed, a source with
+no bytes in it never became a snapshot at all. Do what the reason says where you
+can, and where you cannot, give the user the `!` line as written — the next step
+is the part a paraphrase drops. Then re-run the same command: one already
+ingested and unchanged re-ingests as a no-op. Tell the user which sources are
+missing before you write, rather than quietly writing around them.
 
 Read each source's line: it ends with how much text came out, and with what
 `ingest` did. `unchanged` is a no-op — the snapshot was already there and every

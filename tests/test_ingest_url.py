@@ -332,6 +332,36 @@ def test_a_failed_fetch_exits_1_with_the_status(project: Path, serve) -> None:
     assert "HTTP 404" in result.output
 
 
+def test_a_fetch_failure_names_the_url_once_and_says_what_to_do(
+    project: Path, serve, ingest_failure_reason
+) -> None:
+    """The URL half of the same rule the file half follows: the `!` line leads
+    with the source, so the reason says what happened and what to do instead of
+    saying the URL again."""
+    base = serve({})
+    url = f"{base}/gone"
+    result = runner.invoke(cli.app, ["ingest", url])
+    reason = ingest_failure_reason(result, url)
+    assert reason.startswith("the server returned HTTP 404")
+    assert "save the page from a browser" in reason
+    assert url not in reason
+
+
+def test_an_empty_body_is_a_failure_rather_than_an_empty_document(
+    project: Path, serve, ingest_failure_reason
+) -> None:
+    """A 200 with nothing in it is the shape a JavaScript-rendered page takes
+    here, and it used to land as a document with no text to cite."""
+    base = serve({"/spa": (200, "text/html", b"")})
+    url = f"{base}/spa"
+    result = runner.invoke(cli.app, ["ingest", url])
+    assert result.exit_code == cli.EXIT_USAGE
+    reason = ingest_failure_reason(result, url)
+    assert "empty body" in reason and "JavaScript" in reason
+    with Registry.open(project) as registry:
+        assert registry.documents() == []
+
+
 def test_a_file_url_is_refused_by_name(project: Path) -> None:
     result = runner.invoke(cli.app, ["ingest", "file:///etc/hosts"])
     assert result.exit_code == cli.EXIT_USAGE
