@@ -18,6 +18,17 @@ CREATE TABLE IF NOT EXISTS document_meta (
   meta TEXT NOT NULL             -- JSON provenance (a URL source's `url` + `fetched_at`); never citation identity
 );
 
+-- Withdrawal, not deletion (`backdraft forget`). A row here takes its document
+-- out of every surface that offers a source to read; the document, its
+-- generations, its anchors and its receipts all stay, so every token minted
+-- from it still resolves. Presence is the flag; re-ingesting the source deletes
+-- the row. A separate table rather than a column on `documents` so an existing
+-- registry needs no migration -- the 2026-08-05 reason `document_meta` is one.
+CREATE TABLE IF NOT EXISTS withdrawals (
+  document_id INTEGER PRIMARY KEY REFERENCES documents(id),
+  withdrawn_at TEXT NOT NULL     -- ISO-8601 UTC, everywhere
+);
+
 CREATE TABLE IF NOT EXISTS extractions (
   id INTEGER PRIMARY KEY,
   document_id INTEGER NOT NULL REFERENCES documents(id),

@@ -39,7 +39,7 @@ nothing in the JSON widens it:
 
 | A | Is identified by | Not by |
 |---|---|---|
-| document | `sha256`, the hash of the ingested bytes | `slug`, `path`, `filename`, `meta.url` — a handle, an origin, a name, a provenance note |
+| document | `sha256`, the hash of the ingested bytes | `slug`, `path`, `filename`, `meta.url`, `withdrawn_at` — a handle, an origin, a name, a provenance note, a registry's own state |
 | extraction | (document, `extractor`, `extractor_version`, `config_hash`) | `id` |
 | anchor | its `locator` within its extraction, named by its `token` | `id` |
 | session | `id`, which is the caller's own string | `label` |
@@ -87,16 +87,36 @@ decoding; an export is read by an implementer holding this file.
 | `filename` | string | the file's name; for a fetched page, the name its staged snapshot took |
 | `media_type` | string | one of `pdf`, `xlsx`, `xls`, `csv`, `docx`, `pptx`, `image`, `html`, `text` |
 | `created_at` | string | ISO-8601 UTC, as every timestamp in backdraft |
+| `withdrawn_at` | string | OPTIONAL. ISO-8601 UTC, when this document was withdrawn. See below |
 | `meta` | object | OPTIONAL provenance. See below |
 | `extractions` | array | every generation of this document, oldest first |
 
 Documents are ordered by `created_at`, then by row number.
+
+`withdrawn_at` is present only on a document that has been **withdrawn** — taken
+out of the registry's readable set, which `backdraft forget` does. A reader must
+conclude exactly two things from it, and neither is a deletion. The document is
+no longer offered as a source: it is absent from listings, from tables of
+contents, from page reads and from search results, and a producer MUST NOT serve
+its text through any of those. And nothing about it is missing: its
+`extractions`, `pages`, `anchors` and receipts are exported in full, every token
+minted from it still names the anchor it named before, and a reader resolving a
+token MUST resolve it as it would any other. What the withdrawal changes for such
+a token is only what a *report* about it says — this implementation reports it
+`unresolved` with a reason naming the withdrawal, so a document citing a
+withdrawn source is not passed silently.
+
+Withdrawal is not identity: a document's `sha256` is what it is, withdrawn or
+not, and ingesting the same source again removes the key rather than creating a
+second document.
 
 `meta` is present only where there is provenance to carry, which today means a
 source fetched from the web; a registry of files exports no `meta` key at all.
 That is the same conditional the artifact format states, for the same reason: an
 export of a file-only registry is byte-for-byte what it was before URL sources
 existed, so a reader written against the earlier shape still reads it.
+`withdrawn_at` follows the same rule: a registry nobody has withdrawn anything
+in exports no such key.
 
 ### `documents[].meta`
 

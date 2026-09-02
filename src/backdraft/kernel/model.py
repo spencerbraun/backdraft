@@ -92,6 +92,13 @@ class Document:
     page it came from, after redirects) and `fetched_at`. Never part of citation
     identity: the URL is where the bytes were found, the sha256 is what they
     were — see the 2026-08-05 decision row.
+
+    `withdrawn_at` is when `backdraft forget` took this document out of the
+    registry's readable set, and None for the documents that were not. A
+    withdrawal removes a source from every surface that offers one to read; it
+    removes nothing, so the anchors and receipts are untouched and every token
+    minted from it still resolves. Not citation identity either: two documents
+    with the same bytes are the same document whether or not one was withdrawn.
     """
 
     slug: str
@@ -101,6 +108,7 @@ class Document:
     media_type: MediaType
     created_at: str
     meta: dict | None = None
+    withdrawn_at: str | None = None
     id: int | None = None
 
 

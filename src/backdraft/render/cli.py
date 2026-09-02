@@ -289,11 +289,16 @@ def verify(
     for claim, recorded, fresh in against:
         if fresh.status is CitationStatus.RESOLVED:
             continue
+        # The reason first, where the registry has one — a token whose source was
+        # withdrawn and one whose source was never there are both `unresolved`
+        # against the sources, and only the reason tells a reader which happened.
+        # Same position bind's line items give it, so the two read alike.
+        reason = f" — {fresh.error}" if fresh.error else ""
         moved = (
             "" if fresh.status is recorded.status
             else f" — the record says {recorded.status}"
         )
-        typer.echo(f"  ! {fresh.status}: {fresh.token}{moved} — {_where(claim)}")
+        typer.echo(f"  ! {fresh.status}: {fresh.token}{reason}{moved} — {_where(claim)}")
 
     if root is None:
         typer.echo(

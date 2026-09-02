@@ -92,6 +92,15 @@ construct or edit a token by hand; copy it from gate output.
 backdraft init                              # once per project
 backdraft ingest report.pdf model.xlsx      # every source up front
 backdraft ingest <url> --slug <name>        # a URL is a source too
+backdraft forget <slug> --yes               # a source ingest should not have
+                                            # taken (a scratch copy, the same
+                                            # report twice): out of read,
+                                            # search and ls, with its anchors
+                                            # untouched, so tokens already
+                                            # written still show their
+                                            # receipts. Ingesting the file
+                                            # again brings it back. Ask the
+                                            # user before running it.
 backdraft session start --id s-<name>       # do this. Without it every run in
 export BACKDRAFT_SESSION=s-<name>           # the project shares one ledger that
                                             # is never reset, so not_shown drops
@@ -151,10 +160,15 @@ backdraft verify memo.backdraft.html        # check a record you were handed:
 
 0 every citation resolved · 1 usage/environment error · 2 something did not
 resolve, act on it. Each line item reads
-  ! <status>: <token> — <the claim's own words> @<character offset>
-so the report names the sentence to fix; don't grep for the token. Statuses:
+  ! <status>: <token> [— <reason>] — <the claim's own words> @<character offset>
+so the report names the sentence to fix; don't grep for the token. The reason is
+there when the status alone does not say enough — a malformed token's parse
+error, or a source somebody withdrew. Statuses:
 unresolved (token names nothing: search, fix, re-bind, or state "not supported
-by the ingested sources"), not_shown (real anchor you were never shown: read
+by the ingested sources" — but if the reason says the source was *withdrawn*,
+it was taken out of the registry on purpose: do not re-ingest it to make the
+error go away, ask the user, and until then treat the claim as uncited),
+not_shown (real anchor you were never shown: read
 it, re-bind), drifted (source changed: re-read, confirm), malformed (fix the
 href). `backdraft show <token>` is the first move on any of them: it says which
 half of an unresolved token is wrong, prints both snippets for a drifted one,

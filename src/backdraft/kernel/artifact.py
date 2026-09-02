@@ -179,8 +179,10 @@ LEGEND: dict[str, Any] = {
             "session: the claim cites something its author did not read"
         ),
         "unresolved": (
-            "a well-formed token naming no anchor in any generation of any source. "
-            "Treat the claim as uncited"
+            "a well-formed token the sources do not stand behind. Either no anchor "
+            "in any generation of any source, or a source that was withdrawn from "
+            "the registry — `error` says which, and a withdrawn one still carries "
+            "its `anchor` and receipt. Treat the claim as uncited"
         ),
         "malformed": (
             "the citation text is not a token; `error` says why. Reported verbatim "

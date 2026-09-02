@@ -29,7 +29,7 @@ from ..kernel.errors import BackdraftError
 from ..kernel.hashing import normalize
 from ..kernel.model import CitationStatus
 from ..kernel.tokens import CellLocator, ChunkLocator, format_locator, parse as parse_token
-from ..registry import current_at
+from ..registry import current_at, withdrawn_reason
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -44,6 +44,8 @@ __all__ = [
     "GRAMMAR_HINT",
     "LIST_HINT",
     "TOC_PREVIEW_CHARS",
+    "WITHDRAWN_HINT",
+    "WITHDRAWN_SESSION_NOTE",
     "Selection",
     "Shown",
     "read",
@@ -51,6 +53,7 @@ __all__ = [
     "render_session",
     "render_toc",
     "render_page_read",
+    "require_document",
     "select_pages",
     "show",
     "source_name",
@@ -76,6 +79,15 @@ GRAMMAR_HINT = (
 A malformed token is the one failure where the reason alone does not say what to
 do — the kernel names the segment that broke, and this names the shape it broke
 from."""
+
+WITHDRAWN_HINT = "Re-ingest it to bring it back: backdraft ingest {path}"
+"""The way back from a withdrawal, wherever one is reported.
+
+`forget` is the one command that takes something away, so every surface that
+meets its result says how to undo it — the gate's refusal, `show`'s block, and
+`forget`'s own confirmation. `{path}` is the document's `path`, which is the
+source as `ingest` was given it and is therefore literally re-runnable.
+"""
 
 TOC_PREVIEW_CHARS = 120
 """How much of a page's text stands in for a missing summary (SPEC § Gate)."""
@@ -255,7 +267,7 @@ def render_toc(registry: Registry, slug: str) -> str:
     Emits no tokens: a preview is not a receipt, and a reader that cites from a
     table of contents is citing text it was shown only in part.
     """
-    document = _require_document(registry, slug)
+    document = require_document(registry, slug)
     pages = registry.pages(slug)
     if not pages:
         return _block([_document_headline(document, pages), "", "(no pages)"])
@@ -330,7 +342,7 @@ def render_page_read(
     if limit is not None and limit < 0:
         raise GateError(f"limit must not be negative: {limit!r}")
 
-    document = _require_document(registry, slug)
+    document = require_document(registry, slug)
     pages = registry.pages(slug)
     selection = select_pages(pages, selector)
     by_number = {page.number: page for page in pages}
@@ -562,7 +574,7 @@ def cells(
     verbatim value. Emitting a token records it as shown, exactly as a read
     would (the gate's whole contract).
     """
-    _require_document(registry, slug)
+    require_document(registry, slug)
     # Folded like `read`'s sheet selector, so the name a reader types (or the
     # display name a registry stores) both land on the same sheet.
     sheet_pages = {
@@ -640,11 +652,18 @@ def show(
     on its own line, the snippet verbatim underneath. A drifted token prints
     both sides of the diff and mints the anchor standing at the locator now,
     since that token is the one worth citing.
+
+    A token whose document was *withdrawn* is the reason this command outlives
+    `forget`: the anchor is found and the receipt prints, under the `unresolved`
+    status `bind` gives it and the reason saying when it was withdrawn. It earns
+    the way-back hint instead of the read hint, because the read the hint names
+    is a read the gate would now refuse.
     """
     blocks: list[str] = []
     minted: list[int] = []
     read_hints: list[str] = []
     toc_hints: list[str] = []
+    back_hints: list[str] = []
     malformed = False
     complete = True
 
@@ -671,6 +690,17 @@ def show(
             continue
         anchor = resolution.anchor
         shown: tuple[Anchor | None, ...]
+        document = registry.document(anchor.slug)
+        if document is not None and document.withdrawn_at is not None:
+            # Emitting is minting, unconditionally: this block shows the
+            # receipt, so the anchor is recorded exactly as any other shown one
+            # would be. What the withdrawal changes is the *status*, which is
+            # `citation_for`'s to say and which bind will say again.
+            blocks.append(_withdrawn_block(anchor, document))
+            complete = False
+            minted += [anchor.id] if anchor.id is not None else []
+            _remember(back_hints, WITHDRAWN_HINT.format(path=document.path))
+            continue
         if resolution.current:
             headline = _headline(anchor, CitationStatus.RESOLVED)
             blocks.append(f"{headline}\n{anchor.receipt.snippet}")
@@ -690,7 +720,7 @@ def show(
     _mint(registry, session, minted)
 
     lines = "\n\n".join(blocks).split("\n") if blocks else ["(no tokens)"]
-    hints = [*read_hints, *toc_hints]
+    hints = [*read_hints, *toc_hints, *(f"[{hint}]" for hint in back_hints)]
     if malformed:
         hints.append(GRAMMAR_HINT)
     return Shown(text=_block([*lines, "", *hints]), complete=complete)
@@ -699,6 +729,25 @@ def show(
 def _headline(anchor: Anchor, status: CitationStatus) -> str:
     """A shown anchor's first line: the token, its status, where it lives."""
     return f"[{anchor.token}]  {status}  {anchor.slug} {format_locator(anchor.locator)}"
+
+
+def _withdrawn_block(anchor: Anchor, document: Document) -> str:
+    """A withdrawn source's token: the status, the reason, then the receipt.
+
+    The receipt still prints, and that is the whole value of showing a withdrawn
+    token — the person holding an artifact that cites one can still read what it
+    said. The reason stands between the headline and the snippet so that nobody
+    reads the evidence without meeting the fact that its source is gone from
+    this registry.
+    """
+    return "\n".join(
+        [
+            _headline(anchor, CitationStatus.UNRESOLVED),
+            f"{withdrawn_reason(document)}; the receipt below still reads, but "
+            f"{document.slug} is no longer a source here",
+            anchor.receipt.snippet,
+        ]
+    )
 
 
 def _drift_block(anchor: Anchor, current: Anchor | None) -> str:
@@ -766,6 +815,22 @@ is `cli_context`'s, and this module may not import it — `cli_context` imports
 typer and this is the gate's library half).
 """
 
+WITHDRAWN_SESSION_NOTE = (
+    "note: a row marked `withdrawn` is a source that has since been taken out of "
+    "this registry with `backdraft forget`. What the session was shown from it is "
+    "still what it was shown — the ledger is a record and this does not rewrite it "
+    "— but that reading no longer counts as coverage: a claim citing it binds "
+    "`unresolved` naming the withdrawal, so the fact needs a source still ingested."
+)
+"""Closes a session block holding anything from a withdrawn source.
+
+The one place a withdrawn document is still *listed*, and it has to be: the
+ledger records what a writer saw, and dropping the row would rewrite history and
+leave the total disagreeing with the ledger the export carries. So it stays and
+is marked — otherwise a coverage check counts anchors that can no longer be
+cited, which is the "looks fine, is not" failure `forget` exists to end.
+"""
+
 EMPTY_SESSION_HINT = "[Start reading: backdraft read]"
 """Where an empty session sends the caller. `backdraft read` with no arguments
 lists what is ingested, which is the first thing to know when nothing has been
@@ -784,6 +849,10 @@ def render_session(
 
     Emits no tokens — counting what was shown is not being shown it, and a
     coverage check that minted would answer its own question.
+
+    A row whose source has since been withdrawn is kept and marked rather than
+    dropped — see `WITHDRAWN_SESSION_NOTE` for why the ledger is the one place a
+    withdrawn document still appears.
 
     `source` names which rule chose the id — the `--session` flag, the
     environment variable, or the default — and `note`, when there is one, closes
@@ -807,13 +876,28 @@ def render_session(
             f"{_plural(total, 'anchor')} shown across {_plural(len(rows), 'document')}"
         )
         lines.append("")
+        marks = {slug: _withdrawn_mark(registry, slug) for slug, _ in rows}
         lines += [
-            f"  {slug.ljust(slug_width)}  {count:>{count_width}}" for slug, count in rows
+            f"  {slug.ljust(slug_width)}  {count:>{count_width}}{marks[slug]}"
+            for slug, count in rows
         ]
         lines += ["", "[Read more: backdraft read <slug> <page>]"]
+        if any(marks.values()):
+            lines += ["", WITHDRAWN_SESSION_NOTE]
     if note:
         lines += ["", note]
     return _block(lines)
+
+
+def _withdrawn_mark(registry: Registry, slug: str) -> str:
+    """`  withdrawn` for a source that has been withdrawn, else nothing.
+
+    A session that holds nothing from a withdrawn source prints exactly what it
+    printed before this existed, which is the byte-identity rule every display
+    change here follows.
+    """
+    document = registry.document(slug)
+    return "  withdrawn" if document is not None and document.withdrawn_at else ""
 
 
 # ---------------------------------------------------------------------------
@@ -833,10 +917,30 @@ def _mint(registry: Registry, session: str | None, anchor_ids: Sequence[int]) ->
     registry.record_shown(session_id, sorted(set(anchor_ids)))
 
 
-def _require_document(registry: Registry, slug: str) -> Document:
+def require_document(registry: Registry, slug: str) -> Document:
+    """The document `slug` names, or a `GateError` saying why there is none.
+
+    The gate's one check that a slug is servable, shared by every command that
+    reads one — the table of contents, a page read, `cell`, and `search --in`,
+    which used to carry its own copy of the missing-slug wording.
+
+    Two ways to have nothing to serve, and they are different mistakes. An
+    unknown slug is a typo or a guess, and `LIST_HINT` says where the real ones
+    are. A *withdrawn* one is a source somebody deliberately took out of this
+    registry, and the reasons differ enough to be worth separating: nothing is
+    wrong with the caller, the tokens minted from it still resolve, and the way
+    back is to ingest the file again. Saying "no such document" for that would
+    be the one thing a withdrawal must never look like — a source that vanished.
+    """
     document = registry.document(slug)
     if document is None:
         raise GateError(f"no such document: {slug!r}; {LIST_HINT}")
+    if document.withdrawn_at is not None:
+        raise GateError(
+            f"{slug} was {withdrawn_reason(document)}, so the gate no longer "
+            f"serves it. Its tokens still resolve — `backdraft show <token>` "
+            f"prints their receipts. {WITHDRAWN_HINT.format(path=document.path)}"
+        )
     return document
 
 

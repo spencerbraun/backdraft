@@ -134,9 +134,9 @@ def whole(root: Path, note: Path, workbook: Path, tmp_path: Path) -> dict:
 
     Both media shapes (prose pages with chunk anchors, sheets with cell anchors),
     both document shapes (a file, and a page fetched from the web with its
-    provenance `meta`), two generations of one document so `is_current` is
-    exercised both ways, a labelled session and an unlabelled one, a ledger row,
-    and a binding.
+    provenance `meta`), a withdrawn document beside the documents on offer, two
+    generations of one document so `is_current` is exercised both ways, a
+    labelled session and an unlabelled one, a ledger row, and a binding.
     """
     page = tmp_path / "index.html"
     page.write_text("<h1>Franklin County</h1><p>Population 1,326,063 in 2020.</p>", "utf-8")
@@ -150,6 +150,10 @@ def whole(root: Path, note: Path, workbook: Path, tmp_path: Path) -> dict:
         )
         note.write_text("Entirely different prose, long enough to chunk. " * 8, "utf-8")
         registry.ingest(note)
+        # Withdrawn, and still exported whole: the export is what a migration
+        # rebuilds a registry from, and dropping it would strand every token
+        # minted from it.
+        registry.forget("model")
 
         anchors = registry.anchors_for_page("quarterly-notes", 1)
         labelled = registry.ensure_session("s-labelled", "the audit")
@@ -164,12 +168,17 @@ def whole(root: Path, note: Path, workbook: Path, tmp_path: Path) -> dict:
         return registry.export_json()
 
 
-def test_the_fixture_exercises_the_one_conditional_key(whole: dict) -> None:
-    """Without both shapes the coverage test below would pass while blind to
-    `meta`, which is the key whose arrival is what made the spec necessary."""
+def test_the_fixture_exercises_the_conditional_keys(whole: dict) -> None:
+    """Without every shape the coverage tests below would pass while blind to a
+    key that appears only sometimes — `meta`, whose arrival is what made the spec
+    necessary, and `withdrawn_at`, which appears only on a document `forget`
+    took out of the readable set and which must appear in the export at all."""
     carries = [document for document in whole["documents"] if "meta" in document]
     assert len(carries) == 1, "expected exactly the fetched document to carry meta"
     assert len(whole["documents"]) == 3, "expected two file documents beside it"
+    gone = [document for document in whole["documents"] if "withdrawn_at" in document]
+    assert [document["slug"] for document in gone] == ["model"]
+    assert gone[0]["extractions"][0]["anchors"], "a withdrawn document lost its anchors"
     generations = [
         extraction["is_current"]
         for document in whole["documents"]

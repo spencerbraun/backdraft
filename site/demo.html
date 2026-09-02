@@ -506,7 +506,7 @@ immediate<sup class="mark">16</sup></a>, and none of it is escrowed. The model's
       "resolved": "the anchor was found in the source document's current extraction; `anchor.snippet` is what the source says now and what the author cited",
       "drifted": "the anchor was found only in a superseded extraction — the source changed after the claim was written. `drifted_from` is the snippet the author saw; `anchor.snippet` is what stands there now. Compare them before trusting the claim",
       "not_shown": "a real anchor, but it was never shown to the writer in the recorded session: the claim cites something its author did not read",
-      "unresolved": "a well-formed token naming no anchor in any generation of any source. Treat the claim as uncited",
+      "unresolved": "a well-formed token the sources do not stand behind. Either no anchor in any generation of any source, or a source that was withdrawn from the registry — `error` says which, and a withdrawn one still carries its `anchor` and receipt. Treat the claim as uncited",
       "malformed": "the citation text is not a token; `error` says why. Reported verbatim rather than dropped"
     },
     "verdict_status": {
@@ -529,7 +529,7 @@ immediate<sup class="mark">16</sup></a>, and none of it is escrowed. The model's
   "doc_path": "memo.md",
   "mode": "frontwalk",
   "session_id": "s-bridgeview",
-  "bound_at": "2026-08-28T13:21:14Z",
+  "bound_at": "2026-09-02T13:25:35Z",
   "claims": [
     {
       "text": "128 units across four three-story garden buildings, built\nin 1998 and substantially renovated between 2019 and\n2021",

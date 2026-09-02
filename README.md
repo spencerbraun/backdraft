@@ -318,6 +318,35 @@ are out of reach, and the extractor is a parse rather than a readability guess
 its mind between two versions of a site would move anchors. Responses are
 capped at 32 MiB.
 
+## Forgetting a source
+
+Ingest is otherwise one-way, and an unattended folder ingest picks up what it
+should not: a scratch copy, the same report under two names, a file nobody meant
+to include. Left in the registry it competes in `search` forever, and an agent
+choosing evidence can cite the wrong copy without anything looking wrong.
+
+```console
+$ backdraft forget scratch-copy --yes
+forgot scratch-copy (scratch-copy.md, text, 1 page)
+it is out of `backdraft read`, `search` and `ls`. Its anchors are untouched: a token already written into a draft or an artifact still shows its receipt under `backdraft show`, and `bind` reports it `unresolved` naming this withdrawal rather than passing it silently.
+[Re-ingest it to bring it back: backdraft ingest scratch-copy.md]
+```
+
+This **withdraws** rather than deletes, and the difference is the whole point.
+Nothing is removed — the document, its generations, its anchors and its
+receipts all stay — so a token already written into somebody's draft or artifact
+still resolves to the snippet it always named. What changes is that the registry
+stops offering the source: it leaves the document list, the table of contents,
+page reads and search, and `bind` reports its citations `unresolved` saying the
+source was withdrawn and when, instead of quietly passing them. A deletion would
+strand those citations with nothing to say about them, which is the failure this
+whole system exists to prevent.
+
+Ingesting the source again brings it back — as the same document under the same
+slug, not a second one beside it, so every token it ever minted resolves again.
+The price of never actually removing anything is that a registry only grows; a
+corpus you must be able to shrink is a new registry, not a `forget`.
+
 ## What lives where
 
 A working directory stays clean: the authored document and its artifact are

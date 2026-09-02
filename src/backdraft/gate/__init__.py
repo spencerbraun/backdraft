@@ -16,6 +16,7 @@ submodules, and only what a consumer outside the package imports.
 from __future__ import annotations
 
 from .reader import (
+    WITHDRAWN_HINT,
     GateError,
     Selection,
     read,
@@ -29,6 +30,7 @@ from .reader import (
 from .searcher import render_search, search
 
 __all__ = [
+    "WITHDRAWN_HINT",
     "GateError",
     "Selection",
     "read",

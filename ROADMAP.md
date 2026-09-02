@@ -32,47 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. A registry can forget a source
-
-**Intent.** Ingest is one-way. An agent working unattended over a folder — which
-is now the normal case, since `ingest` finishes its list — will ingest something
-it should not have: a scratch copy, a duplicate under two names, a file the user
-did not mean to include. Nothing removes it. It stays in `backdraft read`'s list
-forever, its anchors stay in `search` competing with the real source, and an
-agent picking evidence can cite the wrong copy without anything looking wrong.
-The only recovery is deleting `.backdraft/` and starting over, which throws away
-every other document and the whole ledger.
-
-**Shape.** Withdraw, do not delete — a new `backdraft forget <slug>` in `cli.py`
-beside `ingest`, and the storage half in `registry/store.py`. A withdrawn
-document disappears from `documents()`, from the gate's list and table of
-contents, and from `search`; its anchors keep resolving, because a token already
-written into somebody's draft or artifact must not silently become `unresolved`
-— that is the failure mode this whole system exists to prevent, and the
-2026-08-05 "provenance, never identity" row governs. So `Registry.resolve` still
-finds it and `show` and `bind` report it, with the closed status set gaining
-nothing: reuse `unresolved` and let the *reason* say withdrawn, since adding a
-status is an artifact-format change and this does not need one. Storage is a
-flag on `documents`, not a DELETE, for the same reason. Require confirmation or
-an explicit flag, since this is the one command that takes something away.
-`spec/registry.md` has landed and pins the export against what it emits, so a
-withdrawal flag reaching `documents[]` is a spec change: name the key there,
-say what a reader must conclude from it, or keep it out of the export.
-
-**Acceptance.** Ingest two documents, `forget` one: `read`, `ls` and `search`
-show only the other; a token minted from the forgotten one still resolves
-through `backdraft show`, saying it was withdrawn and when; `bind` on a document
-citing it reports it and does not crash. `forget` on an unknown slug exits 1
-naming the known ones. Re-ingesting the same file after forgetting it brings it
-back as a new generation of the same document rather than a second slug — pin
-that, it is the case that decides whether the flag was the right storage.
-`README.md`, `site/docs.html`, `site/llms.txt` and `SPEC.md`'s command list gain
-it, and it earns a DESIGN.md row: withdraw-not-delete, with the tradeoff that a
-registry never actually shrinks.
-
-**Size.** Three days.
-
-### 2. Bind's markdown names a fetched source by a file nobody has
+### 1. Bind's markdown names a fetched source by a file nobody has
 
 **Intent.** The 2026-08-18 row made `gate.source_name` the one owner of what a
 source is called and named the one surface it could not reach — bind, because
@@ -113,7 +73,7 @@ should say how.
 
 **Size.** Two days.
 
-### 3. A web page has a name, and `read` shows it the navigation menu instead
+### 2. A web page has a name, and `read` shows it the navigation menu instead
 
 **Intent.** `backdraft read franklin-county` — the demo's own web source —
 prints `p1  Franklin County, Ohio - Wikipedia  Jump to content Main menu Main
@@ -155,7 +115,7 @@ blocks and `README.md`'s show the real output. DESIGN row.
 
 **Size.** Three days.
 
-### 4. A page read has no budget and no closing line
+### 3. A page read has no budget and no closing line
 
 **Intent.** `backdraft read franklin-county p1` prints 36,442 characters and
 stops, with nothing to say how much that was or whether it was all of it — it
@@ -193,7 +153,7 @@ the agent to continue rather than assume it saw the page. DESIGN row.
 
 **Size.** Two days.
 
-### 5. The thin-source signal exists only in the ingest that printed it
+### 4. The thin-source signal exists only in the ingest that printed it
 
 **Intent.** 2026-08-20 gave `ingest` a character count and a `note: little text
 extracted` naming the likely cause — the signal that a source is a shell and
@@ -227,7 +187,7 @@ document list is where it learns this, not only the ingest it may not have run.
 
 **Size.** Two days.
 
-### 6. What a URL will be called, before the answer is permanent
+### 5. What a URL will be called, before the answer is permanent
 
 **Intent.** Three docs now tell an agent to pass `--slug` when it ingests a URL,
 because a slug is permanent once tokens carry it and the default may name a
@@ -263,7 +223,7 @@ it.
 
 **Size.** One day.
 
-### 7. A calling agent parses prose to find out what happened
+### 6. A calling agent parses prose to find out what happened
 
 **Intent.** `bind` and `verify` are the two commands whose *output* is the
 product — the exit code says clean or not, and everything actionable is in the
@@ -304,7 +264,7 @@ relay the human report to the user.
 
 **Size.** Two to three days.
 
-### 8. An artifact you were sent cannot be checked against a registry you have
+### 7. An artifact you were sent cannot be checked against a registry you have
 
 **Intent.** `verify`'s second tier runs only where a `.backdraft/` is
 discoverable from cwd, and the reason is good: an artifact is a file people
@@ -340,7 +300,7 @@ runs only in the project it was bound in.
 
 **Size.** One day.
 
-### 9. A claim that straddles a chunk boundary gets one token instead of two
+### 8. A claim that straddles a chunk boundary gets one token instead of two
 
 **Intent.** `skills/backdraft/SKILL.md` tells the writing agent that "a claim
 that spans two chunks needs both tokens, not the nearest one" — a correct
@@ -375,7 +335,7 @@ one" with the surface that now says which both are.
 
 **Size.** Two to three days.
 
-### 10. A re-ingested source strands citations one at a time
+### 9. A re-ingested source strands citations one at a time
 
 **Intent.** This is DESIGN.md's oldest Open line — "re-bind/orphan pass on
 re-ingest of changed docs (chunk ordinal drift)" — and the week that taught
@@ -417,7 +377,7 @@ extraction and ledger counts are identical before and after.
 
 **Size.** Three days.
 
-### 11. What this install can do, said before a verb needs it
+### 10. What this install can do, said before a verb needs it
 
 **Intent.** backdraft degrades rather than fails, which is right, and the price
 is that its capabilities are discovered one at a time at the moment each is

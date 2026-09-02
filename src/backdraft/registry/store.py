@@ -68,6 +68,7 @@ __all__ = [
     "media_type_for",
     "sanitize_sheet_name",
     "slug_for",
+    "withdrawn_reason",
 ]
 
 DIRECTORY = ".backdraft"
@@ -129,7 +130,7 @@ class RegistryError(BackdraftError):
 
 @dataclass(frozen=True, slots=True)
 class Ingested(Document):
-    """The document, plus which of ingest's three outcomes produced it.
+    """The document, plus what ingest did to it: the outcome, and a restore.
 
     `ingest` does one of three things and used to report all three identically:
     it creates a document, adds a *new generation* to one whose bytes or config
@@ -147,9 +148,16 @@ class Ingested(Document):
     One consequence of that, since a dataclass compares by class: an `Ingested`
     never equals the plain `Document` the read side returns for the same row.
     Compare what persists — `slug`, `sha256`, `id` — rather than the objects.
+
+    `restored` is a *fourth* fact rather than a fourth outcome: a document that
+    had been withdrawn is back, which can happen alongside any of the three —
+    forget a file, edit it, re-ingest it, and the run both restored it and made
+    a new generation. Folding it into `outcome` would force a caller to choose
+    which of two true things to report.
     """
 
     outcome: str = CREATED
+    restored: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -268,6 +276,25 @@ def current_at(registry: "Registry", anchor: Anchor) -> Anchor | None:
     return None
 
 
+def withdrawn_reason(document: Document) -> str:
+    """One clause naming a document's withdrawal and its date.
+
+    Three surfaces have to say this and must say it the same way: `citation_for`
+    puts it on the `unresolved` citation it hands `bind` and `verify`, and the
+    gate says it twice — once when `show` prints a withdrawn source's receipt,
+    once when `read` refuses to serve one. A second wording would let a caller
+    meet two explanations of one fact and wonder which registry it came from.
+
+    Deliberately short and without a next step: it rides on `bind`'s and
+    `verify`'s one-line items, which lead with the token and close with the
+    claim, and the surfaces that have room for the fix add it themselves.
+
+    Assumes a withdrawn document; `withdrawn_at` is None for every other, and
+    calling this on one would print the word `None` as a date.
+    """
+    return f"withdrawn from the registry on {document.withdrawn_at}"
+
+
 def citation_for(registry: "Registry", token: str) -> Citation:
     """What one token says against this registry, with no session in the picture.
 
@@ -287,6 +314,14 @@ def citation_for(registry: "Registry", token: str) -> Citation:
     fact about a ledger session, and the caller that has one adds it — see
     `bind.binder._resolve_citation`.
 
+    A token whose document was **withdrawn** comes back `unresolved` carrying
+    `withdrawn_reason` as its `error`, and that is the whole of what a withdrawal
+    changes for a citation: the anchor is found and its receipt is intact, so the
+    evidence still reads, while `resolved` would let a document go on citing a
+    source the registry no longer offers with nothing looking wrong. Reusing the
+    status rather than adding one is deliberate — the set is the artifact
+    format's and closed.
+
     NOTE: the gate's `show` walks the same tree and keeps its own copy, on
     purpose. It mints what it prints, and a drift mints *both* anchors — the
     cited one and the one standing there now — which a `Citation` cannot carry:
@@ -300,6 +335,17 @@ def citation_for(registry: "Registry", token: str) -> Citation:
     if resolution is None:
         return Citation(token=token, status=CitationStatus.UNRESOLVED)
     anchor = resolution.anchor
+    # Withdrawal wins over both remaining statuses: a source that is no longer
+    # in the registry has not merely drifted, and the drift diff would invite a
+    # reader to compare it against text nothing offers any more.
+    document = registry.document(anchor.slug)
+    if document is not None and document.withdrawn_at is not None:
+        return Citation(
+            token=token,
+            status=CitationStatus.UNRESOLVED,
+            anchor=anchor,
+            error=withdrawn_reason(document),
+        )
     if resolution.current:
         return Citation(token=token, status=CitationStatus.RESOLVED, anchor=anchor)
     return Citation(
@@ -407,11 +453,22 @@ class Registry:
         settings_hash = config_hash(settings)
 
         existing = self._find_document(sha256=sha256, path=path, url=url)
+        # Ingesting the source again is `forget`'s undo, in every branch below:
+        # a withdrawal says this file is not a source here, and re-offering the
+        # file says it is. Refusing instead would leave a `.backdraft/` that
+        # silently ignores a file the caller asked it to ingest.
+        restored = existing is not None and existing.withdrawn_at is not None
         if existing is not None and self._is_noop(existing, sha256, chosen, settings_hash):
+            if restored:
+                with self._connection:
+                    self._restore(existing.id)  # type: ignore[arg-type]
+                existing = replace(existing, withdrawn_at=None)
             # A re-fetch that changed nothing still moves the clock: `fetched_at`
             # is when the page was last confirmed to say this, which is the
             # question a reader of a months-old citation actually has.
-            return _ingested(self._touch_meta(existing, url, fetched_at), UNCHANGED)
+            return _ingested(
+                self._touch_meta(existing, url, fetched_at), UNCHANGED, restored=restored
+            )
 
         pages = list(chosen.extract(path, settings))
 
@@ -420,6 +477,8 @@ class Registry:
             document = self._upsert_document(
                 existing, sha256, path, media_type, slug, now, url, fetched_at
             )
+            if restored:
+                self._restore(document.id)  # type: ignore[arg-type]
             previous = self._current_extraction_id(document.id)
             self._connection.execute(
                 "UPDATE extractions SET is_current = 0 WHERE document_id = ? AND is_current = 1",
@@ -427,26 +486,86 @@ class Registry:
             )
             extraction_id = self._insert_extraction(document.id, chosen, settings_hash, now)
             self._write_pages(document, extraction_id, previous, pages, now)
-        return _ingested(document, CREATED if existing is None else GENERATION)
+        return _ingested(
+            document, CREATED if existing is None else GENERATION, restored=restored
+        )
+
+    def forget(self, slug: str) -> Document:
+        """Withdraw a document: out of the readable set, its anchors intact.
+
+        Ingest is otherwise one-way, and a registry that cannot take anything
+        back keeps offering a scratch copy, a duplicate under two names, or a
+        file the user never meant to include — competing in `search` and citable
+        without anything looking wrong.
+
+        Withdrawal, not deletion, and the difference is the point: nothing is
+        removed, so `resolve` still finds every anchor and a token already
+        written into somebody's draft or artifact still shows its receipt.
+        `citation_for` reports such a token `unresolved` carrying
+        `withdrawn_reason`, which is how the document that cites it learns.
+
+        Idempotent, keeping the first withdrawal's timestamp — that date is when
+        the source stopped being on offer, and a second `forget` did not move
+        it. Re-ingesting the source is the undo.
+
+        Raises `RegistryError` if no document has this slug. The CLI checks
+        first so that it can name the slugs that do exist; this is the guard for
+        a library caller that did not.
+        """
+        document = self.document(slug)
+        if document is None:
+            raise RegistryError(f"no document with slug {slug!r}")
+        if document.withdrawn_at is not None:
+            return document
+        now = _now()
+        with self._connection:
+            self._connection.execute(
+                "INSERT INTO withdrawals (document_id, withdrawn_at) VALUES (?, ?)",
+                (document.id, now),
+            )
+        return replace(document, withdrawn_at=now)
 
     # ---- read side ----------------------------------------------------------
 
     def documents(self) -> list[Document]:
-        """Every ingested document, oldest first."""
-        meta = self._meta_by_document()
-        return [
-            _document(row, meta.get(row["id"]))
-            for row in self._connection.execute(
-                "SELECT * FROM documents ORDER BY created_at, id"
-            )
-        ]
+        """Every readable document, oldest first — withdrawn ones excluded.
+
+        This is the registry's list of *sources on offer*, which is what every
+        caller of it wants: `ls`, the gate's document list, and the coverage
+        ordering the ledger reads back. A document `forget` withdrew is still
+        here and its anchors still resolve; it is simply no longer a source, so
+        it is not listed. `document(slug)` is how the surfaces that explain a
+        token reach one, and `export_json` carries every document there is.
+        """
+        return self._documents(include_withdrawn=False)
 
     def document(self, slug: str) -> Document | None:
-        """One document by slug, or None."""
+        """One document by slug, or None. Withdrawn documents included.
+
+        Every caller here is answering a question *about* a document rather than
+        offering it to read — what a token names, what a bind report should call
+        a source, whether a slug exists at all — and a withdrawn document has
+        the same answers. Callers that offer a source to read check
+        `withdrawn_at`; the gate does it in one place (`require_document`).
+        """
         row = self._connection.execute(
             "SELECT * FROM documents WHERE slug = ?", (slug,)
         ).fetchone()
-        return _document(row, self._meta_for(row["id"])) if row else None
+        if row is None:
+            return None
+        return _document(row, self._meta_for(row["id"]), self._withdrawn_for(row["id"]))
+
+    def _documents(self, *, include_withdrawn: bool) -> list[Document]:
+        """Every document, or only the readable ones. One query either way."""
+        meta = self._meta_by_document()
+        gone = self._withdrawn_by_document()
+        return [
+            _document(row, meta.get(row["id"]), gone.get(row["id"]))
+            for row in self._connection.execute(
+                "SELECT * FROM documents ORDER BY created_at, id"
+            )
+            if include_withdrawn or row["id"] not in gone
+        ]
 
     def pages(self, slug: str) -> list[Page]:
         """The current extraction's pages, in order. Sheets carry their cells."""
@@ -615,12 +734,16 @@ class Registry:
         Shared rather than written twice: a count that joined differently from
         the fetch would report a total the caller can never actually reach.
         """
+        # The withdrawal filter belongs here rather than around the fetch: a
+        # withdrawn document is not a source, so its anchors are neither results
+        # nor part of the total a caller is told it could page to.
         sql = (
             "FROM search "
             "JOIN anchors ON anchors.token = search.token "
             "JOIN extractions ON extractions.id = anchors.extraction_id AND extractions.is_current = 1 "
             "JOIN documents ON documents.id = extractions.document_id "
-            "WHERE search MATCH ?"
+            "LEFT JOIN withdrawals ON withdrawals.document_id = documents.id "
+            "WHERE search MATCH ? AND withdrawals.document_id IS NULL"
         )
         parameters: list[Any] = []
         if slug is not None:
@@ -699,10 +822,13 @@ class Registry:
         """The whole registry as plain JSON-able data, for portability and diffing.
 
         Every generation is included, not just the current one: the superseded
-        anchors are what make a drifted citation explainable.
+        anchors are what make a drifted citation explainable. Every *document*
+        is included too, withdrawn ones among them, carrying `withdrawn_at` —
+        so an export says which sources are on offer without ever losing the
+        anchors a withdrawn one's citations still resolve through.
         """
         documents: list[dict] = []
-        for document in self.documents():
+        for document in self._documents(include_withdrawn=True):
             extractions = []
             for extraction in self._connection.execute(
                 "SELECT * FROM extractions WHERE document_id = ? ORDER BY created_at, id",
@@ -758,6 +884,11 @@ class Registry:
                 "media_type": document.media_type,
                 "created_at": document.created_at,
             }
+            if document.withdrawn_at:
+                # Withdrawn documents are exported whole, anchors included: an
+                # export that dropped them would strand every token minted from
+                # one, which is the deletion `forget` deliberately is not.
+                entry["withdrawn_at"] = document.withdrawn_at
             if document.meta:
                 # Only where there is provenance to carry, so an export of a
                 # registry of files is unchanged from before URL sources.
@@ -811,24 +942,30 @@ class Registry:
         Bytes are checked first because `documents.sha256` is UNIQUE: when the
         same content arrives twice under two origins it is one document, and
         deciding otherwise would be a constraint violation rather than a policy.
+
+        A withdrawn document matches like any other, which is what makes
+        re-ingesting a forgotten file bring *it* back rather than mint a second
+        slug beside it — a second slug would be the outcome a delete produces,
+        and every token carrying the first slug would stay stranded.
         """
         meta = self._meta_by_document()
+        gone = self._withdrawn_by_document()
         row = self._connection.execute(
             "SELECT * FROM documents WHERE sha256 = ?", (sha256,)
         ).fetchone()
         if row is not None:
-            return _document(row, meta.get(row["id"]))
+            return _document(row, meta.get(row["id"]), gone.get(row["id"]))
         target = None if url is not None else path.resolve()
         for row in self._connection.execute("SELECT * FROM documents ORDER BY id"):
             origin = (meta.get(row["id"]) or {}).get("url")
             if url is not None:
                 if origin == url:
-                    return _document(row, meta.get(row["id"]))
+                    return _document(row, meta.get(row["id"]), gone.get(row["id"]))
                 continue
             # A fetched document's `path` is its URL, so it can never be the
             # file being ingested — and resolving it as one would be nonsense.
             if origin is None and Path(row["path"]).resolve() == target:
-                return _document(row, meta.get(row["id"]))
+                return _document(row, meta.get(row["id"]), gone.get(row["id"]))
         return None
 
     def _meta_by_document(self) -> dict[int, dict]:
@@ -843,6 +980,25 @@ class Registry:
             "SELECT meta FROM document_meta WHERE document_id = ?", (document_id,)
         ).fetchone()
         return json.loads(row["meta"]) if row else None
+
+    def _withdrawn_by_document(self) -> dict[int, str]:
+        """When each withdrawn document was withdrawn. Absent means readable."""
+        return {
+            row["document_id"]: row["withdrawn_at"]
+            for row in self._connection.execute("SELECT * FROM withdrawals")
+        }
+
+    def _withdrawn_for(self, document_id: int) -> str | None:
+        row = self._connection.execute(
+            "SELECT withdrawn_at FROM withdrawals WHERE document_id = ?", (document_id,)
+        ).fetchone()
+        return row["withdrawn_at"] if row else None
+
+    def _restore(self, document_id: int) -> None:
+        """Undo a withdrawal. Caller supplies the transaction."""
+        self._connection.execute(
+            "DELETE FROM withdrawals WHERE document_id = ?", (document_id,)
+        )
 
     def _save_meta(self, document_id: int, meta: dict) -> None:
         self._connection.execute(
@@ -1232,7 +1388,9 @@ def _now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _document(row: sqlite3.Row, meta: dict | None = None) -> Document:
+def _document(
+    row: sqlite3.Row, meta: dict | None = None, withdrawn_at: str | None = None
+) -> Document:
     return Document(
         slug=row["slug"],
         sha256=row["sha256"],
@@ -1241,12 +1399,19 @@ def _document(row: sqlite3.Row, meta: dict | None = None) -> Document:
         media_type=row["media_type"],
         created_at=row["created_at"],
         meta=meta,
+        withdrawn_at=withdrawn_at,
         id=row["id"],
     )
 
 
-def _ingested(document: Document, outcome: str) -> Ingested:
-    """The same document, saying which of ingest's three outcomes made it."""
+def _ingested(document: Document, outcome: str, *, restored: bool = False) -> Ingested:
+    """The same document, saying which outcome made it and whether it came back.
+
+    `withdrawn_at` is deliberately not carried: every path that returns an
+    `Ingested` has just restored the document or never withdrew it, so it is
+    readable by the time the caller sees it, and `restored` is the fact worth
+    reporting.
+    """
     return Ingested(
         slug=document.slug,
         sha256=document.sha256,
@@ -1257,6 +1422,7 @@ def _ingested(document: Document, outcome: str) -> Ingested:
         meta=document.meta,
         id=document.id,
         outcome=outcome,
+        restored=restored,
     )
 
 

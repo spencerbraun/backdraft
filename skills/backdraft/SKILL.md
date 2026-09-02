@@ -276,6 +276,13 @@ printed, with the reason attached.
   unknown slug or a locator/hash that names no anchor. Then `search` for the
   fact, use the real token, re-bind. If no anchor supports the claim, **say so
   in the text** ("not supported by the ingested sources") or cut the claim.
+  One `unresolved` is not that: when the line item's reason says the source was
+  *withdrawn from the registry*, the token is fine and somebody took the source
+  out on purpose (`backdraft forget`). `show` still prints its receipt, so you
+  can read what it said, but the source is no longer on offer here — do not
+  re-ingest it to make the error go away. Find the fact in a source that is
+  still ingested, or leave the claim uncited and tell the user which source was
+  withdrawn.
 - `not_shown` — a real anchor you were never shown. `show` it (or read or search
   it) and re-bind: showing is minting, so that alone clears the status.
 - `drifted` — the source changed after you wrote. `show` prints both snippets,

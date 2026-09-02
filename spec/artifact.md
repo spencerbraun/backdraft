@@ -124,7 +124,7 @@ MUST fall back to locating the claim by its `text`.
 | `status` | string | one of the five statuses below |
 | `anchor` | object | present when an anchor was found |
 | `drifted_from` | string | present when `status` is `drifted`: the snippet as cited |
-| `error` | string | present when `status` is `malformed`: why it did not parse |
+| `error` | string | why the status happened, where the status alone does not say: a `malformed` token's parse failure, or an `unresolved` one whose source was withdrawn |
 | `verdicts` | array | one entry per verification method that ran; always present, may be empty |
 
 ### `claims[].citations[].anchor`
@@ -172,12 +172,20 @@ first-class line item that a renderer MUST show:
 | `resolved` | the anchor is in the source's current extraction |
 | `drifted` | the anchor is only in a superseded extraction: the source changed after the claim was written |
 | `not_shown` | a valid anchor the writer was never shown (front-walk only) |
-| `unresolved` | a well-formed token naming no anchor in any generation |
+| `unresolved` | a well-formed token the sources do not stand behind: no anchor in any generation, or a source withdrawn from the registry |
 | `malformed` | the citation text is not a token; `error` says why |
 
 For `drifted`, `drifted_from` is the snippet **as cited** — what the author saw
 — and `anchor.snippet` is what stands at that locator **now**. A renderer shows
 both; the difference is the finding.
+
+`unresolved` covers two cases and `error` separates them. Where it is absent, the
+token names no anchor anywhere and the citation carries none. Where it names a
+**withdrawn** source, the producing registry still held the anchor and the
+citation carries it with its receipt intact — the source was taken out of that
+registry's readable set rather than lost, so the evidence is still checkable and
+the claim is still uncited. A reader MUST NOT treat a withdrawn citation's
+present `anchor` as making it `resolved`; the status is the finding.
 
 ## The legend
 

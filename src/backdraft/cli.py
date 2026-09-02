@@ -18,6 +18,7 @@ non-resolved citations (so a hook can gate on it).
 from __future__ import annotations
 
 import json
+import sys
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -46,10 +47,17 @@ from .extract import snapshots, vlm_ready
 # — and `ingest`/`ls` describe the same documents its list does. A downward
 # import, which SPEC § Dependency rule spells "`cli` imports everything"; the
 # mount guard below is about sub-*apps*, and `gate` itself does not need typer.
-from .gate import source_name, unit
+from .gate import WITHDRAWN_HINT, source_name, unit
 from .kernel.errors import BackdraftError
 from .kernel.model import Document, Page
-from .registry import DIRECTORY, GENERATION, UNCHANGED, Registry
+from .registry import (
+    DIRECTORY,
+    GENERATION,
+    UNCHANGED,
+    Ingested,
+    Registry,
+    withdrawn_reason,
+)
 
 __all__ = [
     "app",
@@ -124,18 +132,26 @@ def _thin_cause(media_type: str) -> str:
     return _THIN_CAUSE.get(media_type, _THIN_CAUSE_DEFAULT)
 
 
-def _outcome_note(outcome: str) -> str:
+def _outcome_note(document: Ingested) -> str:
     """What `ingest` did, appended to the source's line. A fresh document says nothing.
 
     Three outcomes printed one line: an agent re-ingesting after a fix could not
     tell a no-op from a new generation, and the two mean opposite things about
     the work already written against the source.
+
+    `restored` rides beside them rather than among them, because it is a
+    different question with a different answer — a withdrawn source re-ingested
+    unchanged is both `unchanged` and back, and a line that could only say one
+    would have to drop the other.
     """
-    if outcome == UNCHANGED:
-        return "  unchanged"
-    if outcome == GENERATION:
-        return "  new generation"
-    return ""
+    marks = []
+    if document.outcome == UNCHANGED:
+        marks.append("unchanged")
+    elif document.outcome == GENERATION:
+        marks.append("new generation")
+    if document.restored:
+        marks.append("restored")
+    return "".join(f"  {mark}" for mark in marks)
 
 
 # ---- commands ---------------------------------------------------------------
@@ -235,6 +251,7 @@ def ingest(
     unsnapshot: dict[str, list[str]] = {}  # why it failed -> which documents
     thin: dict[str, list[str]] = {}  # why it came back thin -> which documents
     regenerated: list[str] = []  # documents that gained a generation this run
+    restored: list[str] = []  # documents that had been withdrawn and are back
     unread: list[tuple[str, str]] = []  # which source -> why it never landed
     with guard():
         if slug is not None and len(sources) > 1:
@@ -262,10 +279,12 @@ def ingest(
                         typer.echo(
                             f"{document.slug}  {source_name(document)}  "
                             f"{document.media_type}  {len(pages)} {unit(pages)}  "
-                            f"{chars} chars{_outcome_note(document.outcome)}"
+                            f"{chars} chars{_outcome_note(document)}"
                         )
                         if document.outcome == GENERATION:
                             regenerated.append(document.slug)
+                        if document.restored:
+                            restored.append(document.slug)
                         if chars < THIN_SOURCE_CHARS:
                             thin.setdefault(
                                 _thin_cause(document.media_type), []
@@ -319,6 +338,16 @@ def ingest(
             f"note: little text extracted — {cause} Read it with `backdraft read "
             "<slug>` before citing it, and tell the user the source came back "
             f"thin rather than citing the shell of it: {', '.join(slugs)}."
+        )
+    if restored:
+        # Grouped like the rest, and said out loud because it undoes a command
+        # somebody ran on purpose: an agent re-ingesting a folder should not
+        # have to notice that a source it was told to forget is back.
+        typer.echo(
+            f"note: {', '.join(restored)} came back — withdrawn with `backdraft "
+            "forget`, and ingesting the source again is the undo. Back in "
+            "`backdraft read`, `search` and `ls`, with citations into them "
+            "resolving again. Forget again if that was not the intent."
         )
     if regenerated:
         # The one line here that is about work already done: a new generation is
@@ -446,6 +475,98 @@ def snapshot_pages(
             typer.echo(f"{slug}  p{number}  {image.width}x{image.height}")
             stored += 1
         typer.echo(f"stored {stored} page snapshot(s)")
+
+
+@app.command()
+def forget(
+    slug: Annotated[str, typer.Argument(help="Slug of the document to withdraw.")],
+    yes: Annotated[
+        bool, typer.Option("--yes", "-y", help="Confirm without being asked.")
+    ] = False,
+) -> None:
+    """Withdraw a source: out of `read`, `search` and `ls`, citations intact.
+
+    Ingest is otherwise one-way, and a folder ingest picks up what it should not
+    — a scratch copy, the same document under two names, a file nobody meant to
+    include. Left there it competes in `search` forever and can be cited without
+    anything looking wrong, and the only way out was deleting `.backdraft/` and
+    losing every other document with it.
+
+    This withdraws rather than deletes, and the difference is the whole design.
+    Nothing is removed: the document, its generations, its anchors and its
+    receipts all stay, so a token already written into somebody's draft or
+    artifact still shows its snippet under `backdraft show` and still names its
+    source in a `bind` report. What changes is that the registry stops offering
+    it — it leaves the document list, the table of contents, page reads and
+    search — and `bind` reports its citations `unresolved`, saying the source
+    was withdrawn and when, instead of quietly passing them.
+
+    Ingesting the source again brings it back, as the same document under the
+    same slug rather than a second one beside it.
+
+    Asks before withdrawing. Where nothing can answer — a script, an agent, a
+    pipe — pass `--yes`, which is the whole of the confirmation.
+    """
+    with opened_registry() as registry:
+        document = registry.document(slug)
+        if document is None:
+            known = ", ".join(other.slug for other in registry.documents())
+            raise UsageError(
+                f"no document with slug {slug!r}; "
+                + (f"ingested: {known}" if known else "nothing is ingested here")
+            )
+        pages = registry.pages(slug)
+        # Single-spaced rather than the gate headline's aligned two, because
+        # this reads inside sentences as often as it stands on its own line.
+        described = (
+            f"{slug} ({source_name(document)}, {document.media_type}, "
+            f"{len(pages)} {unit(pages)})"
+        )
+        back = WITHDRAWN_HINT.format(path=document.path)
+        if document.withdrawn_at is not None:
+            # Already where the caller asked for it to be, so not a failure —
+            # but "forgot" would claim a withdrawal this run did not make, and
+            # the date somebody actually withdrew it on is the useful answer.
+            typer.echo(f"{described} was already {withdrawn_reason(document)}")
+            typer.echo(f"[{back}]")
+            return
+        if not yes:
+            _confirm(described)
+        registry.forget(slug)
+    typer.echo(f"forgot {described}")
+    typer.echo(
+        "it is out of `backdraft read`, `search` and `ls`. Its anchors are "
+        "untouched: a token already written into a draft or an artifact still "
+        "shows its receipt under `backdraft show`, and `bind` reports it "
+        "`unresolved` naming this withdrawal rather than passing it silently."
+    )
+    typer.echo(f"[{back}]")
+
+
+def _interactive() -> bool:
+    """Whether there is a person on the other end of stdin to answer a prompt."""
+    try:
+        return sys.stdin.isatty()
+    except (AttributeError, ValueError):  # pragma: no cover - a closed stdin
+        return False
+
+
+def _confirm(described: str) -> None:
+    """Ask before withdrawing, or say how to answer where nothing can.
+
+    `forget` is the one command that takes something away, so it asks. The
+    prompt is only reachable from a terminal, and this tool's usual caller is an
+    agent with no terminal — where a bare prompt is either a hang or click's
+    `Aborted.`, neither of which says what to do. So a non-interactive run is
+    told the flag instead, and reads it as an ordinary usage error.
+    """
+    if not _interactive():
+        raise UsageError(
+            f"forgetting {described} takes it out of `backdraft read`, `search` "
+            "and `ls` (its citations keep resolving). Re-run with --yes to confirm."
+        )
+    if not typer.confirm(f"forget {described}?"):
+        raise UsageError("nothing withdrawn")
 
 
 @app.command()

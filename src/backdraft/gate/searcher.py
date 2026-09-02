@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 from ..kernel.hashing import normalize
 
-from .reader import LIST_HINT, GateError
+from .reader import require_document
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -57,10 +57,13 @@ def search(
     Every hit's anchor is recorded in `session` before the text is returned — a
     result the writer saw is a result the writer may cite.
 
-    Raises `GateError` if `slug` names no document.
+    Raises a `GateError` if `slug` names no document the gate will serve — an
+    unknown slug, or one `forget` withdrew. `require_document` owns both
+    wordings, so a slug refused here is refused in the same words a read
+    refuses it in.
     """
-    if slug is not None and registry.document(slug) is None:
-        raise GateError(f"no such document: {slug!r}; {LIST_HINT}")
+    if slug is not None:
+        require_document(registry, slug)
     hits = registry.search(query, slug=slug, limit=limit)
     _mint(registry, session, hits)
     return render_search(query, hits, slug=slug)
