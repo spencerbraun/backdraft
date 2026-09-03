@@ -30,6 +30,7 @@ GOLDEN = pathlib.Path(__file__).parent / "golden" / "bind"
 RESOLVED_SNIPPET = "Net operating income was 4,120,000 for the trailing twelve months."
 DRIFTED_SNIPPET = "Net operating income was 3,980,000 for the trailing twelve months."
 CELL_SNIPPET = "41,200"
+FETCHED_URL = "https://en.wikipedia.org/w/index.php?title=Franklin_County,_Ohio"
 
 
 @pytest.fixture
@@ -305,6 +306,64 @@ def test_an_unknown_slug_falls_back_to_the_slug_as_the_doc_name(tmp_path) -> Non
     doc = write(tmp_path, f"[a]({anchor.token}).\n")
     bind(doc, fake_bind_registry, session_id=None, bound=True)
     assert "orphan — `p1.c1`" in bound_path(doc).read_text(encoding="utf-8")
+
+
+# --- what the markdown projection calls a source ---------------------------
+#
+# The bound markdown is the form that travels into a pull request or an email,
+# where the HTML artifact cannot follow, so it is the surface that can least
+# afford a name nobody has. It asks `kernel.model.source_name`, the same owner
+# `ingest`, `ls` and the gate's document list ask.
+
+
+@pytest.fixture
+def fetched_registry() -> FakeAnchorRegistry:
+    """A registry holding one fetched page beside one file, which is the case
+    the two naming rules disagree on: the page's `filename` is the staging file
+    `fetch.filename_for` invented, and its `meta["url"]` is the real address."""
+    fake = FakeAnchorRegistry()
+    fake.add_anchor("franklin", "p1.c11", "Franklin County had 1,326,063 residents.")
+    fake.add_anchor("t12-audit", "p8.c3", RESOLVED_SNIPPET, page_number=8)
+    fake.add_document("franklin", "index.html", url=FETCHED_URL)
+    fake.add_document("t12-audit", "T12 Audit.pdf")
+    return fake
+
+
+def test_a_reference_for_a_fetched_source_names_its_origin(tmp_path, fetched_registry) -> None:
+    """`index.html` is the temporary file the bytes were staged in — a name on
+    nobody's disk. The URL stands in its place, never beside it."""
+    resolved = token(fetched_registry, "franklin", "p1.c11")
+    doc = write(tmp_path, f"[a]({resolved}).\n")
+    bind(doc, fetched_registry, session_id=None, bound=True)
+    bound = bound_path(doc).read_text(encoding="utf-8")
+    assert f"**[1]** {FETCHED_URL} — `p1.c11` — resolved" in bound
+    assert "index.html" not in bound
+
+
+def test_a_reference_for_a_file_source_prints_the_line_it_always_did(
+    tmp_path, fetched_registry
+) -> None:
+    """The byte-identity half. A registry that is mostly files must read exactly
+    as it read before fetched sources existed — pinned as a whole line, the way
+    `ls`'s file rows are."""
+    resolved = token(fetched_registry, "t12-audit", "p8.c3")
+    doc = write(tmp_path, f"[a]({resolved}).\n")
+    bind(doc, fetched_registry, session_id=None, bound=True)
+    bound = bound_path(doc).read_text(encoding="utf-8")
+    assert '<a id="cite-1"></a>**[1]** T12 Audit.pdf — `p8.c3` — resolved' in bound
+
+
+def test_a_backfill_proposal_names_a_fetched_source_by_its_origin(
+    tmp_path, fetched_registry
+) -> None:
+    """The other half of the markdown that names a document: backfill's open
+    list. One owner means one fix, not two."""
+    doc = write(tmp_path, "Franklin County had 1,326,063 residents.\n")
+    bind(doc, fetched_registry, mode="backfill", session_id=None, bound=True)
+    bound = bound_path(doc).read_text(encoding="utf-8")
+    assert "proposed: `bd:franklin:p1.c11:" in bound
+    assert f"` — {FETCHED_URL}" in bound
+    assert "index.html" not in bound
 
 
 def test_a_document_with_no_claims_still_binds(tmp_path, fake_bind_registry) -> None:

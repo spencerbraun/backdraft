@@ -57,6 +57,7 @@ from ..kernel.model import (
     Citation,
     CitationStatus,
     Claim,
+    source_name,
 )
 from ..kernel.tokens import format_locator
 from ..registry import citation_for
@@ -619,12 +620,19 @@ def _unmatched_section(
 
 
 def _doc_name(registry: Registry, slug: str) -> str:
-    """The document's human handle: its filename, or the slug if unknown."""
+    """The document's human handle, or the slug when the registry has no document.
+
+    `kernel.model.source_name`'s answer, which is the same one `ingest`, `ls` and
+    the gate's document list give: a filename, or a fetched page's origin URL in
+    the staging filename's place. The markdown projection is the form that travels
+    into a pull request or an email, where the artifact cannot follow, so it is
+    the surface that can least afford to name a Wikipedia article `index.html`.
+    """
     try:
         document = registry.document(slug)
     except Exception:  # noqa: BLE001 - a name lookup never fails a bind
         return slug
-    return document.filename if document is not None else slug
+    return source_name(document) if document is not None else slug
 
 
 def _quote(snippet: str) -> str:

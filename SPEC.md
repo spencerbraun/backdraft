@@ -29,7 +29,8 @@ backdraft/
   src/backdraft/
     kernel/                 # PURE. No I/O, no SQLite, no deps beyond stdlib.
       model.py              # frozen dataclasses: Document, Extraction, Page, Anchor, Receipt,
-                            #   Claim, Citation, Verdict, BindReport
+                            #   Claim, Citation, Verdict, BindReport — plus the pure functions
+                            #   of those types every layer shares (source_name, source_origin)
       tokens.py             # grammar: parse / format / validate  (EBNF below lives here)
       hashing.py            # normalization + hashing rules (below)
       chunking.py           # deterministic chunker: (page_text) -> [Chunk(ordinal, text, start, end)]
@@ -88,7 +89,7 @@ backdraft/
   tests/                    # pytest; kernel tests are pure/golden-file
 ```
 
-Dependency rule: `kernel` imports nothing from the package. `registry` imports kernel. Everything else imports kernel + registry. `cli` imports everything. No sideways imports between extract/gate/bind/render.
+Dependency rule: `kernel` imports nothing from the package. `registry` imports kernel. Everything else imports kernel + registry. `cli` imports everything. No sideways imports between extract/gate/bind/render. Where two of those packages need one rule, the rule goes to the layer they both import — a pure function of a kernel type belongs beside that type (`kernel.model.source_name` on `Document`), which is how a shared rule keeps one owner instead of being duplicated because the sideways import was unavailable.
 
 ## Token grammar (kernel/tokens.py; normative copy in spec/tokens.md)
 
@@ -248,7 +249,7 @@ Registered in a plain dict; `ingest --extractor auto` picks the first `can_handl
 ## Gate (gate/)
 
 CLI-facing behavior contract:
-- `read` with no args → document list (slug, name, media, pages), where the name is the filename or — for a source fetched from the web — the origin URL standing in its place (`gate.source_name`, shared with the CLI's `ingest` and `ls`). `read <slug>` → TOC (page/sheet, name, summary-or-first-120-chars). `read <slug> p3` / `p3-5` / `rent-roll` → token-marked content.
+- `read` with no args → document list (slug, name, media, pages), where the name is the filename or — for a source fetched from the web — the origin URL standing in its place (`kernel.model.source_name`, shared with the CLI's `ingest` and `ls` and with bind's References section). `read <slug>` → TOC (page/sheet, name, summary-or-first-120-chars). `read <slug> p3` / `p3-5` / `rent-roll` → token-marked content.
 - PDF pages render as chunks: `[bd:slug:p3.c1:a7f3]` on its own line above each chunk's text. Sheets render the markdown table as-is with a header line carrying the page token; cell tokens are NOT inlined per-cell (the `[B10]` refs are already in-band; bind composes `bd:slug:sheet!B10:hash` from the registry).
 - `search "<query>"` → FTS5 over anchors; each result: token, slug, page, snippet. Results are minted (ledger-recorded) — a searched snippet is citable without a page read.
 - `show <token>...` → the inverse of minting: per token, its bind status, its slug and locator, and the verbatim snippet, in argument order. `resolved` prints the snippet; `drifted` prints both the cited snippet and what stands at the locator now (and mints that anchor too, since it is the one worth citing); `unresolved` says whether the slug or the locator is what named nothing; `malformed` carries the kernel's reason and the grammar. Statuses and resolution are bind's, reached through `kernel.claims.parse_citation` and `Registry.resolve` rather than a second reading of what a token means; `not_shown` cannot occur, because showing mints. Exit 1 if any token was `unresolved` or `malformed`, with the block still on stdout.
@@ -261,7 +262,7 @@ CLI-facing behavior contract:
 
 `bind <authored.md> [--session S] [--check m1,m2] [--mode frontwalk|backfill]`
 
-Pipeline: parse claims (kernel/claims.py: link spans with `bd:` hrefs) → resolve each citation → run enabled verifiers → rewrite doc (tokens → readable citations: `[claim](#cite-n)` + generated References section with doc name, locator, quote) → write sidecar + report → store binding row.
+Pipeline: parse claims (kernel/claims.py: link spans with `bd:` hrefs) → resolve each citation → run enabled verifiers → rewrite doc (tokens → readable citations: `[claim](#cite-n)` + generated References section with doc name, locator, quote — the name is `kernel.model.source_name`'s, the same one the gate's document list and `ls` print) → write sidecar + report → store binding row.
 
 References carry **one numbered entry per distinct token**; claims citing the same anchor share its number and its quote appears once. This is a rendering rule only — the report and sidecar still carry every citation individually. Backfill's proposals search on a query derived from the claim's distinctive terms, not the raw sentence (which FTS5 cannot parse).
 

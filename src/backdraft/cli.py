@@ -42,14 +42,16 @@ from .cli_context import (
     resolve_session,
 )
 from .extract import snapshots, vlm_ready
-# The gate owns the words a document is described in — the noun for a collection
-# of pages (`gate.unit`) and what to call the source itself (`gate.source_name`)
-# — and `ingest`/`ls` describe the same documents its list does. A downward
-# import, which SPEC § Dependency rule spells "`cli` imports everything"; the
+# The words a document is described in have one owner each, and `ingest`/`ls`
+# describe the same documents the gate's list does: the noun for a collection of
+# pages is `gate.unit`, and what to call the source itself is
+# `kernel.model.source_name` — a pure function of a `Document`, so it lives with
+# the type rather than in the first package that needed it. Both are downward
+# imports, which SPEC § Dependency rule spells "`cli` imports everything"; the
 # mount guard below is about sub-*apps*, and `gate` itself does not need typer.
-from .gate import WITHDRAWN_HINT, source_name, unit
+from .gate import WITHDRAWN_HINT, unit
 from .kernel.errors import BackdraftError
-from .kernel.model import Document, Page
+from .kernel.model import Document, Page, source_name
 from .registry import (
     DIRECTORY,
     GENERATION,
@@ -612,8 +614,8 @@ def list_documents() -> None:
     it came from, standing in the staging filename's place rather than beside
     it. A registry of files prints what it always did.
     """
-    # The name is `gate.source_name`'s, shared with `ingest` and the gate's own
-    # list. Out of the docstring on purpose: typer prints this one to a user,
+    # The name is `kernel.model.source_name`'s, shared with `ingest` and the gate's
+    # own list. Out of the docstring on purpose: typer prints this one to a user,
     # and a module path is a pointer into code they are not reading.
     with opened_registry() as registry:
         documents = registry.documents()

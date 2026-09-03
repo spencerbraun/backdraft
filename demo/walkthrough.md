@@ -98,8 +98,9 @@ site the memo's tokens point at and nothing about which article, which is what
 `--slug` is for. Notice what the output calls the source: the URL, not a
 filename. The fetch does invent one to stage the bytes in —
 `en.wikipedia.org-index.html` — but no such file is on your disk, so no surface
-that names a source ever shows it. The page is the name, here and everywhere
-after.
+that names a source ever shows it: not `ls`, not the gate's list, and not the
+`## References` section `bind --bound` writes, which is the one a reader gets
+without a browser. The page is the name, here and everywhere after.
 
 ## 3. Start a session
 

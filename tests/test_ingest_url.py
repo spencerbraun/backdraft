@@ -123,7 +123,8 @@ def test_ls_shows_where_a_fetched_source_came_from(project: Path, serve) -> None
 
 def test_ls_and_read_name_a_fetched_source_the_same_way(project: Path, serve) -> None:
     """One registry, one name. `ls` and the gate's list both go through
-    `gate.source_name`; this pins them together rather than pinning either."""
+    `kernel.model.source_name`; this pins them together rather than pinning
+    either."""
     base = serve(_page_routes())
     runner.invoke(cli.app, ["ingest", f"{base}/q4"])
     listed = runner.invoke(cli.app, ["ls"]).output
@@ -220,6 +221,45 @@ def test_a_fetched_page_is_readable_and_its_tokens_bind(project: Path, serve) ->
     doc.write_text(f"[NOI rose eleven percent]({token}).\n", encoding="utf-8")
     bound = runner.invoke(cli.app, ["bind", str(doc), "--session", "s-web"])
     assert bound.exit_code == 0, bound.output
+
+
+def test_the_bound_markdown_names_a_fetched_source_the_way_ls_does(
+    project: Path, serve
+) -> None:
+    """Every surface that names a source gives one answer, and the bound
+    markdown is the surface where it matters most: it is what travels into a
+    pull request or an email, where the HTML artifact cannot follow. It went
+    through `Document.filename` until 2026-09-03 and so called a fetched page
+    by the staging file `fetch.filename_for` invented for it."""
+    base = serve(_page_routes())
+    runner.invoke(cli.app, ["ingest", f"{base}/q4"])
+    read = runner.invoke(cli.app, ["read", "q4", "p1", "--session", "s-web"])
+    token = _first_token(read.output)
+    doc = project / "memo.md"
+    doc.write_text(f"[NOI rose eleven percent]({token}).\n", encoding="utf-8")
+    runner.invoke(cli.app, ["bind", str(doc), "--session", "s-web", "--bound"])
+
+    bound = (project / "memo.bound.md").read_text(encoding="utf-8")
+    listed = runner.invoke(cli.app, ["ls"]).output
+    assert f"{base}/q4" in bound and f"{base}/q4" in listed
+    assert "q4.html" not in bound
+
+
+def test_a_backfill_proposal_names_a_fetched_source_the_same_way(
+    project: Path, serve
+) -> None:
+    """Backfill's open list is the second place the markdown names a document,
+    and it reads the same owner — so the fix is one, not two."""
+    base = serve(_page_routes())
+    runner.invoke(cli.app, ["ingest", f"{base}/q4"])
+    doc = project / "memo.md"
+    doc.write_text("NOI for the trailing twelve months was $4.1 million.\n", encoding="utf-8")
+    runner.invoke(cli.app, ["bind", str(doc), "--mode", "backfill", "--bound"])
+
+    bound = (project / "memo.bound.md").read_text(encoding="utf-8")
+    assert "proposed: `bd:q4:" in bound
+    assert f"{base}/q4" in bound
+    assert "q4.html" not in bound
 
 
 def test_search_finds_a_fetched_page(project: Path, serve) -> None:

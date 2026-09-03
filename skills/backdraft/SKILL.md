@@ -69,15 +69,15 @@ If the user points you at a web page, ingest the URL rather than fetching it
 yourself: text you fetched outside the gate has no receipt and cannot be cited.
 The page is snapshotted at that moment and the URL is stored with it, and
 every surface names the source by that URL — `backdraft read`'s list, its table
-of contents and `ingest`'s own line all print the page rather than a filename,
-so you know which sources came off the web without a second command. The
-artifact carries the origin itself: a receipt on a fetched page links back to
-it with the fetch date, so you do not need to repeat the URL in the prose for
-the reader to have it. What you get is what a plain unauthenticated GET returns:
-a JavaScript-rendered page or one behind a login comes back thin or empty. You
-do not have to judge that yourself — ingest's own `note: little text extracted`
-line says so and names the cause. When it appears, say so to the user rather
-than citing the shell of the page.
+of contents, `ingest`'s own line and the References section `bind --bound`
+writes all print the page rather than a filename, so you know which sources came
+off the web without a second command. The artifact carries the origin itself: a
+receipt on a fetched page links back to it with the fetch date, so you do not
+need to repeat the URL in the prose for the reader to have it. What you get is
+what a plain unauthenticated GET returns: a JavaScript-rendered page or one
+behind a login comes back thin or empty. You do not have to judge that yourself
+— ingest's own `note: little text extracted` line says so and names the cause.
+When it appears, say so to the user rather than citing the shell of the page.
 
 Two habits make a web citation last. **Ingest a fixed revision when the site
 offers one** — Wikipedia's `?oldid=` permanent link, a DOI, an archived

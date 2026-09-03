@@ -301,9 +301,10 @@ q4-2025	https://example.com/reports/q4-2025	html	1 page
 
 Every surface names a fetched source by its page. The filename you never see —
 `q4-2025.html` — is the temporary file the fetch staged the bytes in, and it
-exists on nobody's disk, so `ingest`, `ls`, `backdraft read` and the artifact
-all show the URL in its place rather than beside it: two names for one thing
-would let the invented one look authoritative.
+exists on nobody's disk, so `ingest`, `ls`, `backdraft read`, the artifact and
+the `## References` section `bind --bound` writes all show the URL in its place
+rather than beside it: two names for one thing would let the invented one look
+authoritative.
 
 The origin travels into the artifact too. A claim citing a fetched page shows
 the URL as a link on its receipt, with the date the bytes were taken. That

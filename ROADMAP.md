@@ -32,48 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. Bind's markdown names a fetched source by a file nobody has
-
-**Intent.** The 2026-08-18 row made `gate.source_name` the one owner of what a
-source is called and named the one surface it could not reach — bind, because
-`bind` → `gate` is a sideways import SPEC forbids. The exception is larger than
-that row said. `binder.py`'s `_doc_name` returns `document.filename`, and it
-feeds both the generated `## References` section of `bind --bound` and the
-proposals in the unmatched-claims section, so the markdown projection — the
-form that travels into a pull request or an email, where the HTML artifact
-cannot follow — calls the demo's Wikipedia article `index.html`. Bind the demo
-with `--mode backfill --bound` and `memo.bound.md` says
-`**[2]** index.html — p1.c11 — resolved` for a source that `render --to
-footnotes` names `**franklin-county** · <https://en.wikipedia.org/…>` and the
-artifact names `Franklin County`. Two of backdraft's own output formats
-disagree about what a source is, and the one that disagrees is the one a reader
-gets without a browser.
-
-**Shape.** Answer the dependency objection rather than working around it.
-`source_name` is a pure function of a `Document`, and `Document` lives in
-`kernel/model.py`, which `gate` and `bind` both import *downward* from — so the
-kernel is the owner the rule was always looking for, and it stays stdlib-pure
-there. Decide and write down whether `gate.source_name` becomes a redirect or
-whether callers move to the kernel path, remembering that kernel API in this
-repo is module paths rather than flat re-exports, and that `cli.py` imports
-`gate.source_name` today and SPEC § Gate names it. Leave the render side alone:
-`render/html/text.source_title` and `render/footnotes._origin` read a `url` off
-the *artifact's* `docs` dict, a different shape from a `Document`, and they are
-already correct — say so in the row rather than letting the next reader think
-they were missed.
-
-**Acceptance.** Add an uncited claim to a copy of `demo/memo.md`, run `bind
-memo.md --mode backfill --bound`, and `memo.bound.md` contains no `index.html`
-and names the URL in both its References entries and its unmatched proposals.
-A References entry for a *file* source is byte-identical to today's — pin it,
-the way the file rows of the gate's list are pinned. `render --to footnotes` is
-unchanged. SPEC's dependency rule and § Gate are updated, and the 2026-08-18
-row gains its correction: the exception it accepted is now closed and the row
-should say how.
-
-**Size.** Two days.
-
-### 2. A web page has a name, and `read` shows it the navigation menu instead
+### 1. A web page has a name, and `read` shows it the navigation menu instead
 
 **Intent.** `backdraft read franklin-county` — the demo's own web source —
 prints `p1  Franklin County, Ohio - Wikipedia  Jump to content Main menu Main
@@ -115,7 +74,7 @@ blocks and `README.md`'s show the real output. DESIGN row.
 
 **Size.** Three days.
 
-### 3. A page read has no budget and no closing line
+### 2. A page read has no budget and no closing line
 
 **Intent.** `backdraft read franklin-county p1` prints 36,442 characters and
 stops, with nothing to say how much that was or whether it was all of it — it
@@ -153,7 +112,7 @@ the agent to continue rather than assume it saw the page. DESIGN row.
 
 **Size.** Two days.
 
-### 4. The thin-source signal exists only in the ingest that printed it
+### 3. The thin-source signal exists only in the ingest that printed it
 
 **Intent.** 2026-08-20 gave `ingest` a character count and a `note: little text
 extracted` naming the likely cause — the signal that a source is a shell and
@@ -187,7 +146,7 @@ document list is where it learns this, not only the ingest it may not have run.
 
 **Size.** Two days.
 
-### 5. What a URL will be called, before the answer is permanent
+### 4. What a URL will be called, before the answer is permanent
 
 **Intent.** Three docs now tell an agent to pass `--slug` when it ingests a URL,
 because a slug is permanent once tokens carry it and the default may name a
@@ -223,7 +182,7 @@ it.
 
 **Size.** One day.
 
-### 6. A calling agent parses prose to find out what happened
+### 5. A calling agent parses prose to find out what happened
 
 **Intent.** `bind` and `verify` are the two commands whose *output* is the
 product — the exit code says clean or not, and everything actionable is in the
@@ -264,7 +223,7 @@ relay the human report to the user.
 
 **Size.** Two to three days.
 
-### 7. An artifact you were sent cannot be checked against a registry you have
+### 6. An artifact you were sent cannot be checked against a registry you have
 
 **Intent.** `verify`'s second tier runs only where a `.backdraft/` is
 discoverable from cwd, and the reason is good: an artifact is a file people
@@ -300,7 +259,7 @@ runs only in the project it was bound in.
 
 **Size.** One day.
 
-### 8. A claim that straddles a chunk boundary gets one token instead of two
+### 7. A claim that straddles a chunk boundary gets one token instead of two
 
 **Intent.** `skills/backdraft/SKILL.md` tells the writing agent that "a claim
 that spans two chunks needs both tokens, not the nearest one" — a correct
@@ -335,7 +294,7 @@ one" with the surface that now says which both are.
 
 **Size.** Two to three days.
 
-### 9. A re-ingested source strands citations one at a time
+### 8. A re-ingested source strands citations one at a time
 
 **Intent.** This is DESIGN.md's oldest Open line — "re-bind/orphan pass on
 re-ingest of changed docs (chunk ordinal drift)" — and the week that taught
@@ -377,7 +336,7 @@ extraction and ledger counts are identical before and after.
 
 **Size.** Three days.
 
-### 10. What this install can do, said before a verb needs it
+### 9. What this install can do, said before a verb needs it
 
 **Intent.** backdraft degrades rather than fails, which is right, and the price
 is that its capabilities are discovered one at a time at the moment each is

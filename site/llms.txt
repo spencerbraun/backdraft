@@ -57,10 +57,11 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # report drifted; the URL + fetched_at ride along as provenance and reach the
 # artifact — a receipt on a fetched page links to it with the fetch date. Every
 # surface names a fetched source by its URL, never by the filename the fetch
-# invented to stage the bytes in: `backdraft ingest`, `ls` and `read` all print
-# the URL in the filename's place, so the list is where you learn a source came
-# off the web. Prefer an address that serves one fixed revision (Wikipedia's
-# ?oldid= permanent link, a DOI, an archived snapshot): a citation into a page
+# invented to stage the bytes in: `backdraft ingest`, `ls`, `read` and the
+# References section `bind --bound` writes all print the URL in the filename's
+# place, so the list is where you learn a source came off the web. Prefer an
+# address that serves one fixed revision (Wikipedia's ?oldid= permanent link, a
+# DOI, an archived snapshot): a citation into a page
 # that gets edited reports drifted, correctly and uselessly. Pass --slug with
 # it — a URL ending /index.php, /view or a bare id falls back to a slug built
 # from the host, which names the site and still not the page, and a slug is

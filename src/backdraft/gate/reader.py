@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING
 from ..kernel.claims import parse_citation
 from ..kernel.errors import BackdraftError
 from ..kernel.hashing import normalize
-from ..kernel.model import CitationStatus
+from ..kernel.model import CitationStatus, source_name, source_origin
 from ..kernel.tokens import CellLocator, ChunkLocator, format_locator, parse as parse_token
 from ..registry import current_at, withdrawn_reason
 
@@ -56,7 +56,6 @@ __all__ = [
     "require_document",
     "select_pages",
     "show",
-    "source_name",
     "unit",
 ]
 
@@ -234,7 +233,7 @@ def render_documents(registry: Registry) -> str:
     # `default=0` is the all-fetched registry: no filename sizes anything, so
     # every name is a URL and the column collapses rather than padding to one.
     file_width = max(
-        (len(document.filename) for document in documents if not _origin(document)),
+        (len(document.filename) for document in documents if not source_origin(document)),
         default=0,
     )
     media_width = max(len(row[2]) for row in rows)
@@ -949,37 +948,6 @@ def _document_headline(document: Document, pages: Sequence[Page]) -> str:
         f"{document.slug}  ({source_name(document)}, {document.media_type}, "
         f"{len(pages)} {unit(pages)})"
     )
-
-
-def _origin(document: Document) -> str:
-    """The URL a fetched source came from; `""` for a file.
-
-    The one place `meta["url"]` is read on this side: `source_name` answers
-    what to call the document and `render_documents` asks whether the name is
-    a URL, and two readings of one key drift apart the moment the key does.
-    """
-    return str((document.meta or {}).get("url") or "")
-
-
-def source_name(document: Document) -> str:
-    """What to call a source: its origin URL where it has one, else its filename.
-
-    A fetched page's `filename` names the temporary file the bytes were staged
-    in — `fetch.filename_for` invents it from the URL's last path segment, so a
-    permanent link arrives as `index.html`, a name that exists on nobody's disk.
-    The URL therefore stands *in its place* rather than beside it, which is the
-    2026-08-06 rule the artifact's source list already follows: showing both
-    would give a reader two names for one thing and let the fictional one look
-    authoritative.
-
-    Display only. The slug, the token and everything a citation resolves through
-    are untouched — "provenance, never identity" (2026-08-05).
-
-    Public for the reason `unit` is: `ingest` and `ls` name the same document
-    the gate's list names, and one owner is the only way three surfaces keep
-    giving one answer.
-    """
-    return _origin(document) or document.filename
 
 
 def unit(pages: Sequence[Page]) -> str:

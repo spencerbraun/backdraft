@@ -39,6 +39,8 @@ __all__ = [
     "Claim",
     "Verdict",
     "BindReport",
+    "source_origin",
+    "source_name",
 ]
 
 type MediaType = Literal[
@@ -365,3 +367,37 @@ class BindReport:
         if include_evidence and self.evidence is not None:
             payload["evidence"] = self.evidence
         return payload
+
+
+def source_origin(document: Document) -> str:
+    """The address a fetched source came from; `""` for a source read off disk.
+
+    The one place a `Document`'s `meta["url"]` is read. Two readings of one key
+    drift apart the moment the key does, and this key already has two readers
+    asking different questions of it — `source_name` asks what to call the
+    document, the gate's list asks whether that name is a URL and so must not
+    size the name column.
+    """
+    return str((document.meta or {}).get("url") or "")
+
+
+def source_name(document: Document) -> str:
+    """What to call a source: its origin URL where it has one, else its filename.
+
+    A fetched page's `filename` names the temporary file the bytes were staged
+    in — `fetch.filename_for` invents it from the URL's last path segment, so a
+    permanent link arrives as `index.html`, a name that exists on nobody's disk.
+    The URL therefore stands *in its place* rather than beside it, which is the
+    2026-08-06 rule the artifact's source list already follows: showing both
+    would give a reader two names for one thing and let the fictional one look
+    authoritative.
+
+    Display only. The slug, the token and everything a citation resolves through
+    are untouched — "provenance, never identity" (2026-08-05).
+
+    Lives in the kernel rather than in the gate that first needed it because it
+    is a pure function of a `Document` and `Document` is defined here: the gate
+    and bind both import this module downward, so one owner reaches both without
+    the sideways `bind` → `gate` import SPEC forbids (2026-09-03).
+    """
+    return source_origin(document) or document.filename

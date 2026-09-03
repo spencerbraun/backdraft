@@ -81,14 +81,18 @@ class FakeAnchorRegistry:
         )
         return anchor
 
-    def add_document(self, slug: str, filename: str) -> Document:
+    def add_document(self, slug: str, filename: str, *, url: str | None = None) -> Document:
+        """`url` makes it a fetched source, shaped as the registry shapes one:
+        `path` is the address, `filename` names the staging file, and `meta`
+        carries the origin — the case where the two disagree about the name."""
         document = Document(
             slug=slug,
             sha256="0" * 64,
-            path=f"/corpus/{filename}",
+            path=url or f"/corpus/{filename}",
             filename=filename,
-            media_type="pdf",
+            media_type="html" if url else "pdf",
             created_at="2026-07-27T00:00:00Z",
+            meta=None if url is None else {"url": url, "fetched_at": "2026-07-27T00:00:00Z"},
         )
         self._documents[slug] = document
         return document

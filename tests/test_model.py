@@ -22,6 +22,8 @@ from backdraft.kernel.model import (
     Receipt,
     Verdict,
     VerdictStatus,
+    source_name,
+    source_origin,
 )
 
 SNIPPET = "The DSCR is 1.42x."
@@ -211,3 +213,51 @@ def test_document_extraction_and_page_carry_the_ddl_columns() -> None:
     assert page.cells[0].ref == "B10"
     assert page.summary is None
     assert document.media_type == "pdf"
+
+
+# --- what to call a source -------------------------------------------------
+#
+# A pure function of a `Document`, so it lives beside the type rather than in
+# the first package that needed it: the gate, bind and the CLI all import this
+# module downward, which is how one owner reaches all three without the sideways
+# import SPEC forbids (2026-09-03).
+
+
+def _document(**overrides) -> Document:
+    fields = {
+        "slug": "franklin-county",
+        "sha256": "0" * 64,
+        "path": "/corpus/index.html",
+        "filename": "index.html",
+        "media_type": "html",
+        "created_at": "2026-07-27T00:00:00Z",
+    }
+    return Document(**(fields | overrides))
+
+
+def test_a_file_source_is_called_by_its_filename() -> None:
+    document = _document(filename="T12 Audit.pdf", media_type="pdf")
+    assert source_name(document) == "T12 Audit.pdf"
+    assert source_origin(document) == ""
+
+
+def test_a_fetched_source_is_called_by_its_origin_not_its_staging_file() -> None:
+    """`fetch.filename_for` invents `index.html` from a permanent link's last
+    path segment — a name that exists on nobody's disk. The URL stands in its
+    place rather than beside it (2026-08-06)."""
+    url = "https://en.wikipedia.org/w/index.php?title=Franklin_County,_Ohio"
+    document = _document(meta={"url": url, "fetched_at": "2026-08-17T00:00:00Z"})
+    assert source_name(document) == url
+    assert source_origin(document) == url
+
+
+def test_meta_without_a_url_leaves_the_filename_standing() -> None:
+    """`meta` is provenance in general, not a URL in particular, and a document
+    carrying some other key is still a file with a filename."""
+    document = _document(meta={"fetched_at": "2026-08-17T00:00:00Z"})
+    assert source_name(document) == "index.html"
+    assert source_origin(document) == ""
+
+
+def test_an_empty_url_is_not_a_url() -> None:
+    assert source_name(_document(meta={"url": ""})) == "index.html"
