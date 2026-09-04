@@ -126,9 +126,14 @@ def test_a_withdrawn_documents_anchors_leave_the_search_total_too(two: Path) -> 
 
 
 def test_the_gate_refuses_a_withdrawn_documents_contents(two: Path) -> None:
-    """And says which of the two "nothing to serve" cases this is, plus the way back."""
+    """And says which of the two "nothing to serve" cases this is, plus the way back.
+
+    Every gate command that resolves a slug, `cell` included: it mints tokens
+    with their verbatim values, so a withdrawn source it still served would be
+    the one hole big enough to write a whole document through.
+    """
     _forget()
-    for args in (("read", "scratch"), ("read", "scratch", "p1")):
+    for args in (("read", "scratch"), ("read", "scratch", "p1"), ("cell", "scratch", "A1")):
         result = _run(*args)
         assert result.exit_code == 1, result.output
         assert "withdrawn from the registry on" in result.stderr
@@ -460,6 +465,21 @@ def test_the_registry_guards_a_slug_the_cli_would_have_caught(
         registry.ingest(note)
         with pytest.raises(RegistryError, match="no document with slug 'nope'"):
             registry.forget("nope")
+
+
+def test_the_registry_keeps_the_first_withdrawal_date(root: Path, note: Path) -> None:
+    """The CLI stops before the second `forget` reaches the store, so this is the
+    store's own idempotence — the one a library caller and any future caller of
+    `Registry.forget` meets. A second withdrawal did not move the date the
+    source stopped being on offer, and inserting again would raise on the
+    primary key rather than say so."""
+    with Registry.open(root) as registry:
+        registry.ingest(note)
+        first = registry.forget("quarterly-notes")
+        again = registry.forget("quarterly-notes")
+        assert first.withdrawn_at is not None
+        assert again.withdrawn_at == first.withdrawn_at
+        assert registry.document("quarterly-notes").withdrawn_at == first.withdrawn_at
 
 
 # ---- the export -------------------------------------------------------------

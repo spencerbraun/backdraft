@@ -56,6 +56,13 @@ document that did not exist before. When almost no text came out, ingest prints
 a `note: little text extracted` line naming the likely cause — that note, not
 your own judgement, is the signal that a source came back as a shell.
 
+If the list took in a source it should not have — a scratch copy, the same
+report under two names, a file the user did not mean to include — say so and
+offer `backdraft forget <slug> --yes`, which withdraws it from `read`, `search`
+and `ls` while leaving every token already minted from it resolving. Do not run
+it unasked: which copy is the real one is the user's call, not yours, and the
+same file ingested again is the undo.
+
 For real PDFs (glossy layouts, info boxes, scans) the VLM extractor produces the
 best receipts; `auto` prefers it when `BACKDRAFT_VLM_API_KEY` is set (env or `.backdraft/env`; ambient provider keys
 are never read) — the default model is Gemini 3.1 Flash Lite through OpenRouter. If ingest prints a note about falling back to the text

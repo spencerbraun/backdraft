@@ -402,6 +402,52 @@ def test_an_empty_body_is_a_failure_rather_than_an_empty_document(
         assert registry.documents() == []
 
 
+def test_a_page_that_cannot_be_staged_fails_like_any_other_source(
+    project: Path, serve, ingest_failure_reason, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Staging is the machine's failure, not the page's, and it is still one
+    source's failure: a full or unwritable temporary directory used to end the
+    run with a traceback, taking the rest of the list the report promises.
+
+    The reason keeps the system's own wording and offers no guess about the
+    page, because nothing about the page is wrong.
+    """
+    base = serve(_page_routes())
+    url = f"{base}/q4"
+
+    def full_disk(self: Path, data: bytes) -> int:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(Path, "write_bytes", full_disk)
+    result = runner.invoke(cli.app, ["ingest", url])
+    assert result.exit_code == cli.EXIT_USAGE
+    reason = ingest_failure_reason(result, url)
+    assert "could not be staged for extraction" in reason
+    assert "No space left on device" in reason
+    assert "TMPDIR" in reason
+    assert url not in reason
+
+
+def test_a_staging_failure_leaves_the_rest_of_the_list_alone(
+    project: Path, serve, note: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The promise `ingest` makes about every other kind of failure."""
+    base = serve(_page_routes())
+    real = Path.write_bytes
+
+    def only_the_staged(self: Path, data: bytes) -> int:
+        if "backdraft-fetch-" in str(self):
+            raise OSError(28, "No space left on device")
+        return real(self, data)
+
+    monkeypatch.setattr(Path, "write_bytes", only_the_staged)
+    result = runner.invoke(cli.app, ["ingest", f"{base}/q4", str(note)])
+    assert result.exit_code == cli.EXIT_USAGE
+    assert "1 of 2 sources ingested" in result.stderr
+    with Registry.open(project) as registry:
+        assert [d.slug for d in registry.documents()] == ["quarterly-notes"]
+
+
 def test_a_file_url_is_refused_by_name(project: Path) -> None:
     result = runner.invoke(cli.app, ["ingest", "file:///etc/hosts"])
     assert result.exit_code == cli.EXIT_USAGE

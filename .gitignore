@@ -23,3 +23,6 @@ uv.lock.bak
 # Claude Code session state and agent worktrees
 .claude/
 .private/
+
+# coverage runs (uv run --with pytest-cov)
+.coverage

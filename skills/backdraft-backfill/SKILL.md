@@ -40,6 +40,15 @@ one whose source never got ingested, and so is one whose source ingested as a
 shell: a `note: little text extracted` line names any source almost no text came
 out of.
 
+The same glob sweeps in sources it should not have — a scratch copy, the same report
+under two names, a draft beside its final. Once they are in the registry they
+compete in `search`, and attributing a claim to the wrong copy looks exactly
+like attributing it to the right one. Name what you think the duplicates are
+and offer `backdraft forget <slug> --yes`, which withdraws a source from `read`,
+`search` and `ls` while leaving every token already minted from it resolving.
+Do not run it unasked — which copy is the real one is the user's call — and
+ingesting the same file again is the undo.
+
 No session is needed: backfill does not judge against the ledger, because the
 author was never shown anything. Read source files only through `backdraft
 read`/`backdraft search`, not `Read` or `grep`.
