@@ -373,6 +373,205 @@ run in an unfamiliar environment.
 
 **Size.** Two days.
 
+### 10. `bind` never says which ledger it judged `not_shown` against
+
+**Intent.** `bind`'s report names the mode, the claim and citation counts, every
+status, every check that ran and every failure — everything except the one input
+that decides `not_shown`. The session is resolved silently by
+`cli_context.resolve_session` (flag, then `BACKDRAFT_SESSION`, then the default),
+so `backdraft bind memo.md` in `demo/` with nothing exported reports `not_shown:
+1` off the shared default ledger and says nothing about it. That is the weakest
+form the check has: the 2026-08-31 row established that the default session
+accumulates across every run in a registry, so a `resolved` there can mean "some
+earlier run read that page" rather than "this writer did". The row fixed it at
+`session show`, the command that reports the ledger, and left `bind`, the
+command that acts on it. The recipient inherits the gap: the record carries
+`session_id` and `spec/artifact.md` calls it "the ledger session, when the run
+had one", so a reader holding a record that says `"session_id": "default"` has
+the fact and no way to know it weakens every `not_shown` and every `resolved`
+beside it.
+
+**Shape.** `bind/cli.py`'s report header, and `spec/artifact.md`. Name the
+session on the summary line, and where it is the default one, close with
+`gate.reader.DEFAULT_SESSION_NOTE` — imported, not re-written, which is the whole
+point of the item: two wordings for one cost is how the `session show` note and
+this one drift apart. Keyed on the resolved id rather than on which rule supplied
+it, exactly as `session show` keys it, so an explicit `--session default` is
+named too. Then say it in the format: `spec/artifact.md`'s `session_id` row and
+the legend's `not_shown` line must tell a reader what a default session means for
+the status, since the record travels and the CLI does not. That is a legend
+change, so goldens and the demo regenerate — the 2026-08-24 trade, taken twice
+before. Not item 5's ground: that item makes the report machine-readable, this
+one adds a fact the report does not currently carry in any form.
+
+**Acceptance.** In `demo/`, `backdraft bind memo.md` with no session and no
+`BACKDRAFT_SESSION` names `default` and prints the note; `--session s-bridgeview`
+names that id and prints no note; `--session default` prints the note. Below the
+header the two runs are byte-identical. A test asserts the printed note is
+`gate.reader.DEFAULT_SESSION_NOTE` by constant rather than by substring, so a
+second copy cannot pass. `backdraft verify` on a record bound in the default
+session says so from the record alone, with no registry present. Golden sidecars
+and `demo/memo.backdraft.html`/`site/demo.html` regenerate together and stay
+byte-identical to each other. `README.md`, `site/llms.txt`,
+`skills/backdraft/SKILL.md` and `skills/backdraft-artifact/SKILL.md` follow.
+DESIGN row.
+
+**Size.** Two days.
+
+### 11. A withdrawn source is invisible, including to the person looking for it
+
+**Intent.** `forget` withdraws a source from every surface that offers one, which
+is right, and the result is that nothing lists what was withdrawn. `ls` says `no
+documents ingested` in a registry holding two withdrawn documents — true about
+sources, false about the registry, and the wording admits nothing. The three
+places a withdrawn document still appears are `session show`'s mark, the JSON
+export, and the unknown-slug error added 2026-09-04; none of them is where
+somebody looks. So an agent handed a project, meeting a citation that binds
+`unresolved — withdrawn from the registry on ...`, can learn that one source went
+and cannot learn what else did. The documented undo makes it worse: re-ingesting
+the file is the way back, and the path to re-ingest lives on the document, which
+is exactly what no surface will show once it is out of the list.
+
+**Shape.** `cli.list_documents`, off `documents(include_withdrawn=True)`, which
+already exists. Reuse `registry.withdrawn_reason` for the date and
+`gate.WITHDRAWN_HINT` for the way back — both are single owners and this must not
+mint a fourth wording for a withdrawal. The decision to make and write down is
+whether this is a flag on `ls` or a block printed under it when the registry has
+any: the objection to answer is that `ls` is the readable set, so anything that
+widens it must not make a withdrawn source look available — mark every row and
+never sort a withdrawn one among the live ones. The gate's own document list is
+out of scope and must not change: the gate serves sources, and a withdrawn source
+is not one. Hold the byte-identity rule the source-naming work established — a
+registry with nothing withdrawn prints exactly what it prints today, everywhere.
+
+**Acceptance.** In a registry with two documents, one withdrawn, `ls`'s default
+output is byte-identical to the same registry with only the live document — pin
+it. The withdrawn view names the slug, the date it went and the exact `backdraft
+ingest <path>` that brings it back, asserted against `WITHDRAWN_HINT` by
+constant. A registry where everything has been withdrawn no longer reports itself
+empty without qualification. `backdraft read` and the gate's list are unchanged,
+pinned. `README.md`'s "Forgetting a source", `site/docs.html`, `site/llms.txt`
+and `skills/backdraft/SKILL.md` say where to look. DESIGN row.
+
+**Size.** One day.
+
+### 12. `--slug` is dropped without a word when the document is already there
+
+**Intent.** `Registry.ingest`'s docstring says "`slug` is honoured only when the
+document is new — a slug is stable once assigned", which is the right rule and is
+stated nowhere a caller reads. `backdraft ingest report.pdf --slug q4-report`
+against a `report.pdf` already in the registry prints the old slug, exits 0, and
+never mentions that the flag did nothing; the same is true of a URL re-fetch,
+where the fallback slug the docs warn about is exactly what the caller was trying
+to replace. This is the one input `ingest` accepts and does not report on, in the
+week it learned to report everything else it did — `unchanged`, `new generation`,
+`restored`, thin extractions, and every source that never landed. It is not item
+4, which predicts what a source *not yet in the registry* would be called; this is
+`ingest` saying what it did with a flag for a source that is.
+
+**Shape.** `cli.ingest`, in the shape `_outcome_note` and the grouped notes
+already use — a mark on the source's line or one grouped note, matching how
+`restored` was added rather than inventing a third reporting shape. No schema
+change and no registry change: the CLI holds the requested slug and the returned
+`Ingested` carries the assigned one, so the comparison is a string equality in
+the layer that already owns the reporting. Say the next step, which fd8d00f made
+the rule for this command: the slug is permanent because every token carries it,
+so the honest options are keep it, or `forget` the document and ingest the file
+under the new slug as a *new* document — which strands every token minted under
+the old one, and the note must name that cost rather than recommending it. Exit 0
+throughout: getting back the document you already had is not a failure.
+
+**Acceptance.** Ingest a file, then ingest it again with `--slug something-else`:
+the run says the slug was not applied, names the slug the document actually has,
+names what re-slugging would cost, and exits 0. Same for a URL re-fetched with a
+`--slug` it did not have the first time. A `--slug` on a genuinely new document,
+and every ingest with no `--slug` at all, is byte-identical to today — pin both,
+including `demo/`'s three sources. `README.md`, `site/llms.txt` and
+`skills/backdraft/SKILL.md` say a slug is permanent where they currently say to
+pass `--slug`. DESIGN row.
+
+**Size.** One day.
+
+### 13. `verify` cannot re-check the one status only the ledger can settle
+
+**Intent.** `verify`'s source tier re-resolves every token and reports the
+statuses "as `bind` would", with one gap the code names out loud: `not_shown`
+cannot appear, because it is a fact about a ledger session and verify opens none
+(`render/cli.py`'s `_against_sources`). So a record that says a claim cited
+something its author never read comes back `resolved` from the tier that is
+supposed to be the stronger check, and the strongest claim this product makes —
+that the set of citable tokens is exactly the set the gate emitted — is the one
+claim a recipient holding the registry cannot re-check. That recipient is the
+`backdraft-artifact` skill's whole case: they have the artifact, they have the
+project, and the check they most want is the one that says the author read it.
+
+**Shape.** `render/cli.py`'s source tier plus one registry read. The record
+already carries `session_id`, and `Registry.was_shown(session_id, token)` already
+answers the question one token at a time — that is the call `bind` makes, so a
+status printed here stays the status a re-bind would print. The standing
+objection is in the docstring and must be answered rather than overridden:
+"read-only, it opens no session and mints nothing, which is what separates it
+from `backdraft show`". Reading a ledger is not minting into one, and the session
+read is the one the record names rather than one verify chose — so
+`ensure_session` must not be called, a session id absent from the registry is
+reported as absent rather than created, and a `session_id` of `null` is reported
+as a run that had none. Nothing about `show`'s minting changes. The `sources:`
+line gains the status; the existing counts must keep meaning what they mean.
+
+**Acceptance.** In `demo/`, bind a memo under a session that was never shown one
+of its citations, render, then `backdraft verify` in the project: the source tier
+reports that citation `not_shown` and says which session it read. Verified from
+outside the project, the tier does not run and the output is byte-identical to
+today. A record whose `session_id` names no session in this registry says so and
+does not create it — assert the registry's session count before and after. A
+record with `session_id: null` says the run had no session. Every existing verify
+output where the ledger agrees with the record is byte-identical, pinned,
+including `demo/`'s. `spec/artifact.md` § Checking an artifact,
+`skills/backdraft-artifact/SKILL.md`, `site/llms.txt` and `README.md` follow.
+DESIGN row.
+
+**Size.** Two to three days.
+
+### 14. `bind` and `verify` name the failure and not the move
+
+**Intent.** 2026-09-01 made `ingest`'s failures say what to do as well as what
+went wrong, on the argument that a calling agent reads the reason and acts on it.
+`bind` and `verify` are the two commands whose output *is* the product, and
+neither says a next step anywhere: `! not_shown: <token> — <claim> @<offset>` is
+a complete diagnosis and a blank instruction. The move differs sharply per status
+and is not guessable — `not_shown` clears by showing the token, `unresolved`
+needs a search and a new token or an uncited claim, `drifted` needs both snippets
+read and a judgement, `malformed` is an href to fix, and a `receipt:` finding
+means the artifact was edited rather than the sources moved. Today that mapping
+lives only in `skills/backdraft/SKILL.md`, which means it works for an agent
+running the skill and for nobody else — a hook, a CI job, a person, or any agent
+that reached the command another way.
+
+**Shape.** A closing block on both commands, one line per status actually
+present, naming the exact command that addresses it — the shape `ingest`'s
+grouped notes already use, and never a hint appended to each of eighteen line
+items. One owner for the mapping, imported by `bind/cli.py` and
+`render/cli.py` rather than written twice; the status set is the artifact
+format's and closed, so the mapping is total and a test asserts every
+`CitationStatus` has a line. `verify` adds the `receipt` case, which is not a
+citation status and is the finding that means something categorically different.
+Display only: no exit code moves, no status moves, no record field is added — a
+run that came out clean prints exactly what it prints today. Not item 5, which
+gives the same two commands a machine-readable payload; that item serves a caller
+that parses, this one serves the caller that reads, and both are wanted because
+the human report is what gets relayed to the user.
+
+**Acceptance.** In `demo/`, `backdraft bind memo.md --session s-bridgeview
+--check value-trace,overlap` closes by naming `backdraft search` for its one
+`unresolved`, and says nothing about the statuses it did not produce. A bind that
+comes out clean is byte-identical to today, as is a clean `verify` — pin both. A
+test enumerates `CitationStatus` and asserts each has a line and a command that
+`backdraft --help` lists. `verify` on an artifact with one edited snippet says
+the file was changed rather than the sources. `demo/walkthrough.md`'s bind and
+verify blocks show the real output. DESIGN row.
+
+**Size.** Two days.
+
 ## Parked
 
 Deliberately not queued, each with the reason, so picking one up starts from
