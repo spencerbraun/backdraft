@@ -438,6 +438,38 @@ def skill(
     typer.echo('next: ask your agent for cited work, e.g. "Write me a memo from ./docs, with citations."')
 
 
+def _document_named(registry: Registry, slug: str) -> Document:
+    """The document `slug` names, or a `UsageError` naming the ones that exist.
+
+    The two commands here that resolve a slug — `snapshot-pages` and `forget` —
+    both act *on* a document rather than offering it to read, so both take a
+    withdrawn one: `forget` accepts it and says it was already withdrawn, and
+    re-snapshotting is maintenance on stored pages, not a read (the 2026-09-02
+    row draws the line there). So the list names every document there is, with
+    the withdrawn ones marked — omitting slugs the command would have accepted
+    sends a caller to fix a spelling that was right.
+
+    That is the bug this replaced. Built from `documents()`, the list left out
+    exactly the withdrawn documents, and a registry holding nothing else told
+    somebody who had just withdrawn one that "nothing is ingested here".
+
+    The gate's own missing-slug wording stays separate: there the
+    withdrawn/unknown distinction is the whole answer rather than a mark, and
+    `gate.reader.require_document` gives each its own next step.
+    """
+    document = registry.document(slug)
+    if document is not None:
+        return document
+    known = ", ".join(
+        f"{other.slug} (withdrawn)" if other.withdrawn_at else other.slug
+        for other in registry.documents(include_withdrawn=True)
+    )
+    raise UsageError(
+        f"no document with slug {slug!r}; "
+        + (f"ingested: {known}" if known else "nothing is ingested here")
+    )
+
+
 @app.command("snapshot-pages")
 def snapshot_pages(
     slug: Annotated[str, typer.Argument(help="An ingested PDF's slug.")],
@@ -462,9 +494,7 @@ def snapshot_pages(
     pixels.
     """
     with opened_registry() as registry:
-        document = registry.document(slug)
-        if document is None:
-            raise UsageError(f"no document with slug {slug!r}")
+        document = _document_named(registry, slug)
         if document.media_type != "pdf":
             raise UsageError(f"{slug} is {document.media_type}, not a PDF")
         source = file or Path(document.path)
@@ -510,13 +540,7 @@ def forget(
     pipe — pass `--yes`, which is the whole of the confirmation.
     """
     with opened_registry() as registry:
-        document = registry.document(slug)
-        if document is None:
-            known = ", ".join(other.slug for other in registry.documents())
-            raise UsageError(
-                f"no document with slug {slug!r}; "
-                + (f"ingested: {known}" if known else "nothing is ingested here")
-            )
+        document = _document_named(registry, slug)
         pages = registry.pages(slug)
         # Single-spaced rather than the gate headline's aligned two, because
         # this reads inside sentences as often as it stands on its own line.

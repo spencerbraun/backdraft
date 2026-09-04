@@ -368,6 +368,48 @@ def test_forget_in_an_empty_registry_says_so_rather_than_listing_nothing(
     assert "nothing is ingested here" in result.stderr
 
 
+def test_a_typo_is_told_about_the_slugs_a_withdrawal_took_off_the_list(
+    two: Path,
+) -> None:
+    """`forget` accepts a withdrawn slug, so its list of known slugs names them.
+
+    Built from `documents()` the list left them out, which sent somebody who had
+    just withdrawn `scratch` and mistyped it looking for a spelling mistake that
+    was not there.
+    """
+    _forget()
+    result = _run("forget", "scratc", "--yes")
+    assert result.exit_code == 1
+    assert "scratch (withdrawn)" in result.stderr
+    assert "quarterly-notes" in result.stderr
+    assert "quarterly-notes (withdrawn)" not in result.stderr
+
+
+def test_a_registry_of_nothing_but_withdrawals_is_not_an_empty_one(
+    two: Path,
+) -> None:
+    """The message that was flatly wrong: two documents in here, both withdrawn,
+    and the caller was told the registry was empty."""
+    _forget()
+    _forget("quarterly-notes")
+    result = _run("forget", "nope", "--yes")
+    assert result.exit_code == 1
+    assert "nothing is ingested here" not in result.stderr
+    assert "scratch (withdrawn)" in result.stderr
+    assert "quarterly-notes (withdrawn)" in result.stderr
+
+
+def test_snapshot_pages_names_the_known_slugs_the_same_way(two: Path) -> None:
+    """The other command in `cli` that resolves a slug, sharing one wording and
+    one list — it used to name neither."""
+    _forget()
+    result = _run("snapshot-pages", "nope")
+    assert result.exit_code == 1
+    assert "no document with slug 'nope'" in result.stderr
+    assert "scratch (withdrawn)" in result.stderr
+    assert "quarterly-notes" in result.stderr
+
+
 def test_forgetting_twice_keeps_the_first_date_and_is_not_a_failure(two: Path) -> None:
     """The end state the caller asked for, so not an error — but not a claim to
     have withdrawn it now either, since the first date is the useful answer."""

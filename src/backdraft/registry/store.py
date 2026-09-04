@@ -527,17 +527,33 @@ class Registry:
 
     # ---- read side ----------------------------------------------------------
 
-    def documents(self) -> list[Document]:
+    def documents(self, *, include_withdrawn: bool = False) -> list[Document]:
         """Every readable document, oldest first — withdrawn ones excluded.
 
         This is the registry's list of *sources on offer*, which is what every
-        caller of it wants: `ls`, the gate's document list, and the coverage
-        ordering the ledger reads back. A document `forget` withdrew is still
-        here and its anchors still resolve; it is simply no longer a source, so
-        it is not listed. `document(slug)` is how the surfaces that explain a
-        token reach one, and `export_json` carries every document there is.
+        caller of it wants by default: `ls`, the gate's document list, and the
+        coverage ordering the ledger reads back. A document `forget` withdrew is
+        still here and its anchors still resolve; it is simply no longer a
+        source, so it is not listed. `document(slug)` is how the surfaces that
+        explain a token reach one.
+
+        `include_withdrawn=True` is for the callers whose subject is the
+        registry itself rather than the sources it offers — `export_json`, which
+        would strand a withdrawn document's citations by dropping it, and the
+        CLI's unknown-slug message, which names the slugs its commands take and
+        they take a withdrawn one. Read the flag as "what is in here" rather
+        than "what can be read": anything offering a source to read wants the
+        default.
         """
-        return self._documents(include_withdrawn=False)
+        meta = self._meta_by_document()
+        gone = self._withdrawn_by_document()
+        return [
+            _document(row, meta.get(row["id"]), gone.get(row["id"]))
+            for row in self._connection.execute(
+                "SELECT * FROM documents ORDER BY created_at, id"
+            )
+            if include_withdrawn or row["id"] not in gone
+        ]
 
     def document(self, slug: str) -> Document | None:
         """One document by slug, or None. Withdrawn documents included.
@@ -554,18 +570,6 @@ class Registry:
         if row is None:
             return None
         return _document(row, self._meta_for(row["id"]), self._withdrawn_for(row["id"]))
-
-    def _documents(self, *, include_withdrawn: bool) -> list[Document]:
-        """Every document, or only the readable ones. One query either way."""
-        meta = self._meta_by_document()
-        gone = self._withdrawn_by_document()
-        return [
-            _document(row, meta.get(row["id"]), gone.get(row["id"]))
-            for row in self._connection.execute(
-                "SELECT * FROM documents ORDER BY created_at, id"
-            )
-            if include_withdrawn or row["id"] not in gone
-        ]
 
     def pages(self, slug: str) -> list[Page]:
         """The current extraction's pages, in order. Sheets carry their cells."""
@@ -828,7 +832,7 @@ class Registry:
         anchors a withdrawn one's citations still resolve through.
         """
         documents: list[dict] = []
-        for document in self._documents(include_withdrawn=True):
+        for document in self.documents(include_withdrawn=True):
             extractions = []
             for extraction in self._connection.execute(
                 "SELECT * FROM extractions WHERE document_id = ? ORDER BY created_at, id",
