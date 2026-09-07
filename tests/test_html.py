@@ -540,6 +540,35 @@ def test_a_fetched_source_is_titled_by_its_slug_not_its_staging_filename(
     assert "Index" not in page.split('<ul class="srclist">', 1)[1].split("</ul>", 1)[0]
 
 
+def test_a_source_that_named_itself_wins_over_slug_and_filename(
+    demo_doc: str, demo: BindReport
+) -> None:
+    """A page's `<title>` is the one name in the record the source chose; the
+    slug is a handle somebody typed and the filename is what the fetch staged.
+    Passed through as written — a title is already prose."""
+    page = html.render(
+        demo_doc,
+        _with_origin(
+            demo,
+            url=URL,
+            filename="en.wikipedia.org-index.html",
+            title="Franklin County, Ohio - Wikipedia",
+        ),
+    )
+    listing = page.split('<ul class="srclist">', 1)[1].split("</ul>", 1)[0]
+    assert '<span class="doc">Franklin County, Ohio - Wikipedia</span>' in listing
+    assert "T12 Audit" not in listing
+
+
+def test_a_file_source_that_named_itself_is_named_by_its_title(
+    demo_doc: str, demo: BindReport
+) -> None:
+    """The rule is about the source naming itself, not about how it arrived:
+    an HTML file read off disk carries a title too."""
+    page = html.render(demo_doc, _with_origin(demo, title="Q4 Portfolio Review"))
+    assert '<span class="doc">Q4 Portfolio Review</span>' in page
+
+
 def test_a_file_source_still_shows_its_filename(demo_doc: str, demo: BindReport) -> None:
     page = html.render(demo_doc, _with_origin(demo))
     assert "q4-2025.html &middot;" in page

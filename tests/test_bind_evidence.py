@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from backdraft.bind.evidence import assemble, col_letters, col_num
+from backdraft.bind.evidence import assemble, col_letters, col_num, declared_title
 from backdraft.extract.base import PageImage
 from backdraft.kernel.model import (
     Anchor,
@@ -223,6 +223,60 @@ def test_a_fetch_time_without_a_url_is_not_provenance() -> None:
     )
     evidence = assemble(registry, [_claim("bd:memo:p6.c1:0000", "memo", "p6.c1")])
     assert set(evidence["documents"]["memo"]) == {"filename", "media_type"}
+
+
+# ---- the name a source gave itself ------------------------------------------
+
+
+def _titled(title: str) -> FakeEvidenceRegistry:
+    """A fetched web page as the `html` extractor and the registry land one:
+    one page, the staging filename, the title in the page's meta."""
+    registry = _registry()
+    registry.docs["memo"] = Document(
+        slug="memo", sha256="0" * 64, path="https://example.com/a", filename="index.html",
+        media_type="html", created_at="2026-07-28T00:00:00Z",
+        meta={"url": "https://example.com/a", "fetched_at": "2026-08-05T09:14:00Z"},
+    )
+    registry.page_rows["memo"] = [
+        Page(number=1, kind="page", text="Body.", name=title, meta={"title": title})
+    ]
+    return registry
+
+
+def test_a_page_that_named_itself_carries_its_title() -> None:
+    """The only name in the entry the source chose: `filename` is the staging
+    name the fetch invented and the slug is a handle somebody typed."""
+    registry = _titled("Franklin County, Ohio - Wikipedia")
+    evidence = assemble(registry, [_claim("bd:memo:p1.c1:0000", "memo", "p1.c1")])
+    assert evidence["documents"]["memo"]["title"] == "Franklin County, Ohio - Wikipedia"
+
+
+def test_a_page_that_did_not_name_itself_carries_no_title() -> None:
+    """The negative branch: no `<title>` in the markup means no meta, and the
+    entry is byte-identical to one built before titles existed."""
+    registry = _titled("Franklin County")
+    registry.page_rows["memo"] = [Page(number=1, kind="page", text="Body.", name="index")]
+    evidence = assemble(registry, [_claim("bd:memo:p1.c1:0000", "memo", "p1.c1")])
+    assert set(evidence["documents"]["memo"]) == {
+        "filename", "media_type", "url", "fetched_at"
+    }
+
+
+def test_a_multi_page_source_carries_no_title() -> None:
+    """Page 1's title is the document's title exactly when page 1 *is* the
+    document; otherwise one section would name a whole report."""
+    registry = _titled("Chapter One")
+    registry.page_rows["memo"].append(
+        Page(number=2, kind="page", text="More.", meta={"title": "Chapter Two"})
+    )
+    evidence = assemble(registry, [_claim("bd:memo:p1.c1:0000", "memo", "p1.c1")])
+    assert "title" not in evidence["documents"]["memo"]
+
+
+def test_declared_title_needs_no_pages_method() -> None:
+    """Assembly degrades rather than failing — a registry that cannot answer
+    contributes nothing, which is the rule for every other part of evidence."""
+    assert declared_title(object(), "memo") == ""
 
 
 def test_meta_that_is_not_provenance_adds_nothing() -> None:

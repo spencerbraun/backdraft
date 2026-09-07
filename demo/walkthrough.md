@@ -230,6 +230,41 @@ two lines exceeds 1.5x the page's median line spacing. Without that step a page
 is one undifferentiated run of text and the only available anchors are
 arbitrary 1200-character slices.
 
+A web page has no pages to list, so its table of contents is its chunks. The
+page's own name comes from its `<title>` — the one thing on a fetched page that
+names the page rather than the site — and the rows underneath are the chunks the
+chunker already found, with the locators a token will carry:
+
+```bash
+backdraft read franklin-county
+```
+
+```
+franklin-county  (https://en.wikipedia.org/w/index.php?title=Franklin_County,_Ohio&oldid=1367935775, html, 1 page)
+
+p1  Franklin County, Ohio - Wikipedia
+
+p1.c1   Jump to content Main menu Main menu move to sidebar hide Navigation - Main page - Contents - Current events - Random art...
+p1.c2   Search Search Appearance - Donate - Create account - Log in Personal tools - Donate - Create account - Log in Contents m...
+p1.c3   2.1 Adjacent counties - 2.2 Major highways - 3 Demographics Toggle Demographics subsection - 3.1 2020 census - 3.2 Racia...
+p1.c4   4.1 Top Employers - 5 Politics - 6 Government Toggle Government subsection - 6.1 Franklin County Officials - 6.2 Ohio Ho...
+
+…
+
+p1.c56  - This page was last edited on 6 August 2026, at 02:04 (UTC). - Page was rendered with Parsoid. - Text is available unde...
+p1.c57  - Privacy policy - About Wikipedia - Disclaimers - Contact Wikipedia - Legal & safety contacts - Code of Conduct - Devel...
+
+[Read one: backdraft read franklin-county p1]
+[Read by name: backdraft read franklin-county "Franklin County, Ohio - Wikipedia"]
+```
+
+Fifty-seven chunks, of which the first eight are the site's navigation menu and
+the last three are its footer. That is deliberate: nothing here strips
+boilerplate, because a heuristic that changes its mind between two versions of a
+site moves every anchor under it. The list is how you find where the article
+starts — `p1.c9`, "From Wikipedia, the free encyclopedia" — without spending
+34,000 characters of context to find out.
+
 ## 5. Read a sheet
 
 ```bash

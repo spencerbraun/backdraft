@@ -21,7 +21,9 @@ what claims get traced against:
   as `docx` renders them, so the two read alike in a receipt. A nested table
   flattens into its containing cell.
 - The page's name is its `<title>`, truncated; a page without one takes the
-  file stem.
+  file stem. The title is *also* carried in the page's `meta`, and only when
+  the markup declared one — so a reader downstream can tell a page that named
+  itself from one wearing the name of the file its bytes were staged in.
 
 Coordinates live in-band (DESIGN principle 5), which is why the list markers
 and pipes are in the snapshot rather than in a side channel: the snapshot is
@@ -98,9 +100,22 @@ class HtmlExtractor:
         return media_type in _MEDIA_TYPES or path.suffix.lower() in _SUFFIXES
 
     def extract(self, path: Path, config: dict) -> Iterator[ExtractedPage]:
-        """The page's readable text as page 1, named by its `<title>`."""
+        """The page's readable text as page 1, named by its `<title>`.
+
+        The title is also carried in `meta`, and only when the markup actually
+        declared one: `name` cannot answer "did this page name itself?", since
+        it falls back to the file stem, and a fetched page's stem is the one
+        `fetch.filename_for` invented. Everything downstream that needs the
+        page's own name rather than a name for it reads `meta["title"]`.
+        """
         title, text = parse(decode(path.read_bytes()))
-        yield ExtractedPage(number=1, kind="page", name=title or path.stem, text=text)
+        yield ExtractedPage(
+            number=1,
+            kind="page",
+            name=title or path.stem,
+            text=text,
+            meta={"title": title} if title else None,
+        )
 
 
 def decode(data: bytes) -> str:

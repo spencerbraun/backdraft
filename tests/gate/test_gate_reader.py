@@ -8,11 +8,13 @@ should be read as a change to a published surface.
 from __future__ import annotations
 
 import pytest
+from conftest import RENT_ROLL
 from fake_registry import FakeDocumentRegistry, pdf_document, sheet_document
 
 from backdraft.cli_context import SESSION_ENV
 from backdraft.gate.reader import (
     DEFAULT_SESSION_NOTE,
+    TOC_PREVIEW_CHARS,
     GateError,
     read,
     render_session,
@@ -246,6 +248,93 @@ def test_toc_truncates_at_120_chars(fake_gate_registry: FakeDocumentRegistry) ->
         line for line in read(fake_gate_registry, "rent-model").split("\n") if line.startswith("p1")
     )
     assert line.endswith("...")
+
+
+# ---- a one-page source's table of contents is its chunks --------------------
+
+TOC_ONE_PAGE = f"""\
+county  ({COUNTY_URL}, html, 1 page)
+
+p1  Franklin County, Ohio - Wikipedia
+
+p1.c1  Jump to content Main menu Navigation Main page Contents Current events
+p1.c2  Franklin County had 1,326,063 residents.
+
+[Read one: backdraft read county p1]
+[Read by name: backdraft read county "Franklin County, Ohio - Wikipedia"]"""
+
+
+def _article() -> object:
+    """A web page as the `html` extractor lands one: a single page, named by
+    its `<title>`, whose first chunk is the site's navigation."""
+    return pdf_document(
+        "county",
+        "index.html",
+        [
+            [
+                "Jump to content Main menu Navigation Main page Contents Current events",
+                "Franklin County had 1,326,063 residents.",
+            ]
+        ],
+        names=["Franklin County, Ohio - Wikipedia"],
+        media_type="html",
+        url=COUNTY_URL,
+    )
+
+
+def test_a_one_page_source_lists_its_chunks_instead_of_a_preview() -> None:
+    """The whole of the item: `p1` is the whole article, so the only structure
+    to navigate is the chunk, and the page's own preview was the site chrome
+    the first chunk already opens with."""
+    registry = FakeDocumentRegistry().add(_article())
+    assert read(registry, "county") == TOC_ONE_PAGE
+
+
+def test_a_one_page_source_with_no_name_drops_the_page_row() -> None:
+    """A row carrying nothing but `p1` says nothing the `p1.cN` rows below it
+    do not already carry."""
+    registry = FakeDocumentRegistry().add(
+        pdf_document("cover", "cover.pdf", [["Cover. Prepared for Acme Capital."]])
+    )
+    listed = read(registry, "cover").splitlines()
+    assert listed[2] == "p1.c1  Cover. Prepared for Acme Capital."
+    assert "p1  " not in listed[2]
+
+
+def test_a_multi_page_source_lists_pages_and_no_chunks(
+    fake_gate_registry: FakeDocumentRegistry,
+) -> None:
+    """Pinned above as `TOC_PDF`; asserted here as the rule rather than the
+    string, because the chunk list must never reach a document that paginates."""
+    assert ".c1" not in read(fake_gate_registry, "t12-audit")
+
+
+def test_a_single_sheet_workbook_lists_no_chunks() -> None:
+    """A sheet's citable unit is the cell, so it mints no chunk anchors and
+    there is nothing to list — the one-page rule must not invent one."""
+    registry = FakeDocumentRegistry().add(
+        sheet_document("rent-model", "rent-model.xlsx", [("Rent Roll", RENT_ROLL)])
+    )
+    listed = read(registry, "rent-model")
+    assert ".c1" not in listed
+    assert listed.splitlines()[2].startswith("p1  Rent Roll  ## Sheet: Rent Roll")
+
+
+def test_a_one_page_source_with_no_chunk_anchors_prints_what_it_did() -> None:
+    """Nothing citable on the page, so nothing to list: the preview stays."""
+    registry = FakeDocumentRegistry().add(pdf_document("empty", "empty.pdf", [[]]))
+    assert read(registry, "empty").splitlines()[2] == "p1"
+
+
+def test_the_chunk_list_truncates_the_way_the_page_preview_does() -> None:
+    registry = FakeDocumentRegistry().add(
+        pdf_document("long", "long.pdf", [["word " * 60]])
+    )
+    line = next(
+        line for line in read(registry, "long").splitlines() if line.startswith("p1.c1")
+    )
+    assert line.endswith("...")
+    assert len(line) == len("p1.c1  ") + TOC_PREVIEW_CHARS + len("...")
 
 
 # ---------------------------------------------------------------------------

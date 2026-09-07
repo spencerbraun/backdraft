@@ -109,7 +109,12 @@ export BACKDRAFT_SESSION=s-<name>           # the project shares one ledger that
                                             # "nothing here ever did".
 
 backdraft read                              # list documents
-backdraft read <slug>                       # table of contents
+backdraft read <slug>                       # table of contents. A web page is
+                                            # a single page, so it lists that
+                                            # page's chunks and what each one
+                                            # opens with. Read this before a
+                                            # page read: one page can be tens
+                                            # of thousands of characters.
 backdraft read <slug> p3                    # page/range/sheet; chunks arrive
                                             # with tokens: [bd:slug:p3.c2:7f11]
 backdraft search "24850000"                 # hits are citable directly.

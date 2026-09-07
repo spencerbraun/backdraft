@@ -21,7 +21,14 @@ from typing import Any, Iterable
 
 from ..kernel.model import SHEET_MEDIA_TYPES, Claim
 
-__all__ = ["assemble", "document_entry", "window_styles", "WINDOW_ROWS", "WINDOW_COLS"]
+__all__ = [
+    "assemble",
+    "declared_title",
+    "document_entry",
+    "window_styles",
+    "WINDOW_ROWS",
+    "WINDOW_COLS",
+]
 
 WINDOW_ROWS = 6
 """Rows kept above and below a cited cell in its window."""
@@ -78,7 +85,7 @@ def window_styles(
     return out
 
 
-def document_entry(document) -> dict[str, Any]:  # noqa: ANN001
+def document_entry(document, title: str = "") -> dict[str, Any]:  # noqa: ANN001
     """One source's entry in the evidence `documents` map.
 
     `filename` and `media_type` are always there. A source fetched from the web
@@ -87,20 +94,45 @@ def document_entry(document) -> dict[str, Any]:  # noqa: ANN001
     still says this — the half of citing a web page that a frozen receipt
     cannot answer on its own.
 
-    The two keys appear only where there is a URL, which is what keeps an
-    artifact built from files byte-identical to one built before URL sources
-    existed. Provenance, never identity: the sha256 is what the bytes were.
+    `title` is the name the source gave *itself* — an HTML page's `<title>` —
+    and is carried only where there is one, because it is the only name the
+    artifact can trust: a fetched page's `filename` is the staging name
+    `fetch.filename_for` invented and its slug is a handle somebody typed.
+
+    Every key past the first two appears only where it applies, which is what
+    keeps an artifact built from files byte-identical to one built before any
+    of them existed. Provenance and naming, never identity: the sha256 is what
+    the bytes were.
     """
     entry: dict[str, Any] = {
         "filename": document.filename,
         "media_type": document.media_type,
     }
+    if title:
+        entry["title"] = title
     meta = getattr(document, "meta", None) or {}
     if url := meta.get("url"):
         entry["url"] = url
         if fetched_at := meta.get("fetched_at"):
             entry["fetched_at"] = fetched_at
     return entry
+
+
+def declared_title(registry, slug: str) -> str:  # noqa: ANN001
+    """The name a one-page source gave itself, or `""`.
+
+    Read off the page's `meta`, which the extractor fills only when the markup
+    declared a title — `Page.name` cannot be asked, because it falls back to the
+    file stem and a fetched page's stem is invented. Only a single-page source
+    answers: page 1's title is the document's title exactly when page 1 is the
+    document, and guessing otherwise would let one section name a whole report.
+    """
+    if not callable(getattr(registry, "pages", None)):
+        return ""
+    pages = registry.pages(slug)
+    if len(pages) != 1:
+        return ""
+    return str((getattr(pages[0], "meta", None) or {}).get("title") or "")
 
 
 def assemble(registry, claims: Iterable[Claim], *, lean: bool = False) -> dict[str, Any] | None:  # noqa: ANN001
@@ -150,7 +182,10 @@ def assemble(registry, claims: Iterable[Claim], *, lean: bool = False) -> dict[s
         return None
 
     evidence: dict[str, Any] = {
-        "documents": {slug: document_entry(documents[slug]) for slug in slugs},
+        "documents": {
+            slug: document_entry(documents[slug], declared_title(registry, slug))
+            for slug in slugs
+        },
         "pages": {},
         "pagetexts": {},
         "windows": {},

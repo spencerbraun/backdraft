@@ -70,7 +70,12 @@ slug to `{filename, media_type}`, plus `url` and `fetched_at` for a source
 fetched from the web — the page the bytes came from (after redirects) and when
 they were taken, both OPTIONAL and both absent for a source read from a file;
 they are provenance, never identity, so two documents differing only in `url`
-are still distinct only if their bytes differ. `pages` maps `slug:pN` to a page image
+are still distinct only if their bytes differ. A source that named itself also
+carries `title`, OPTIONAL: an HTML page's `<title>`, and therefore what a reader
+should call it, since `filename` may be the name a fetch invented for the
+staging file and the slug is a handle somebody typed. Written only for a
+single-page source, whose one page is the document; naming, never identity, and
+absent for everything else. `pages` maps `slug:pN` to a page image
 `{format, width, height, data}` with `data` base64 (for a vision-model
 extraction, the page as the model was shown it); `pagetexts` maps `slug:pN` to
 that page's extracted text; `windows` maps `slug:<locator>` to a small cell

@@ -263,26 +263,45 @@ def render_documents(registry: Registry) -> str:
 def render_toc(registry: Registry, slug: str) -> str:
     """One line per page or sheet: number, name, summary or first 120 chars.
 
+    A source that is a single page of prose gets its chunks listed underneath,
+    because one line is not a table of contents: a web page has no pagination,
+    so `p1` is the whole of a 34,000-character article and the only structure
+    anything can navigate is the chunk the chunker already found. The chunks
+    are read off `anchors_for_page` rather than re-derived — rule 1 of this
+    module — and their opening words replace the page's own preview, which was
+    the first chunk's opening words said twice.
+
     Emits no tokens: a preview is not a receipt, and a reader that cites from a
-    table of contents is citing text it was shown only in part.
+    table of contents is citing text it was shown only in part. Chunk *locators*
+    are not tokens; they are the addresses the previews belong to.
     """
     document = require_document(registry, slug)
     pages = registry.pages(slug)
     if not pages:
         return _block([_document_headline(document, pages), "", "(no pages)"])
 
+    chunks = _chunk_lines(registry, slug, pages)
     labels = [f"p{page.number}" for page in pages]
     label_width = max(len(label) for label in labels)
     names = [page.name or "" for page in pages]
     name_width = max(len(name) for name in names)
 
-    lines = [_document_headline(document, pages), ""]
+    rows = []
     for page, label, name in zip(pages, labels, names, strict=True):
+        if chunks and not name:
+            # Nothing left to say: the preview belongs to the chunk rows and
+            # the label is already the prefix of every one of them.
+            continue
         cells = [label.ljust(label_width)]
         if name_width:
             cells.append(name.ljust(name_width))
-        cells.append(_preview(page))
-        lines.append("  ".join(cells).rstrip())
+        if not chunks:
+            cells.append(_preview(page))
+        rows.append("  ".join(cells).rstrip())
+
+    lines = [_document_headline(document, pages), "", *rows]
+    if chunks:
+        lines += ["", *chunks] if rows else chunks
 
     first = pages[0]
     lines += ["", f"[Read one: backdraft read {slug} p{first.number}]"]
@@ -295,14 +314,47 @@ def render_toc(registry: Registry, slug: str) -> str:
     return _block(lines)
 
 
+def _chunk_lines(registry: Registry, slug: str, pages: Sequence[Page]) -> list[str]:
+    """`p1.c3  opening words` per chunk, for a source that is one page.
+
+    Empty for every other source: a multi-page document already has a table of
+    contents in its pages, and a sheet's citable unit is the cell, so a sheet
+    yields no chunk anchors and this yields no lines. Empty too for a page with
+    no chunk anchors at all — there is nothing citable on it to list.
+    """
+    if len(pages) != 1:
+        return []
+    anchors = sorted(
+        (
+            anchor
+            for anchor in registry.anchors_for_page(slug, pages[0].number)
+            if isinstance(anchor.locator, ChunkLocator)
+        ),
+        key=lambda anchor: anchor.locator.ordinal,  # type: ignore[union-attr]
+    )
+    if not anchors:
+        return []
+    labels = [format_locator(anchor.locator) for anchor in anchors]
+    width = max(len(label) for label in labels)
+    return [
+        f"{label.ljust(width)}  {_shorten(anchor.receipt.snippet)}"
+        for label, anchor in zip(labels, anchors, strict=True)
+    ]
+
+
 def _preview(page: Page) -> str:
     """A page's summary, or its opening text collapsed onto one line."""
     if page.summary:
         return normalize(page.summary)
-    text = normalize(page.text)
-    if len(text) <= TOC_PREVIEW_CHARS:
-        return text
-    return text[:TOC_PREVIEW_CHARS] + _ELLIPSIS
+    return _shorten(page.text)
+
+
+def _shorten(text: str) -> str:
+    """One line of at most `TOC_PREVIEW_CHARS`, marked when it was cut."""
+    collapsed = normalize(text)
+    if len(collapsed) <= TOC_PREVIEW_CHARS:
+        return collapsed
+    return collapsed[:TOC_PREVIEW_CHARS] + _ELLIPSIS
 
 
 # ---------------------------------------------------------------------------

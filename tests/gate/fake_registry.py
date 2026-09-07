@@ -231,6 +231,7 @@ def pdf_document(
     pages: Sequence[Sequence[str]],
     *,
     summaries: Sequence[str | None] = (),
+    names: Sequence[str | None] = (),
     ids: Ids | None = None,
     media_type: str = "pdf",
     url: str | None = None,
@@ -240,6 +241,8 @@ def pdf_document(
     `url` makes it a fetched source: `meta` carries the origin and the fetch
     time exactly as `Registry.ingest` stores them for a URL, which is what the
     gate reads to name the source by its page instead of its staging filename.
+    `names` names the pages, which for a `page`-kind document only the `html`
+    extractor does — a web page is named by its `<title>`.
     """
     ids = ids or Ids()
     document = Document(
@@ -257,8 +260,15 @@ def pdf_document(
     anchors: dict[int, list[Anchor]] = {}
     for index, chunks in enumerate(pages, start=1):
         summary = summaries[index - 1] if index - 1 < len(summaries) else None
+        name = names[index - 1] if index - 1 < len(names) else None
         built.append(
-            Page(number=index, kind="page", text="\n\n".join(chunks), summary=summary)
+            Page(
+                number=index,
+                kind="page",
+                text="\n\n".join(chunks),
+                name=name,
+                summary=summary,
+            )
         )
         anchors[index] = [
             _anchor(slug, ChunkLocator(page=index, ordinal=ordinal), text, index, ids)

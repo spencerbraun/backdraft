@@ -288,3 +288,113 @@ def test_reading_under_one_session_leaves_another_empty(
     read(registry, "quarterly-notes", "p1", session="s-mine")
     assert registry.shown_by_document("s-mine")
     assert registry.shown_by_document("default") == []
+
+
+# ---- a web page, whole: what it is called and what is in it ------------------
+
+_ARTICLE = """\
+<!doctype html>
+<html><head><title>Franklin County, Ohio - Wikipedia</title></head>
+<body>
+<nav>Jump to content Main menu move to sidebar hide Navigation Main page Contents
+Current events Random article About Wikipedia Contact us Special pages</nav>
+<p>Franklin County is located in the U.S. state of Ohio. As of the 2020 census,
+the population was 1,323,807, making it the most populous county in Ohio. The
+county seat is Columbus, the state capital and most populous city in Ohio.</p>
+<p>There were 580,903 housing units, of which 7.0% were vacant. Among occupied
+housing units, 51.3% were owner-occupied and 48.7% were renter-occupied, and the
+median value of an owner-occupied unit was $189,900 over the period measured.</p>
+</body></html>
+"""
+
+_UNTITLED = _ARTICLE.replace(
+    "<title>Franklin County, Ohio - Wikipedia</title>", ""
+)
+
+
+def _article(tmp_path: Path, registry: Registry, markup: str, stem: str) -> str:
+    path = tmp_path / f"{stem}.html"
+    path.write_text(markup, encoding="utf-8")
+    return registry.ingest(path).slug
+
+
+def test_a_web_pages_contents_are_its_chunks_under_the_name_it_gave_itself(
+    registry: Registry, tmp_path: Path
+) -> None:
+    """The whole of the change, end to end: a real ingest, real chunk anchors,
+    and a table of contents that names the county rather than opening with the
+    site's navigation menu."""
+    slug = _article(tmp_path, registry, _ARTICLE, "county")
+    lines = read(registry, slug).splitlines()
+    assert lines[2] == "p1  Franklin County, Ohio - Wikipedia"
+    assert lines[4].startswith("p1.c1  Jump to content Main menu")
+    assert [line.split("  ")[0] for line in lines if line.startswith("p1.c")] == [
+        "p1.c1",
+        "p1.c2",
+    ]
+
+
+def test_the_listed_chunks_are_the_anchors_the_page_read_emits(
+    registry: Registry, tmp_path: Path
+) -> None:
+    """Rule 1 of the reader: recompute nothing. The table of contents lists the
+    chunks that already exist as rows, so every locator it prints is one a token
+    will carry — checked against the read that actually mints them."""
+    slug = _article(tmp_path, registry, _ARTICLE, "county")
+    listed = [
+        line.split("  ")[0]
+        for line in read(registry, slug).splitlines()
+        if line.startswith("p1.c")
+    ]
+    emitted = [
+        line.strip("[]").rsplit(":", 2)[1]
+        for line in read(registry, slug, "p1", session="s").splitlines()
+        if line.startswith("[bd:")
+    ]
+    assert listed == emitted
+
+
+def test_a_page_with_no_title_falls_back_to_what_it_printed_before(
+    registry: Registry, tmp_path: Path
+) -> None:
+    """The negative branch. Nothing named this page, so nothing may name it: the
+    file stem is still its page name, and the row that would carry only `p1` is
+    dropped rather than showing a name the extractor invented."""
+    slug = _article(tmp_path, registry, _UNTITLED, "untitled")
+    page = registry.pages(slug)[0]
+    assert (page.name, page.meta) == ("untitled", None)
+    assert read(registry, slug).splitlines()[2] == "p1  untitled"
+
+
+def test_a_bound_artifact_calls_a_web_source_by_its_title(
+    registry: Registry, tmp_path: Path
+) -> None:
+    """The other half of the one fact: the artifact's source list reads the
+    title out of the evidence rather than guessing from the slug."""
+    slug = _article(tmp_path, registry, _ARTICLE, "county")
+    token = next(
+        anchor.token
+        for anchor in registry.anchors_for_page(slug, 1)
+        if str(anchor.locator).startswith("p1.c")
+    )
+    doc = tmp_path / "memo.md"
+    doc.write_text(f"[The county is populous.]({token})\n", encoding="utf-8")
+    report = bind(doc, registry, write=False)
+    assert report.evidence["documents"][slug]["title"] == "Franklin County, Ohio - Wikipedia"
+
+
+def test_an_untitled_web_source_keeps_the_naming_it_had(
+    registry: Registry, tmp_path: Path
+) -> None:
+    """The negative branch again, on the artifact side: no title in the entry,
+    so the record is what it would have been before titles existed."""
+    slug = _article(tmp_path, registry, _UNTITLED, "untitled")
+    token = next(
+        anchor.token
+        for anchor in registry.anchors_for_page(slug, 1)
+        if str(anchor.locator).startswith("p1.c")
+    )
+    doc = tmp_path / "memo.md"
+    doc.write_text(f"[The county is populous.]({token})\n", encoding="utf-8")
+    report = bind(doc, registry, write=False)
+    assert set(report.evidence["documents"][slug]) == {"filename", "media_type"}

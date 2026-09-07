@@ -32,49 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. A web page has a name, and `read` shows it the navigation menu instead
-
-**Intent.** `backdraft read franklin-county` — the demo's own web source —
-prints `p1  Franklin County, Ohio - Wikipedia  Jump to content Main menu Main
-menu move to sidebar hide Navigation - Main page - Contents - Current events -
-Random art...`. The table-of-contents line is the one surface that tells an
-agent what is on a page before it spends context reading it, and for every web
-source it is site chrome. The page's real name is sitting in the extracted text
-and in the markup's `<title>`, unused: a fetched page ingested without `--slug`
-also titles itself `En Wikipedia Org Index` in the artifact's source list,
-because `render/html/text.source_title` falls back to the slug and title-cases
-it. Two surfaces need one fact nothing captures. Separately, an HTML source is
-a single page, so its table of contents is that one line and does no
-navigating at all — for a 34,000-character article the citable unit is the
-chunk and nothing lists the chunks.
-
-**Shape.** Capture the fact once, at extraction: `extract/html.py` already
-parses the markup, so the document's `<title>` becomes page or document meta
-there, and everything downstream reads it instead of guessing. Then
-`gate/reader.py`'s TOC preview (`TOC_PREVIEW_CHARS`, `_preview`) prefers it,
-and `render/html/text.source_title` prefers it over the slug fallback for a
-document that has one. For the single-page case, `render_toc` lists the page's
-chunks with their opening words, so a one-page source's table of contents is
-one. **This is display only and must stay that way**: no chunk boundary moves,
-no anchor moves, no token changes, and the slug is not derived from the title —
-that is the admissibility argument the 2026-08-20 thin-source note made, and
-this row must make it again, because the neighbouring rule ("no boilerplate
-stripping: a heuristic that changes its mind moves anchors") is about
-extraction and is not being touched. A page with no `<title>`, and every
-non-HTML source, keeps exactly what it prints today.
-
-**Acceptance.** In `demo/`, `backdraft read franklin-county` names the county
-rather than "Jump to content", and lists the page's chunks. `backdraft read
-t12-summary` and `backdraft read underwriting-model` are byte-identical to
-today's — pin both. `backdraft bind memo.md --session s-bridgeview --check
-value-trace,overlap` still reports 17 resolved and the same one unresolved,
-with the same tokens: mint them before and after and diff. An HTML fixture with
-no `<title>` falls back to what it prints now. `demo/walkthrough.md`'s read
-blocks and `README.md`'s show the real output. DESIGN row.
-
-**Size.** Three days.
-
-### 2. A page read has no budget and no closing line
+### 1. A page read has no budget and no closing line
 
 **Intent.** `backdraft read franklin-county p1` prints 36,442 characters and
 stops, with nothing to say how much that was or whether it was all of it — it
@@ -112,7 +70,7 @@ the agent to continue rather than assume it saw the page. DESIGN row.
 
 **Size.** Two days.
 
-### 3. The thin-source signal exists only in the ingest that printed it
+### 2. The thin-source signal exists only in the ingest that printed it
 
 **Intent.** 2026-08-20 gave `ingest` a character count and a `note: little text
 extracted` naming the likely cause — the signal that a source is a shell and
@@ -146,7 +104,7 @@ document list is where it learns this, not only the ingest it may not have run.
 
 **Size.** Two days.
 
-### 4. What a URL will be called, before the answer is permanent
+### 3. What a URL will be called, before the answer is permanent
 
 **Intent.** Three docs now tell an agent to pass `--slug` when it ingests a URL,
 because a slug is permanent once tokens carry it and the default may name a
@@ -182,7 +140,7 @@ it.
 
 **Size.** One day.
 
-### 5. A calling agent parses prose to find out what happened
+### 4. A calling agent parses prose to find out what happened
 
 **Intent.** `bind` and `verify` are the two commands whose *output* is the
 product — the exit code says clean or not, and everything actionable is in the
@@ -223,7 +181,7 @@ relay the human report to the user.
 
 **Size.** Two to three days.
 
-### 6. An artifact you were sent cannot be checked against a registry you have
+### 5. An artifact you were sent cannot be checked against a registry you have
 
 **Intent.** `verify`'s second tier runs only where a `.backdraft/` is
 discoverable from cwd, and the reason is good: an artifact is a file people
@@ -259,7 +217,7 @@ runs only in the project it was bound in.
 
 **Size.** One day.
 
-### 7. A claim that straddles a chunk boundary gets one token instead of two
+### 6. A claim that straddles a chunk boundary gets one token instead of two
 
 **Intent.** `skills/backdraft/SKILL.md` tells the writing agent that "a claim
 that spans two chunks needs both tokens, not the nearest one" — a correct
@@ -294,7 +252,7 @@ one" with the surface that now says which both are.
 
 **Size.** Two to three days.
 
-### 8. A re-ingested source strands citations one at a time
+### 7. A re-ingested source strands citations one at a time
 
 **Intent.** This is DESIGN.md's oldest Open line — "re-bind/orphan pass on
 re-ingest of changed docs (chunk ordinal drift)" — and the week that taught
@@ -336,7 +294,7 @@ extraction and ledger counts are identical before and after.
 
 **Size.** Three days.
 
-### 9. What this install can do, said before a verb needs it
+### 8. What this install can do, said before a verb needs it
 
 **Intent.** backdraft degrades rather than fails, which is right, and the price
 is that its capabilities are discovered one at a time at the moment each is
@@ -373,7 +331,7 @@ run in an unfamiliar environment.
 
 **Size.** Two days.
 
-### 10. `bind` never says which ledger it judged `not_shown` against
+### 9. `bind` never says which ledger it judged `not_shown` against
 
 **Intent.** `bind`'s report names the mode, the claim and citation counts, every
 status, every check that ran and every failure — everything except the one input
@@ -418,7 +376,7 @@ DESIGN row.
 
 **Size.** Two days.
 
-### 11. A withdrawn source is invisible, including to the person looking for it
+### 10. A withdrawn source is invisible, including to the person looking for it
 
 **Intent.** `forget` withdraws a source from every surface that offers one, which
 is right, and the result is that nothing lists what was withdrawn. `ls` says `no
@@ -455,7 +413,7 @@ and `skills/backdraft/SKILL.md` say where to look. DESIGN row.
 
 **Size.** One day.
 
-### 12. `--slug` is dropped without a word when the document is already there
+### 11. `--slug` is dropped without a word when the document is already there
 
 **Intent.** `Registry.ingest`'s docstring says "`slug` is honoured only when the
 document is new — a slug is stable once assigned", which is the right rule and is
@@ -492,7 +450,7 @@ pass `--slug`. DESIGN row.
 
 **Size.** One day.
 
-### 13. `verify` cannot re-check the one status only the ledger can settle
+### 12. `verify` cannot re-check the one status only the ledger can settle
 
 **Intent.** `verify`'s source tier re-resolves every token and reports the
 statuses "as `bind` would", with one gap the code names out loud: `not_shown`
@@ -532,7 +490,7 @@ DESIGN row.
 
 **Size.** Two to three days.
 
-### 14. `bind` and `verify` name the failure and not the move
+### 13. `bind` and `verify` name the failure and not the move
 
 **Intent.** 2026-09-01 made `ingest`'s failures say what to do as well as what
 went wrong, on the argument that a calling agent reads the reason and acts on it.

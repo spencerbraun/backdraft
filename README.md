@@ -75,7 +75,7 @@ $ backdraft read t12-summary p1
 # t12-summary p1  (page 1 of 3)
 
 [bd:t12-summary:p1.c1:c2e8]
-Bridgeview Commons, Trailing Twelve Month Summary
+Bridgeview Commons — Trailing Twelve Month Summary
 
 Property: Bridgeview Commons, 4400 Halsted Avenue, Columbus, OH 43214. 128 units across four three-story
 garden buildings on 6.2 acres, built in 1998 and substantially renovated between 2019 and 2021. This summary
@@ -94,6 +94,11 @@ fallen below 92.0% in any month of the period.
 Chunks fall on the document's own paragraphs. A PDF stores glyphs at
 coordinates, not paragraphs, so the extractor rebuilds the breaks from the line
 geometry before the chunker sees the page.
+
+`backdraft read <slug>` on its own is the table of contents: one line per page
+for a source that paginates, and — for a web page, which has none — one line per
+chunk, under the name the page gave itself in its `<title>`. That list is the map
+you read before deciding whether to spend 34,000 characters on the page.
 
 Search results are citable too, no page read required to get an anchor:
 
@@ -304,7 +309,9 @@ Every surface names a fetched source by its page. The filename you never see —
 exists on nobody's disk, so `ingest`, `ls`, `backdraft read`, the artifact and
 the `## References` section `bind --bound` writes all show the URL in its place
 rather than beside it: two names for one thing would let the invented one look
-authoritative.
+authoritative. The artifact goes one further and calls the source by its
+`<title>` where the page declared one, because that is the only name in the
+record the source chose for itself.
 
 The origin travels into the artifact too. A claim citing a fetched page shows
 the URL as a link on its receipt, with the date the bytes were taken. That

@@ -86,6 +86,16 @@ behind a login comes back thin or empty. You do not have to judge that yourself
 — ingest's own `note: little text extracted` line says so and names the cause.
 When it appears, say so to the user rather than citing the shell of the page.
 
+Read a web page's table of contents before you read the page. A page has no
+pagination, so `p1` is all of it — tens of thousands of characters for a long
+article — and `backdraft read <slug>` lists its chunks instead of its pages:
+the page's own name off its `<title>`, then `p1.c1`, `p1.c2` and what each one
+opens with. The opening chunks of any real site are its navigation menu and the
+closing ones its footer; nothing here strips them, because a boilerplate guess
+that changes its mind moves every anchor under it. Use the list to find where
+the content starts, then `backdraft search` for the figures you need rather
+than reading the whole page into context.
+
 Two habits make a web citation last. **Ingest a fixed revision when the site
 offers one** — Wikipedia's `?oldid=` permanent link, a DOI, an archived
 snapshot — because a page that gets edited makes every citation into it report
@@ -110,6 +120,7 @@ Then read, narrowing as you go:
 ```bash
 backdraft read                        # what is ingested
 backdraft read t12-summary            # table of contents
+backdraft read franklin-county        # a web page is one page: its chunks
 backdraft read t12-summary p1         # p1, p3-5, or a sheet name
 backdraft search "24850000"           # results are citable without a page read
 backdraft search "cap rate" --in underwriting-model

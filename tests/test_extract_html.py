@@ -96,6 +96,28 @@ def test_a_page_without_a_title_takes_the_file_stem(tmp_path: Path) -> None:
     assert list(base.get("html").extract(path, {}))[0].name == "untitled"
 
 
+def test_a_declared_title_is_carried_in_the_pages_meta(tmp_path: Path) -> None:
+    """The one place downstream can ask whether the page named *itself*.
+
+    `name` cannot answer it: it falls back to the file stem, and a fetched
+    page's stem is whatever `fetch.filename_for` invented for the staging file.
+    """
+    path = tmp_path / "q4.html"
+    path.write_bytes(PAGE.encode("utf-8"))
+    assert list(base.get("html").extract(path, {}))[0].meta == {
+        "title": "Bridgeview Q4 & Outlook"
+    }
+
+
+def test_a_page_without_a_title_carries_no_meta(tmp_path: Path) -> None:
+    """The negative branch the naming rests on: no meta rather than the stem
+    again, so a reader asking for the page's own name gets nothing and falls
+    back on its own terms."""
+    path = tmp_path / "untitled.html"
+    path.write_bytes(b"<html><body><p>No title element here.</p></body></html>")
+    assert list(base.get("html").extract(path, {}))[0].meta is None
+
+
 # ---- blocks, so the chunker has something to split on -----------------------
 
 
