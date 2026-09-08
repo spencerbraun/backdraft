@@ -100,6 +100,28 @@ for a source that paginates, and — for a web page, which has none — one line
 chunk, under the name the page gave itself in its `<title>`. That list is the map
 you read before deciding whether to spend 34,000 characters on the page.
 
+And a page read will not spend all 34,000 of them unasked. One read shows
+12,000 characters by default — 200 rows of a sheet — which every ordinary page
+and small range fits inside, so the output above is what it always was. A page
+that runs past it stops on a chunk boundary and says so:
+
+```console
+$ backdraft read franklin-county p1
+# franklin-county p1  (page 1 of 1)
+
+[bd:franklin-county:p1.c1:d9b5]
+Jump to content
+…
+[Showing 0-11531 of 34031 chars. Continue with: backdraft read franklin-county p1 --offset 11531]
+```
+
+That last line is the whole of the contract: how much you got, how much there
+is, and the command that continues where this one stopped — which is also how
+you read a long page in one call, by passing the total it names as `--limit`.
+A read that prints no such line showed you the whole page. The cut falls between
+chunks and never inside one, so every token you are handed still names text you
+were shown all of.
+
 Search results are citable too, no page read required to get an anchor:
 
 ```console

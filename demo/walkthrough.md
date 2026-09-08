@@ -265,6 +265,22 @@ site moves every anchor under it. The list is how you find where the article
 starts — `p1.c9`, "From Wikipedia, the free encyclopedia" — without spending
 34,000 characters of context to find out.
 
+Reading the page itself does not spend all 34,000 either. One read shows 12,000
+characters by default, so `backdraft read franklin-county p1` returns chunks
+`c1` through `c25` and closes by saying exactly that:
+
+```
+[Showing 0-11531 of 34031 chars. Continue with: backdraft read franklin-county p1 --offset 11531]
+```
+
+Three windows cover the article, and the line is the difference between having
+part of a page and thinking you have all of it — the article ends mid-navigation
+either way, which reads like a truncation whether or not it is one. A read that
+prints no such line showed the whole page, which is every other read in this
+walkthrough: the budget is sized so an ordinary page and a small range never
+reach it. To take a long page in one call instead, pass the total that line
+reports as `--limit`.
+
 ## 5. Read a sheet
 
 ```bash

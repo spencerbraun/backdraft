@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import pytest
 from conftest import RENT_ROLL
+from continuation_util import continuation
 from fake_registry import FakeDocumentRegistry, pdf_document, sheet_document
 
 from backdraft.cli_context import SESSION_ENV
 from backdraft.gate.reader import (
+    DEFAULT_BUDGET,
     DEFAULT_SESSION_NOTE,
     TOC_PREVIEW_CHARS,
     GateError,
@@ -110,7 +112,7 @@ SHEET_FIRST_WINDOW = """\
 | 1 | [A1] Property | [B1] NOI |
 | 2 | [A2] Elm St | [B2] 1,204,000 |
 
-[Showing 0-2 of 3 rows. Continue with: backdraft read rent-model p1 --offset 2]"""
+[Showing 0-2 of 3 rows. Continue with: backdraft read rent-model p1 --offset 2 --limit 2]"""
 
 SHEET_LAST_WINDOW = """\
 # rent-model p1  (sheet 1 of 2: Rent Roll)  [bd:rent-model:p1:feef]
@@ -129,7 +131,7 @@ PAGE_FIRST_WINDOW = """\
 [bd:t12-audit:p2.c1:50bd]
 The portfolio comprises 14 assets across three markets.
 
-[Showing 0-55 of 113 chars. Continue with: backdraft read t12-audit p2 --offset 55]"""
+[Showing 0-55 of 113 chars. Continue with: backdraft read t12-audit p2 --offset 55 --limit 60]"""
 
 PAGE_LAST_WINDOW = """\
 # t12-audit p2  (page 2 of 3)
@@ -444,14 +446,14 @@ def test_page_chars_last_window(fake_gate_registry: FakeDocumentRegistry) -> Non
 def test_continuation_offset_walks_the_page_exactly_once(fake_gate_registry: FakeDocumentRegistry) -> None:
     """Following the hint shows every chunk once and never repeats one."""
     seen: list[str] = []
-    offset = 0
+    args: dict[str, object] = {"slug": "t12-audit", "selector": "p2", "limit": 60}
     for _ in range(10):
-        output = read(fake_gate_registry, "t12-audit", "p2", session="s", offset=offset, limit=60)
+        output = read(fake_gate_registry, session="s", **args)  # type: ignore[arg-type]
         seen += [line for line in output.split("\n") if line.startswith("[bd:")]
-        hint = output.split("\n")[-1]
-        if "Continue with:" not in hint:
+        following = continuation(output)
+        if following is None:
             break
-        offset = int(hint.rsplit("--offset ", 1)[1].rstrip("]"))
+        args = following
     assert seen == ["[bd:t12-audit:p2.c1:50bd]", "[bd:t12-audit:p2.c2:1e7a]"]
 
 
@@ -462,20 +464,21 @@ def test_a_window_is_one_contiguous_run(fake_gate_registry: FakeDocumentRegistry
         "[bd:t12-audit:p1.c1:5ff8]"
     ]
     assert output.endswith(
-        "[Showing 0-55 of 209 chars. Continue with: backdraft read t12-audit p1-3 --offset 55]"
+        "[Showing 0-55 of 209 chars. "
+        "Continue with: backdraft read t12-audit p1-3 --offset 55 --limit 100]"
     )
 
 
 def test_continuation_walks_a_range_exactly_once(fake_gate_registry: FakeDocumentRegistry) -> None:
     seen: list[str] = []
-    offset = 0
+    args: dict[str, object] = {"slug": "t12-audit", "selector": "p1-3", "limit": 100}
     for _ in range(10):
-        output = read(fake_gate_registry, "t12-audit", "p1-3", session="s", offset=offset, limit=100)
+        output = read(fake_gate_registry, session="s", **args)  # type: ignore[arg-type]
         seen += [line for line in output.split("\n") if line.startswith("[bd:")]
-        hint = output.split("\n")[-1]
-        if "Continue with:" not in hint:
+        following = continuation(output)
+        if following is None:
             break
-        offset = int(hint.rsplit("--offset ", 1)[1].rstrip("]"))
+        args = following
     assert seen == [
         "[bd:t12-audit:p1.c1:5ff8]",
         "[bd:t12-audit:p2.c1:50bd]",
@@ -506,6 +509,161 @@ def test_negative_offset_and_limit_are_refused(fake_gate_registry: FakeDocumentR
         read(fake_gate_registry, "t12-audit", "p2", offset=-1)
     with pytest.raises(GateError):
         read(fake_gate_registry, "t12-audit", "p2", limit=-1)
+
+
+# ---------------------------------------------------------------------------
+# the default budget
+# ---------------------------------------------------------------------------
+
+CHUNK = ("Franklin County had 1,326,063 residents in the 2020 census. " * 5).strip()
+"""One chunk of a long article, so a page of them crosses the budget on a
+boundary no test has to compute. Trailing space stripped: `_block` right-strips
+every line, so a chunk that ended in one would never come back as it went in."""
+
+
+def _long_page(chunks: int) -> object:
+    """A single-page article of `chunks` paragraphs, the shape a fetch lands."""
+    return pdf_document(
+        "county",
+        "index.html",
+        [[f"{index}. {CHUNK}" for index in range(chunks)]],
+        names=["Franklin County, Ohio - Wikipedia"],
+        media_type="html",
+    )
+
+
+def _wide_sheet(rows: int) -> object:
+    """A workbook sheet of `rows` data rows, past the row budget."""
+    table = ["| Row | A |", "|---|---|"]
+    table += [f"| {index} | [A{index}] {index * 11} |" for index in range(1, rows + 1)]
+    return sheet_document("ledger", "ledger.xlsx", [("Rent Roll", table)])
+
+
+def _spend(registry: FakeDocumentRegistry, output: str) -> tuple[int, int]:
+    """Characters the output showed, and characters the page holds — off the
+    anchors, so the arithmetic is the window's own and not a second copy of it."""
+    anchors = registry.anchors_for_page("county", 1)
+    printed = {line.strip("[]") for line in output.split("\n") if line.startswith("[bd:")}
+    return (
+        sum(len(a.receipt.snippet) for a in anchors if a.token in printed),
+        sum(len(a.receipt.snippet) for a in anchors),
+    )
+
+
+def test_a_page_under_the_budget_is_unchanged_by_it(
+    fake_gate_registry: FakeDocumentRegistry,
+) -> None:
+    """The reason the budget is a default and not an always-printed size line:
+    a small page is the common case and its output is a contract."""
+    default = read(fake_gate_registry, "t12-audit", "p2", session="s")
+    assert default == read(fake_gate_registry, "t12-audit", "p2", session="s", limit=10_000)
+    assert default == PAGE
+
+
+def test_a_page_over_the_budget_stops_and_says_where() -> None:
+    registry = FakeDocumentRegistry().add(_long_page(200))
+    output = read(registry, "county", "p1", session="s")
+    shown, total = _spend(registry, output)
+    assert 0 < shown <= DEFAULT_BUDGET["chars"] < total
+    assert output.endswith(
+        f"[Showing 0-{shown} of {total} chars. "
+        f"Continue with: backdraft read county p1 --offset {shown}]"
+    )
+
+
+def test_the_default_budget_names_no_limit_it_was_not_given() -> None:
+    """Continuing must not pin the default as if the caller had asked for it:
+    the budget is this version's number, and a command carrying it back would go
+    on meaning the old one after it moved."""
+    registry = FakeDocumentRegistry().add(_long_page(200))
+    assert "--limit" not in read(registry, "county", "p1", session="s")
+
+
+def test_the_default_budget_walks_the_whole_page() -> None:
+    registry = FakeDocumentRegistry().add(_long_page(200))
+    seen: list[str] = []
+    args: dict[str, object] = {"slug": "county", "selector": "p1"}
+    for _ in range(20):
+        output = read(registry, session="s", **args)  # type: ignore[arg-type]
+        seen += [line for line in output.split("\n") if line.startswith("[bd:")]
+        following = continuation(output)
+        if following is None:
+            break
+        args = following
+    assert len(set(seen)) == len(seen) == 200
+
+
+def test_no_token_ever_stands_above_a_partial_chunk() -> None:
+    """The invariant the budget rests on: `_Window.take` offers whole chunks, so
+    every token printed stands above the whole of the text it names. A window
+    that cut a chunk would leave a receipt covering more than the reader saw."""
+    registry = FakeDocumentRegistry().add(_long_page(60))
+    whole = {
+        anchor.token: anchor.receipt.snippet
+        for anchor in registry.anchors_for_page("county", 1)
+    }
+    for limit in (None, 1, 400, 1000, DEFAULT_BUDGET["chars"]):
+        offset = 0
+        for _ in range(80):
+            output = read(registry, "county", "p1", session="s", offset=offset, limit=limit)
+            for block in output.split("\n\n")[1:]:
+                token, _, text = block.partition("\n")
+                if token.startswith("[bd:"):
+                    assert text == whole[token.strip("[]")]
+            following = continuation(output)
+            if following is None:
+                break
+            offset = following["offset"]  # type: ignore[assignment]
+
+
+def test_a_chunk_longer_than_the_default_budget_is_still_shown_whole() -> None:
+    """The budget yields to the chunk, exactly as an explicit `--limit` does."""
+    essay = ("word " * 4_000).strip()
+    registry = FakeDocumentRegistry().add(
+        pdf_document("county", "essay.txt", [[essay, "A short second paragraph."]])
+    )
+    output = read(registry, "county", "p1", session="s")
+    shown, total = _spend(registry, output)
+    assert essay in output
+    assert "A short second paragraph." not in output
+    assert shown == len(essay) > DEFAULT_BUDGET["chars"]
+    assert output.endswith(
+        f"[Showing 0-{shown} of {total} chars. "
+        f"Continue with: backdraft read county p1 --offset {shown}]"
+    )
+
+
+def test_a_sheet_over_the_budget_stops_at_a_row() -> None:
+    registry = FakeDocumentRegistry().add(_wide_sheet(500))
+    rows = DEFAULT_BUDGET["rows"]
+    output = read(registry, "ledger", "p1", session="s")
+    assert f"| {rows} | [A{rows}]" in output
+    assert f"| {rows + 1} | [A{rows + 1}]" not in output
+    assert output.endswith(
+        f"[Showing 0-{rows} of 500 rows. "
+        f"Continue with: backdraft read ledger p1 --offset {rows}]"
+    )
+
+
+def test_the_continuation_command_quotes_a_selector_with_spaces() -> None:
+    """A page read by name carries commas and spaces, and the hint has to be a
+    command the caller can run without repairing it."""
+    registry = FakeDocumentRegistry().add(_long_page(200))
+    output = read(registry, "county", "Franklin County, Ohio - Wikipedia", session="s")
+    following = continuation(output)
+    assert "'Franklin County, Ohio - Wikipedia'" in output
+    assert following is not None
+    assert following["selector"] == "Franklin County, Ohio - Wikipedia"
+
+
+def test_the_continuation_command_carries_the_session_it_was_given() -> None:
+    """Continuing into a different ledger is how a page the writer really read
+    comes back `not_shown`."""
+    registry = FakeDocumentRegistry().add(_long_page(200))
+    output = read(registry, "county", "p1", session="s-deal", session_flag="s-deal")
+    following = continuation(output)
+    assert following is not None
+    assert following["session"] == "s-deal"
 
 
 # ---------------------------------------------------------------------------

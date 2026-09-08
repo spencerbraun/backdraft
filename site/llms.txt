@@ -117,6 +117,18 @@ backdraft read <slug>                       # table of contents. A web page is
                                             # of thousands of characters.
 backdraft read <slug> p3                    # page/range/sheet; chunks arrive
                                             # with tokens: [bd:slug:p3.c2:7f11]
+                                            # One read shows 12000 chars (200
+                                            # sheet rows) unless --limit says
+                                            # otherwise. A page longer than that
+                                            # closes with "[Showing 0-11531 of
+                                            # 34031 chars. Continue with: ...]":
+                                            # you have part of the page, so run
+                                            # the command that line names rather
+                                            # than writing as if you had it all.
+                                            # A read with no such line is the
+                                            # whole page. The cut never lands
+                                            # inside a chunk, so a token always
+                                            # names text you were shown whole.
 backdraft search "24850000"                 # hits are citable directly.
                                             # A count line reading "2 of 56
                                             # results" means --limit cut the

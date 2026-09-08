@@ -32,45 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. A page read has no budget and no closing line
-
-**Intent.** `backdraft read franklin-county p1` prints 36,442 characters and
-stops, with nothing to say how much that was or whether it was all of it — it
-ends mid-navigation on `49 languages Add topic`, which reads exactly like a
-truncation and is not one. `--limit` defaults to "all of them", so the
-continuation hint this repo is proud of — `[Showing 0-464 of 3115 chars.
-Continue with: …]` — only ever appears to a caller who already knew to pass
-`--limit`. The gate is the one surface an agent is *required* to use, which
-makes the default the case that matters: one `read` can spend a large fraction
-of a context window with no warning, and the agent cannot tell a complete page
-from a cut one. `search` caps at 20 by default; `read` caps at nothing. This is
-the same silent-cap family as the queued `search` item, from the other end — an
-uncapped read that looks capped, rather than a capped search that looks
-complete.
-
-**Shape.** `gate/reader.py`'s page rendering and `gate/cli.py`'s `--limit`. The
-decision to make and write down is a default budget versus staying unbounded
-and always closing with the size and the continuation line; prefer whichever
-keeps a small page byte-identical, since most pages are small and their output
-is a contract. Whatever lands, a read that shows part of a page must close by
-naming the exact command that continues it, as the existing hint does. One
-constraint to state and test rather than discover: the window slices by
-characters and a chunk token stands above its chunk, so a cut must not leave a
-token over a chunk the reader only half received — either the window respects
-chunk boundaries or the closing line says the last chunk is partial. Do not add
-an offset story to `search` here; that is the queued item's ground.
-
-**Acceptance.** `backdraft read t12-summary p1` in `demo/` is byte-identical to
-what it prints today — pin it. `backdraft read franklin-county p1` closes by
-saying how much of the page it showed and how to see the rest, and running the
-command it names continues where it stopped. No read output ever shows a token
-above a chunk it did not finish. `demo/walkthrough.md`, `README.md`,
-`site/llms.txt` and `skills/backdraft/SKILL.md` show the real output and tell
-the agent to continue rather than assume it saw the page. DESIGN row.
-
-**Size.** Two days.
-
-### 2. The thin-source signal exists only in the ingest that printed it
+### 1. The thin-source signal exists only in the ingest that printed it
 
 **Intent.** 2026-08-20 gave `ingest` a character count and a `note: little text
 extracted` naming the likely cause — the signal that a source is a shell and
@@ -104,7 +66,7 @@ document list is where it learns this, not only the ingest it may not have run.
 
 **Size.** Two days.
 
-### 3. What a URL will be called, before the answer is permanent
+### 2. What a URL will be called, before the answer is permanent
 
 **Intent.** Three docs now tell an agent to pass `--slug` when it ingests a URL,
 because a slug is permanent once tokens carry it and the default may name a
@@ -140,7 +102,7 @@ it.
 
 **Size.** One day.
 
-### 4. A calling agent parses prose to find out what happened
+### 3. A calling agent parses prose to find out what happened
 
 **Intent.** `bind` and `verify` are the two commands whose *output* is the
 product — the exit code says clean or not, and everything actionable is in the
@@ -181,7 +143,7 @@ relay the human report to the user.
 
 **Size.** Two to three days.
 
-### 5. An artifact you were sent cannot be checked against a registry you have
+### 4. An artifact you were sent cannot be checked against a registry you have
 
 **Intent.** `verify`'s second tier runs only where a `.backdraft/` is
 discoverable from cwd, and the reason is good: an artifact is a file people
@@ -217,7 +179,7 @@ runs only in the project it was bound in.
 
 **Size.** One day.
 
-### 6. A claim that straddles a chunk boundary gets one token instead of two
+### 5. A claim that straddles a chunk boundary gets one token instead of two
 
 **Intent.** `skills/backdraft/SKILL.md` tells the writing agent that "a claim
 that spans two chunks needs both tokens, not the nearest one" — a correct
@@ -252,7 +214,7 @@ one" with the surface that now says which both are.
 
 **Size.** Two to three days.
 
-### 7. A re-ingested source strands citations one at a time
+### 6. A re-ingested source strands citations one at a time
 
 **Intent.** This is DESIGN.md's oldest Open line — "re-bind/orphan pass on
 re-ingest of changed docs (chunk ordinal drift)" — and the week that taught
@@ -294,7 +256,7 @@ extraction and ledger counts are identical before and after.
 
 **Size.** Three days.
 
-### 8. What this install can do, said before a verb needs it
+### 7. What this install can do, said before a verb needs it
 
 **Intent.** backdraft degrades rather than fails, which is right, and the price
 is that its capabilities are discovered one at a time at the moment each is
@@ -331,7 +293,7 @@ run in an unfamiliar environment.
 
 **Size.** Two days.
 
-### 9. `bind` never says which ledger it judged `not_shown` against
+### 8. `bind` never says which ledger it judged `not_shown` against
 
 **Intent.** `bind`'s report names the mode, the claim and citation counts, every
 status, every check that ran and every failure — everything except the one input
@@ -376,7 +338,7 @@ DESIGN row.
 
 **Size.** Two days.
 
-### 10. A withdrawn source is invisible, including to the person looking for it
+### 9. A withdrawn source is invisible, including to the person looking for it
 
 **Intent.** `forget` withdraws a source from every surface that offers one, which
 is right, and the result is that nothing lists what was withdrawn. `ls` says `no
@@ -413,7 +375,7 @@ and `skills/backdraft/SKILL.md` say where to look. DESIGN row.
 
 **Size.** One day.
 
-### 11. `--slug` is dropped without a word when the document is already there
+### 10. `--slug` is dropped without a word when the document is already there
 
 **Intent.** `Registry.ingest`'s docstring says "`slug` is honoured only when the
 document is new — a slug is stable once assigned", which is the right rule and is
@@ -450,7 +412,7 @@ pass `--slug`. DESIGN row.
 
 **Size.** One day.
 
-### 12. `verify` cannot re-check the one status only the ledger can settle
+### 11. `verify` cannot re-check the one status only the ledger can settle
 
 **Intent.** `verify`'s source tier re-resolves every token and reports the
 statuses "as `bind` would", with one gap the code names out loud: `not_shown`
@@ -490,7 +452,7 @@ DESIGN row.
 
 **Size.** Two to three days.
 
-### 13. `bind` and `verify` name the failure and not the move
+### 12. `bind` and `verify` name the failure and not the move
 
 **Intent.** 2026-09-01 made `ingest`'s failures say what to do as well as what
 went wrong, on the argument that a calling agent reads the reason and acts on it.

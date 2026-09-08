@@ -12,7 +12,7 @@ from fake_registry import FakeDocumentRegistry
 from typer.testing import CliRunner
 
 from backdraft import cli as top_cli
-from backdraft.gate import cli
+from backdraft.gate import cli, reader
 
 
 @pytest.fixture
@@ -76,6 +76,39 @@ def test_read_mints_into_the_named_session(runner: CliRunner, wired: FakeDocumen
 def test_read_passes_offset_and_limit(runner: CliRunner, wired: FakeDocumentRegistry) -> None:
     result = runner.invoke(cli.app, ["read", "t12-audit", "p2", "--limit", "60"])
     assert "[Showing 0-55 of 113 chars." in result.output
+
+
+def test_the_continuation_command_carries_an_explicit_session(
+    runner: CliRunner, wired: FakeDocumentRegistry
+) -> None:
+    """Which rule supplied the session is this layer's fact, so this is where it
+    is checked: a continuation that dropped a typed `--session` would mint the
+    rest of the page into a ledger the writer is not binding against."""
+    result = runner.invoke(
+        cli.app, ["read", "t12-audit", "p2", "--limit", "60", "--session", "run-a"]
+    )
+    assert result.output.rstrip().endswith("--offset 55 --limit 60 --session run-a]")
+
+
+def test_a_session_that_outlives_the_command_needs_no_flag_to_continue(
+    runner: CliRunner, wired: FakeDocumentRegistry, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keyed on the rule, not the id: an exported session is still exported when
+    the continuation runs, and the default is reached by running nothing."""
+    result = runner.invoke(cli.app, ["read", "t12-audit", "p2", "--limit", "60"])
+    assert result.output.rstrip().endswith("--offset 55 --limit 60]")
+
+    monkeypatch.setenv(cli.SESSION_ENV, "run-b")
+    exported = runner.invoke(cli.app, ["read", "t12-audit", "p2", "--limit", "60"])
+    assert exported.output.rstrip().endswith("--offset 55 --limit 60]")
+    assert wired.shown_tokens("run-b") == {"bd:t12-audit:p2.c1:50bd"}
+
+
+def test_the_limit_help_names_the_budget(runner: CliRunner) -> None:
+    """One owner: the help is built from `DEFAULT_BUDGET`, so it cannot drift
+    from what a read without `--limit` actually shows."""
+    help_text = runner.invoke(cli.app, ["read", "--help"]).output
+    assert f"{reader.DEFAULT_BUDGET['chars']} chars" in " ".join(help_text.split())
 
 
 def test_read_closes_the_registry(runner: CliRunner, wired: FakeDocumentRegistry) -> None:

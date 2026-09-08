@@ -94,7 +94,8 @@ opens with. The opening chunks of any real site are its navigation menu and the
 closing ones its footer; nothing here strips them, because a boilerplate guess
 that changes its mind moves every anchor under it. Use the list to find where
 the content starts, then `backdraft search` for the figures you need rather
-than reading the whole page into context.
+than reading the whole page into context — and if you do read it, expect it in
+more than one window.
 
 Two habits make a web citation last. **Ingest a fixed revision when the site
 offers one** — Wikipedia's `?oldid=` permanent link, a DOI, an archived
@@ -125,6 +126,20 @@ backdraft read t12-summary p1         # p1, p3-5, or a sheet name
 backdraft search "24850000"           # results are citable without a page read
 backdraft search "cap rate" --in underwriting-model
 ```
+
+**A page read is capped, and the last line tells you whether you got the whole
+page.** One read shows 12,000 characters — 200 rows of a sheet — so a long
+article arrives in pieces and closes with the size and the way on:
+
+```
+[Showing 0-11531 of 34031 chars. Continue with: backdraft read franklin-county p1 --offset 11531]
+```
+
+Run that command before you write from the page; you have a third of it. A read
+with no such line showed you everything, which is every ordinary page. To take
+the page in one call instead, pass the total it named as `--limit`. The cut
+always falls between chunks, so a token you were given names text you were shown
+whole — the risk is the paragraph you never saw, not the one you did.
 
 Before you write, ask what you have actually been shown:
 

@@ -21,6 +21,7 @@ it is scannable, and it is a contract, so it is stable enough to diff.
 from __future__ import annotations
 
 import re
+import shlex
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -40,6 +41,7 @@ if TYPE_CHECKING:
 __all__ = [
     "GateError",
     "cells",
+    "DEFAULT_BUDGET",
     "DEFAULT_SESSION_NOTE",
     "GRAMMAR_HINT",
     "LIST_HINT",
@@ -90,6 +92,25 @@ source as `ingest` was given it and is therefore literally re-runnable.
 
 TOC_PREVIEW_CHARS = 120
 """How much of a page's text stands in for a missing summary (SPEC § Gate)."""
+
+DEFAULT_BUDGET = {"chars": 12_000, "rows": 200}
+"""How much one page read shows when the caller named no `--limit`, per unit.
+
+The gate is the one surface an agent is required to use, so the default is the
+case that matters: unbounded, a single `read` of a scraped article spends tens
+of thousands of characters of context with nothing in the output to say so. The
+budget is sized at roughly three full pages of prose — a paginated document's
+page read and small range never reach it, which is why a small page's output is
+byte-identical to what it was before there was a budget, and what does reach it
+is the unpaginated case the cap exists for. Rows are the same budget counted the
+way a sheet is: a values-view row runs about fifty characters, so 200 of them
+costs about what 12,000 characters do.
+
+Soft, not hard: `_Window.take` shows a group whole or not at all, so a chunk
+longer than the budget is still shown whole rather than cut under its token.
+A run that stops short closes with the total and the command that continues it,
+so the way to read a large page in one call is the `--limit` that line names.
+"""
 
 _ELLIPSIS = "..."
 _PAGE_SELECTOR = re.compile(r"p(?P<first>[1-9][0-9]*)(?:-(?P<last>[1-9][0-9]*))?")
@@ -180,6 +201,7 @@ def read(
     session: str | None = None,
     offset: int = 0,
     limit: int | None = None,
+    session_flag: str | None = None,
 ) -> str:
     """The unified `backdraft read` dispatch.
 
@@ -193,7 +215,13 @@ def read(
     if selector is None:
         return render_toc(registry, slug)
     return render_page_read(
-        registry, slug, selector, session=session, offset=offset, limit=limit
+        registry,
+        slug,
+        selector,
+        session=session,
+        offset=offset,
+        limit=limit,
+        session_flag=session_flag,
     )
 
 
@@ -370,6 +398,7 @@ def render_page_read(
     session: str | None = None,
     offset: int = 0,
     limit: int | None = None,
+    session_flag: str | None = None,
 ) -> str:
     """Token-marked content for the selected pages, minted into `session`.
 
@@ -380,10 +409,17 @@ def render_page_read(
 
     Windowing shares one budget across the whole request, counted in the unit
     each page kind is native to: characters for `page`, rows for `sheet`.
-    `offset` skips that many units and `limit` caps how many are shown; a
+    `offset` skips that many units and `limit` caps how many are shown, falling
+    back to `DEFAULT_BUDGET` for the unit when the caller named no limit; a
     continuation hint reports the window and the command that reads the next one.
     NOTE: windows never cut a chunk or a row in half, so `offset` snaps outward
     to the enclosing unit. A token is never printed above partial text.
+
+    `session_flag` is the `--session` value that continuation command must carry
+    — the session id where the caller named one on the command line, None where
+    it came from the environment or the default and will still be in effect. The
+    gate's library half does not know which rule supplied the id, so `gate.cli`
+    decides, the way it decides `DEFAULT_SESSION_NOTE`.
 
     Every anchor shown is recorded, including the cell anchors a sheet window
     exposes by their in-band references but does not print tokens for.
@@ -399,12 +435,12 @@ def render_page_read(
     by_number = {page.number: page for page in pages}
     total_pages = len(pages)
 
-    window = _Window(offset=offset, limit=limit)
-    blocks: list[str] = []
-    minted: list[int] = []
     # NOTE: one unit name for the whole request, taken from the first page. An
     # extraction is all pages or all sheets, so a mixed selection cannot arise.
-    unit = "rows" if by_number[selection.numbers[0]].kind == "sheet" else "chars"
+    counted = "rows" if by_number[selection.numbers[0]].kind == "sheet" else "chars"
+    window = _Window(offset=offset, limit=DEFAULT_BUDGET[counted] if limit is None else limit)
+    blocks: list[str] = []
+    minted: list[int] = []
     for number in selection.numbers:
         page = by_number[number]
         anchors = registry.anchors_for_page(slug, number)
@@ -419,7 +455,8 @@ def render_page_read(
     _mint(registry, session, minted)
 
     lines = "\n\n".join(blocks).split("\n") if blocks else ["(nothing to show at this offset)"]
-    if (hint := window.hint(slug, selection.text, unit)) is not None:
+    hint = window.hint(slug, selection.text, counted, limit=limit, session=session_flag)
+    if hint is not None:
         lines += ["", hint]
     return _block(lines)
 
@@ -430,7 +467,9 @@ class _Window:
 
     `consumed` counts units skipped or shown so far; `total` counts every unit
     the request covers, whether shown or not, so the hint can say how much is
-    left.
+    left. `limit` arrives already resolved — `render_page_read` substitutes
+    `DEFAULT_BUDGET` before building one — so `None` here means unbounded and
+    not "use the default".
     """
 
     offset: int
@@ -471,15 +510,43 @@ class _Window:
         self.shown += size
         return True
 
-    def hint(self, slug: str, selector: str, unit: str) -> str | None:
-        """The continuation line, or None when the window covered everything."""
+    def hint(
+        self,
+        slug: str,
+        selector: str,
+        unit: str,
+        *,
+        limit: int | None = None,
+        session: str | None = None,
+    ) -> str | None:
+        """The continuation line, or None when the window covered everything.
+
+        The command named here has to be the command that continues *this* read,
+        so it carries back what the caller supplied: the `--limit` they named,
+        because falling back to the default budget would silently widen the
+        window they asked for, and the `--session` they are minting into, because
+        continuing into a different ledger is how a read the writer performed
+        binds `not_shown`. Both are omitted where they were not supplied, which
+        is why an ordinary run's line — no `--limit`, a session out of
+        `BACKDRAFT_SESSION` — is what it always was.
+
+        `selector` is shell-quoted: a sheet or a page read by name carries spaces
+        and commas (`"Franklin County, Ohio - Wikipedia"`), and a hint that has
+        to be repaired before it runs is not a hint — `searcher._widen_hint`
+        quotes its query for the same reason.
+        """
         start = self.start if self.start is not None else min(self.offset, self.total)
         end = start + self.shown
         if start == 0 and end == self.total:
             return None
         line = f"[Showing {start}-{end} of {self.total} {unit}."
         if end < self.total:
-            line += f" Continue with: backdraft read {slug} {selector} --offset {end}"
+            flags = f" --offset {end}"
+            if limit is not None:
+                flags += f" --limit {limit}"
+            if session is not None:
+                flags += f" --session {shlex.quote(session)}"
+            line += f" Continue with: backdraft read {slug} {shlex.quote(selector)}{flags}"
         return line + "]"
 
 

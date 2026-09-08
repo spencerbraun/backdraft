@@ -31,7 +31,7 @@ from ..cli_context import (
     opened_registry,
     resolve_session,
 )
-from .reader import DEFAULT_SESSION_NOTE
+from .reader import DEFAULT_BUDGET, DEFAULT_SESSION_NOTE
 from .reader import cells as mint_cells
 from .reader import read as read_pages
 from .reader import render_session
@@ -71,6 +71,14 @@ _InspectedSession = Annotated[
 mints nothing: told it would mint into the session it is inspecting, a caller
 reasonably avoids running it."""
 
+_LIMIT_HELP = (
+    "Units to show (chars for pages, rows for sheets). Default: "
+    f"{DEFAULT_BUDGET['chars']} chars, {DEFAULT_BUDGET['rows']} rows. "
+    "A run that stops short closes with the total; pass that to read it all."
+)
+"""Built from the budget rather than restating it, so the help cannot drift from
+what `read` actually does."""
+
 
 @app.command()
 def read(
@@ -82,9 +90,7 @@ def read(
     offset: Annotated[
         int, typer.Option("--offset", help="Units to skip (chars for pages, rows for sheets).")
     ] = 0,
-    limit: Annotated[
-        int | None, typer.Option("--limit", help="Units to show. Default: all of them.")
-    ] = None,
+    limit: Annotated[int | None, typer.Option("--limit", help=_LIMIT_HELP)] = None,
 ) -> None:
     """List documents, show a document's contents, or read pages from one."""
     # The list and the table of contents emit no tokens, so they mint nothing.
@@ -93,7 +99,21 @@ def read(
     with opened_registry() as registry:
         typer.echo(
             read_pages(
-                registry, slug, selector, session=session_id, offset=offset, limit=limit
+                registry,
+                slug,
+                selector,
+                session=session_id,
+                offset=offset,
+                limit=limit,
+                # Keyed on the *rule* that supplied the id, not on the id: a
+                # session out of `BACKDRAFT_SESSION` is still exported when the
+                # continuation runs and needs no flag, while one passed as
+                # `--session` is gone the moment the command ends — and a
+                # continuation that dropped it would mint the rest of the page
+                # into a ledger the writer is not binding against. (The
+                # 2026-08-31 note keys on the id instead, because what it warns
+                # about is the shared ledger and not how you reached it.)
+                session_flag=session_id if session else None,
             )
         )
 

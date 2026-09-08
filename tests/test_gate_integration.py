@@ -23,6 +23,7 @@ from pathlib import Path
 
 import pytest
 from conftest_registry import PAGE_BREAK
+from continuation_util import continuation
 
 from backdraft.bind.binder import bind
 from backdraft.gate.reader import read, render_session, show
@@ -42,14 +43,14 @@ def _table(text: str) -> tuple[str, str, str, list[str]]:
 def _windows(registry: Registry, slug: str, selector: str, limit: int) -> list[str]:
     """Every window of a read, walked the way the continuation hint says to."""
     out: list[str] = []
-    offset = 0
+    args: dict[str, object] = {"slug": slug, "selector": selector, "limit": limit}
     for _ in range(50):
-        window = read(registry, slug, selector, session="s", offset=offset, limit=limit)
+        window = read(registry, session="s", **args)  # type: ignore[arg-type]
         out.append(window)
-        hint = window.split("\n")[-1]
-        if "Continue with:" not in hint:
+        following = continuation(window)
+        if following is None:
             return out
-        offset = int(hint.rsplit("--offset ", 1)[1].rstrip("]"))
+        args = following
     raise AssertionError("the continuation hint never terminated")
 
 
