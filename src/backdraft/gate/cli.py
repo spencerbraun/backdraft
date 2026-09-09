@@ -92,7 +92,11 @@ def read(
     ] = 0,
     limit: Annotated[int | None, typer.Option("--limit", help=_LIMIT_HELP)] = None,
 ) -> None:
-    """List documents, show a document's contents, or read pages from one."""
+    """List documents, show a document's contents, or read pages from one.
+
+    A source that came back with almost no text in it is marked `little text: N
+    chars` in the list and in its own headline: read it before citing it.
+    """
     # The list and the table of contents emit no tokens, so they mint nothing.
     minting = slug is not None and selector is not None
     session_id = resolve_session(session) if minting else None

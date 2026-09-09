@@ -56,6 +56,14 @@ document that did not exist before. When almost no text came out, ingest prints
 a `note: little text extracted` line naming the likely cause — that note, not
 your own judgement, is the signal that a source came back as a shell.
 
+You will often be writing against a registry you did not ingest — it travels
+with the project folder, and the ingest may have happened in another session —
+so that note is not the only place the signal lives. `backdraft read`'s document
+list, a source's own table-of-contents headline and `backdraft ls` all close a
+thin source's row with `little text: N chars`. Read the list before you choose
+evidence: a row carrying that mark is a source to read and report on, not one to
+cite. Rows without it say nothing new, so the mark is the whole signal.
+
 If the list took in a source it should not have — a scratch copy, the same
 report under two names, a file the user did not mean to include — say so and
 offer `backdraft forget <slug> --yes`, which withdraws it from `read`, `search`
@@ -83,8 +91,10 @@ receipt on a fetched page links back to it with the fetch date, so you do not
 need to repeat the URL in the prose for the reader to have it. What you get is
 what a plain unauthenticated GET returns: a JavaScript-rendered page or one
 behind a login comes back thin or empty. You do not have to judge that yourself
-— ingest's own `note: little text extracted` line says so and names the cause.
-When it appears, say so to the user rather than citing the shell of the page.
+— ingest's own `note: little text extracted` line says so and names the cause,
+and the page keeps the mark afterwards: `backdraft read` lists it as `little
+text: N chars`. When either appears, say so to the user rather than citing the
+shell of the page.
 
 Read a web page's table of contents before you read the page. A page has no
 pagination, so `p1` is all of it — tens of thousands of characters for a long

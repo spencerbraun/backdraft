@@ -65,7 +65,12 @@ moved — which is when citations into the previous snapshot start reporting
 `drifted` — or `unchanged`, a no-op because re-running would reproduce what is
 already there. When almost no text came out, a note names the likely cause (a
 scan with no text layer, a page behind a login) and what to do; it is a note at
-exit 0, because a thin snapshot is still a real one.
+exit 0, because a thin snapshot is still a real one. That source keeps the mark
+afterwards — `backdraft read`'s document list, its table of contents and
+`backdraft ls` end its row with `little text: N chars` — because a registry
+travels with the project folder and whoever writes against it is usually not
+whoever ingested it. Ordinary sources gain nothing: only the rows worth doubting
+say anything.
 
 **Read.** The page arrives with a citable name over each chunk. This is the whole
 mechanism: what you can cite is exactly what you were shown.

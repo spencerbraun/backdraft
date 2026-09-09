@@ -16,27 +16,33 @@ submodules, and only what a consumer outside the package imports.
 from __future__ import annotations
 
 from .reader import (
+    THIN_SOURCE_CHARS,
     WITHDRAWN_HINT,
     GateError,
     Selection,
+    extracted_chars,
     read,
     render_documents,
     render_page_read,
     render_toc,
     select_pages,
+    thin_mark,
     unit,
 )
 from .searcher import render_search, search
 
 __all__ = [
+    "THIN_SOURCE_CHARS",
     "WITHDRAWN_HINT",
     "GateError",
     "Selection",
+    "extracted_chars",
     "read",
     "render_documents",
     "render_toc",
     "render_page_read",
     "select_pages",
+    "thin_mark",
     "unit",
     "search",
     "render_search",

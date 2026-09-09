@@ -67,7 +67,12 @@ a source is worth citing: a scanned PDF with no text layer, and a web page that
 answered an unauthenticated fetch with a login wall, both ingest cleanly and
 print a page count like any success. Under a couple of hundred characters ingest
 adds a note naming the likely cause and what to do about it — still exit 0,
-because a thin snapshot is a real snapshot, just not one to write against.
+because a thin snapshot is a real snapshot, just not one to write against. Such
+a source stays marked after this command scrolls away: its row in `backdraft
+read`, in that source's own table of contents and in `backdraft ls` ends with
+`little text: N chars`, so a writer who arrived after the ingest still sees it.
+None of the three sources here is thin, which is why no row below says anything
+about it.
 
 A source can also be a web page. The memo needs one figure the sponsor's file
 cannot supply — how deep the local renter base is — so the county's Wikipedia

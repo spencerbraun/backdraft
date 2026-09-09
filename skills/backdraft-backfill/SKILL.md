@@ -38,7 +38,9 @@ unchanged — those lines say `unchanged`. Say which sources are missing before
 you start attributing claims — an unsupported claim is a different finding from
 one whose source never got ingested, and so is one whose source ingested as a
 shell: a `note: little text extracted` line names any source almost no text came
-out of.
+out of, and `backdraft ls` keeps saying so afterwards — such a row ends with
+`little text: N chars`, so a registry ingested before you arrived still tells
+you which of its sources are shells.
 
 The same glob sweeps in sources it should not have — a scratch copy, the same report
 under two names, a draft beside its final. Once they are in the registry they

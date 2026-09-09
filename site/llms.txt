@@ -75,7 +75,10 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # assuming. A source that came back thin (a scan with no text layer, a login
 # wall, a deck whose slides are all images) gets a `note: little text
 # extracted` line naming the cause at exit 0; that note is the signal a source
-# is a shell — surface it, do not cite around it.
+# is a shell — surface it, do not cite around it. You do not have to have run
+# the ingest to know: `backdraft read`'s document list, that source's table of
+# contents and `backdraft ls` all mark it `little text: N chars`. Check the
+# list before you cite, not just the ingest you may not have been present for.
 # Sandboxes usually cannot reach model providers: if VLM ingest fails on
 # network, continue with the text layer and say so. The registry travels
 # with the project folder (.backdraft/), so a registry ingested with the
@@ -108,7 +111,13 @@ export BACKDRAFT_SESSION=s-<name>           # the project shares one ledger that
                                             # from "this writer never saw it" to
                                             # "nothing here ever did".
 
-backdraft read                              # list documents
+backdraft read                              # list documents. A row ending
+                                            # "little text: N chars" is a
+                                            # source that extracted almost
+                                            # nothing — a login wall, a scan
+                                            # with no text layer. Read it
+                                            # before citing it and tell the
+                                            # user it came back a shell.
 backdraft read <slug>                       # table of contents. A web page is
                                             # a single page, so it lists that
                                             # page's chunks and what each one

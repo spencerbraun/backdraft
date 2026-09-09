@@ -32,41 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. The thin-source signal exists only in the ingest that printed it
-
-**Intent.** 2026-08-20 gave `ingest` a character count and a `note: little text
-extracted` naming the likely cause — the signal that a source is a shell and
-must not be cited. Both are printed once and then gone: nothing stores the
-count, and `ls`, the gate's document list and a document's table of contents
-say nothing about it. The agent that writes is usually not the process that
-ingested — the skill says to ingest everything up front and then read, and a
-registry travels with the project folder — so the one signal that matters is
-the one an agent is least likely to be present for. Off `backdraft read`'s
-list, a 34,000-character article and a 60-character login wall are the same
-row.
-
-**Shape.** The count is derivable from the current extraction
-(`sum(len(page.text))`), so this is a reporting change rather than a storage
-one unless measurement says otherwise. One owner, shared between `cli.py`'s
-ingest line and `gate/reader.py`'s list and headline, the way `unit` and
-`source_name` already are — the point of this item is that three surfaces give
-one answer, so a second implementation of the count would defeat it. Display
-only, as the ingest note is: no token, anchor or status derives from it. Hold
-the byte-identity rule the source-naming work established — a registry of
-ordinary sources must not gain a column for this, so mark only the sources that
-are thin rather than annotating every row.
-
-**Acceptance.** Ingest a login-wall HTML file beside a real source: `backdraft
-read` and `backdraft ls` mark the thin one and say nothing new about the other,
-and `backdraft read <thin-slug>` says it in the headline too. A registry with
-no thin source prints what it prints today, byte for byte — pinned, including
-`demo/`'s three sources. `THIN_SOURCE_CHARS` is read from one place.
-`skills/backdraft/SKILL.md` and `site/llms.txt` tell the agent that the
-document list is where it learns this, not only the ingest it may not have run.
-
-**Size.** Two days.
-
-### 2. What a URL will be called, before the answer is permanent
+### 1. What a URL will be called, before the answer is permanent
 
 **Intent.** Three docs now tell an agent to pass `--slug` when it ingests a URL,
 because a slug is permanent once tokens carry it and the default may name a
@@ -102,7 +68,7 @@ it.
 
 **Size.** One day.
 
-### 3. A calling agent parses prose to find out what happened
+### 2. A calling agent parses prose to find out what happened
 
 **Intent.** `bind` and `verify` are the two commands whose *output* is the
 product — the exit code says clean or not, and everything actionable is in the
@@ -143,7 +109,7 @@ relay the human report to the user.
 
 **Size.** Two to three days.
 
-### 4. An artifact you were sent cannot be checked against a registry you have
+### 3. An artifact you were sent cannot be checked against a registry you have
 
 **Intent.** `verify`'s second tier runs only where a `.backdraft/` is
 discoverable from cwd, and the reason is good: an artifact is a file people
@@ -179,7 +145,7 @@ runs only in the project it was bound in.
 
 **Size.** One day.
 
-### 5. A claim that straddles a chunk boundary gets one token instead of two
+### 4. A claim that straddles a chunk boundary gets one token instead of two
 
 **Intent.** `skills/backdraft/SKILL.md` tells the writing agent that "a claim
 that spans two chunks needs both tokens, not the nearest one" — a correct
@@ -214,7 +180,7 @@ one" with the surface that now says which both are.
 
 **Size.** Two to three days.
 
-### 6. A re-ingested source strands citations one at a time
+### 5. A re-ingested source strands citations one at a time
 
 **Intent.** This is DESIGN.md's oldest Open line — "re-bind/orphan pass on
 re-ingest of changed docs (chunk ordinal drift)" — and the week that taught
@@ -256,7 +222,7 @@ extraction and ledger counts are identical before and after.
 
 **Size.** Three days.
 
-### 7. What this install can do, said before a verb needs it
+### 6. What this install can do, said before a verb needs it
 
 **Intent.** backdraft degrades rather than fails, which is right, and the price
 is that its capabilities are discovered one at a time at the moment each is
@@ -293,7 +259,7 @@ run in an unfamiliar environment.
 
 **Size.** Two days.
 
-### 8. `bind` never says which ledger it judged `not_shown` against
+### 7. `bind` never says which ledger it judged `not_shown` against
 
 **Intent.** `bind`'s report names the mode, the claim and citation counts, every
 status, every check that ran and every failure — everything except the one input
@@ -338,7 +304,7 @@ DESIGN row.
 
 **Size.** Two days.
 
-### 9. A withdrawn source is invisible, including to the person looking for it
+### 8. A withdrawn source is invisible, including to the person looking for it
 
 **Intent.** `forget` withdraws a source from every surface that offers one, which
 is right, and the result is that nothing lists what was withdrawn. `ls` says `no
@@ -375,7 +341,7 @@ and `skills/backdraft/SKILL.md` say where to look. DESIGN row.
 
 **Size.** One day.
 
-### 10. `--slug` is dropped without a word when the document is already there
+### 9. `--slug` is dropped without a word when the document is already there
 
 **Intent.** `Registry.ingest`'s docstring says "`slug` is honoured only when the
 document is new — a slug is stable once assigned", which is the right rule and is
@@ -412,7 +378,7 @@ pass `--slug`. DESIGN row.
 
 **Size.** One day.
 
-### 11. `verify` cannot re-check the one status only the ledger can settle
+### 10. `verify` cannot re-check the one status only the ledger can settle
 
 **Intent.** `verify`'s source tier re-resolves every token and reports the
 statuses "as `bind` would", with one gap the code names out loud: `not_shown`
@@ -452,7 +418,7 @@ DESIGN row.
 
 **Size.** Two to three days.
 
-### 12. `bind` and `verify` name the failure and not the move
+### 11. `bind` and `verify` name the failure and not the move
 
 **Intent.** 2026-09-01 made `ingest`'s failures say what to do as well as what
 went wrong, on the argument that a calling agent reads the reason and acts on it.

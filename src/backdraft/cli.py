@@ -44,12 +44,14 @@ from .cli_context import (
 from .extract import snapshots, vlm_ready
 # The words a document is described in have one owner each, and `ingest`/`ls`
 # describe the same documents the gate's list does: the noun for a collection of
-# pages is `gate.unit`, and what to call the source itself is
-# `kernel.model.source_name` — a pure function of a `Document`, so it lives with
-# the type rather than in the first package that needed it. Both are downward
-# imports, which SPEC § Dependency rule spells "`cli` imports everything"; the
-# mount guard below is about sub-*apps*, and `gate` itself does not need typer.
-from .gate import WITHDRAWN_HINT, unit
+# pages is `gate.unit`; how much text came out of a source, and whether that is
+# too little to cite, are `gate.extracted_chars` and `gate.thin_mark`; and what
+# to call the source itself is `kernel.model.source_name` — a pure function of a
+# `Document`, so it lives with the type rather than in the first package that
+# needed it. All are downward imports, which SPEC § Dependency rule spells "`cli`
+# imports everything"; the mount guard below is about sub-*apps*, and `gate`
+# itself does not need typer.
+from .gate import THIN_SOURCE_CHARS, WITHDRAWN_HINT, extracted_chars, thin_mark, unit
 from .kernel.errors import BackdraftError
 from .kernel.model import Document, Page, source_name
 from .registry import (
@@ -92,17 +94,6 @@ BACKDRAFT_ENTAIL_API_KEY=
 # BACKDRAFT_SNAPSHOT_QUALITY=85
 # BACKDRAFT_SNAPSHOT_MAX_HEIGHT=1056
 """
-
-THIN_SOURCE_CHARS = 200
-"""Below this many extracted characters, a source is probably a shell.
-
-A login wall, a JavaScript-rendered page and a scanned PDF with no text layer
-all ingest cleanly and produce almost nothing — and used to print `1 page` like
-any success, so an agent could cite the shell of a source without a signal that
-it was one. The number is a heuristic and is deliberately generous: a real
-document with under 200 characters in it is rare, and the cost of being wrong is
-one note at exit 0, never a failure. Display only — no token, no anchor and no
-status derives from it."""
 
 _THIN_CAUSE = {
     "pdf": (
@@ -277,7 +268,7 @@ def ingest(
                         # thing on this line that says whether the snapshot is
                         # worth citing. `chars` for sheets too — this is the
                         # extraction's volume, not a window into it.
-                        chars = sum(len(page.text) for page in pages)
+                        chars = extracted_chars(pages)
                         typer.echo(
                             f"{document.slug}  {source_name(document)}  "
                             f"{document.media_type}  {len(pages)} {unit(pages)}  "
@@ -636,7 +627,9 @@ def list_documents() -> None:
 
     The name is the filename, or — for a source fetched from the web — the URL
     it came from, standing in the staging filename's place rather than beside
-    it. A registry of files prints what it always did.
+    it. A source that extracted almost nothing — a login wall, a scan with no
+    text layer — closes its row with `little text: N chars`; read it before
+    citing it. A registry of ordinary files prints what it always did.
     """
     # The name is `kernel.model.source_name`'s, shared with `ingest` and the gate's
     # own list. Out of the docstring on purpose: typer prints this one to a user,
@@ -648,9 +641,14 @@ def list_documents() -> None:
             return
         for document in documents:
             pages = registry.pages(document.slug)
+            # The mark is a fifth field on the rows that have one and no field
+            # at all on the rows that do not: a registry of ordinary sources
+            # prints what it always did, and nothing has to read a column that
+            # is empty for almost every row.
+            mark = thin_mark(pages)
             typer.echo(
                 f"{document.slug}\t{source_name(document)}\t{document.media_type}\t"
-                f"{len(pages)} {unit(pages)}"
+                f"{len(pages)} {unit(pages)}" + (f"\t{mark}" if mark else "")
             )
 
 

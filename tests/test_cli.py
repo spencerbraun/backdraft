@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ from typer.testing import CliRunner
 
 from backdraft import cli
 from backdraft.extract.base import ExtractedPage
+from backdraft.gate import reader
 from backdraft.registry import DIRECTORY, Registry
 
 runner = CliRunner()
@@ -487,6 +489,75 @@ def test_a_normal_source_carries_no_thin_note(project: Path, note: Path) -> None
     result = runner.invoke(cli.app, ["ingest", str(note)])
     assert result.exit_code == 0
     assert "little text extracted" not in result.stdout
+
+
+def _login_wall(tmp_path: Path) -> Path:
+    """A page that answered with a sign-in form instead of its content."""
+    path = tmp_path / "q4-results.html"
+    path.write_text(
+        "<html><body><p>Please sign in to continue.</p></body></html>",
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_the_thin_signal_outlives_the_ingest_that_printed_it(
+    project: Path, note: Path, tmp_path: Path
+) -> None:
+    """`ls` and the gate's list mark the shell; the real source is untouched.
+
+    The agent that writes is usually not the process that ingested — the skill
+    says to ingest everything up front and then read — so the one signal that
+    matters was the one it was least likely to be present for.
+    """
+    runner.invoke(cli.app, ["ingest", str(note), str(_login_wall(tmp_path))])
+
+    listed = runner.invoke(cli.app, ["ls"]).stdout.splitlines()
+    assert listed == [
+        "quarterly-notes\tquarterly-notes.md\ttext\t1 page",
+        "q4-results\tq4-results.html\thtml\t1 page\tlittle text: 27 chars",
+    ]
+
+    documents = runner.invoke(cli.app, ["read"]).stdout
+    assert "q4-results       q4-results.html     html  1 page  little text: 27 chars" in documents
+    assert "quarterly-notes  quarterly-notes.md  text  1 page\n" in documents
+
+
+def test_a_thin_source_says_so_in_its_table_of_contents_too(
+    project: Path, tmp_path: Path
+) -> None:
+    """The headline is where an agent decides whether this source is worth reading."""
+    runner.invoke(cli.app, ["ingest", str(_login_wall(tmp_path))])
+    assert runner.invoke(cli.app, ["read", "q4-results"]).stdout.startswith(
+        "q4-results  (q4-results.html, html, 1 page, little text: 27 chars)"
+    )
+
+
+def test_ingest_ls_and_read_count_a_source_in_the_same_characters(
+    project: Path, tmp_path: Path
+) -> None:
+    """One registry, one answer.
+
+    The count is derivable from any extraction, which is exactly why three
+    surfaces deriving it separately would drift — `gate.extracted_chars` owns
+    it and `gate.THIN_SOURCE_CHARS` is read from that one place. This pins the
+    three answers together rather than pinning any one string.
+    """
+    ingested = runner.invoke(cli.app, ["ingest", str(_login_wall(tmp_path))]).stdout
+    chars = re.search(r"(\d+) chars", ingested).group(1)
+    assert f"little text: {chars} chars" in runner.invoke(cli.app, ["ls"]).stdout
+    assert f"little text: {chars} chars" in runner.invoke(cli.app, ["read"]).stdout
+    assert cli.THIN_SOURCE_CHARS is reader.THIN_SOURCE_CHARS
+
+
+def test_a_registry_with_nothing_thin_in_it_says_nothing_about_it(
+    project: Path, note: Path, workbook: Path
+) -> None:
+    """The rule the mark is drawn to: only the rows worth doubting say anything."""
+    runner.invoke(cli.app, ["ingest", str(note), str(workbook)])
+    assert "little text" not in runner.invoke(cli.app, ["ls"]).stdout
+    assert "little text" not in runner.invoke(cli.app, ["read"]).stdout
+    assert "little text" not in runner.invoke(cli.app, ["read", "quarterly-notes"]).stdout
 
 
 def test_a_thin_deck_is_pointed_at_the_note_that_already_named_the_gap(

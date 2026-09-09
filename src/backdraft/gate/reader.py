@@ -45,11 +45,13 @@ __all__ = [
     "DEFAULT_SESSION_NOTE",
     "GRAMMAR_HINT",
     "LIST_HINT",
+    "THIN_SOURCE_CHARS",
     "TOC_PREVIEW_CHARS",
     "WITHDRAWN_HINT",
     "WITHDRAWN_SESSION_NOTE",
     "Selection",
     "Shown",
+    "extracted_chars",
     "read",
     "render_documents",
     "render_session",
@@ -58,6 +60,7 @@ __all__ = [
     "require_document",
     "select_pages",
     "show",
+    "thin_mark",
     "unit",
 ]
 
@@ -92,6 +95,21 @@ source as `ingest` was given it and is therefore literally re-runnable.
 
 TOC_PREVIEW_CHARS = 120
 """How much of a page's text stands in for a missing summary (SPEC § Gate)."""
+
+THIN_SOURCE_CHARS = 200
+"""Below this many extracted characters, a source is probably a shell.
+
+A login wall, a JavaScript-rendered page and a scanned PDF with no text layer
+all ingest cleanly and produce almost nothing, so an agent can cite the shell of
+a source with nothing in front of it saying so. The number is a heuristic and is
+deliberately generous: a real document with under 200 characters in it is rare,
+and the cost of being wrong is one mark on one row, never a failure.
+
+Display only — no token, no anchor and no status derives from it (2026-08-20).
+It lives here rather than in `cli.py`, which first needed it, because `ingest`'s
+line and this module's document list and headline must give one answer: the same
+reason `unit` is here and not in the CLI that also counts pages.
+"""
 
 DEFAULT_BUDGET = {"chars": 12_000, "rows": 200}
 """How much one page read shows when the caller named no `--limit`, per unit.
@@ -266,6 +284,11 @@ def render_documents(registry: Registry) -> str:
     )
     media_width = max(len(row[2]) for row in rows)
     count_width = max(len(str(len(row[3]))) for row in rows)
+    counts = [f"{len(pages):>{count_width}} {unit(pages)}" for *_, pages in rows]
+    # The count is the last column on an ordinary row, so padding it costs
+    # nothing: `_block` strips the trailing spaces back off. It buys the marks
+    # below a column of their own on the rows that carry one.
+    count_column = max(len(count) for count in counts)
 
     lines = [_plural(len(documents), "document"), ""]
     lines += [
@@ -274,10 +297,11 @@ def render_documents(registry: Registry) -> str:
                 slug.ljust(slug_width),
                 name.ljust(file_width),
                 media.ljust(media_width),
-                f"{len(pages):>{count_width}} {unit(pages)}",
+                count.ljust(count_column),
+                thin_mark(pages),
             )
         )
-        for slug, name, media, pages in rows
+        for (slug, name, media, pages), count in zip(rows, counts, strict=True)
     ]
     lines += ["", "[Table of contents: backdraft read <slug>]"]
     return _block(lines)
@@ -1063,10 +1087,41 @@ def require_document(registry: Registry, slug: str) -> Document:
 
 
 def _document_headline(document: Document, pages: Sequence[Page]) -> str:
+    """`slug  (name, media, N pages)`, plus the thin mark where there is one.
+
+    Inside the parenthesis rather than after it: everything in there describes
+    the source, and how much text came out of it is the same kind of fact as how
+    many pages it has.
+    """
+    mark = thin_mark(pages)
     return (
         f"{document.slug}  ({source_name(document)}, {document.media_type}, "
-        f"{len(pages)} {unit(pages)})"
+        f"{len(pages)} {unit(pages)}{f', {mark}' if mark else ''})"
     )
+
+
+def extracted_chars(pages: Sequence[Page]) -> int:
+    """How much text an extraction produced, across every page of it.
+
+    The extraction's volume, not a window into it: sheets count their rendered
+    text the way pages count their prose, because the question is how much came
+    out of the file and not how much one read would show.
+    """
+    return sum(len(page.text) for page in pages)
+
+
+def thin_mark(pages: Sequence[Page]) -> str:
+    """`little text: 57 chars` for a source that came back a shell, else `""`.
+
+    The signal used to exist only in the `ingest` that printed it, and the agent
+    that writes is usually not the process that ingested — so the document list,
+    the table-of-contents headline and `ls` all carry it now. Empty for an
+    ordinary source on purpose: a registry of real documents gains no column and
+    prints byte for byte what it always did, and only the rows worth doubting
+    say anything.
+    """
+    chars = extracted_chars(pages)
+    return f"little text: {chars} chars" if chars < THIN_SOURCE_CHARS else ""
 
 
 def unit(pages: Sequence[Page]) -> str:

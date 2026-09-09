@@ -16,6 +16,7 @@ from backdraft.cli_context import SESSION_ENV
 from backdraft.gate.reader import (
     DEFAULT_BUDGET,
     DEFAULT_SESSION_NOTE,
+    THIN_SOURCE_CHARS,
     TOC_PREVIEW_CHARS,
     GateError,
     read,
@@ -27,12 +28,25 @@ from backdraft.gate.searcher import search
 COUNTY_URL = "https://en.wikipedia.org/w/index.php?title=Franklin_County&oldid=1367935775"
 
 
+# Long enough not to be a thin source: a real article is tens of thousands of
+# characters, and a fixture standing in for one that came back under
+# `THIN_SOURCE_CHARS` would pin the mark into every list and headline below.
+_ARTICLE_BODY = (
+    "Franklin County is a county in the U.S. state of Ohio, and its county seat "
+    "is Columbus, the state capital."
+)
+_ARTICLE_TAIL = (
+    "The 2020 census put its population at 1,326,063, the most populous county "
+    "in the state."
+)
+
+
 def _fetched() -> object:
     """A web page staged under the filename `fetch.filename_for` invented for it."""
     return pdf_document(
         "county",
         "index.html",
-        [["Franklin County had 1,326,063 residents."]],
+        [["Franklin County had 1,326,063 residents.", _ARTICLE_BODY, _ARTICLE_TAIL]],
         media_type="html",
         url=COUNTY_URL,
     )
@@ -222,7 +236,7 @@ def test_a_registry_of_nothing_but_fetched_pages_still_lists_cleanly() -> None:
         pdf_document(
             "notes",
             "index.html",
-            [["Rents in the submarket rose."]],
+            [["Rents in the submarket rose.", _ARTICLE_BODY, _ARTICLE_TAIL]],
             media_type="html",
             url="https://example.com/a",
         )
@@ -261,6 +275,8 @@ p1  Franklin County, Ohio - Wikipedia
 
 p1.c1  Jump to content Main menu Navigation Main page Contents Current events
 p1.c2  Franklin County had 1,326,063 residents.
+p1.c3  {_ARTICLE_BODY}
+p1.c4  {_ARTICLE_TAIL}
 
 [Read one: backdraft read county p1]
 [Read by name: backdraft read county "Franklin County, Ohio - Wikipedia"]"""
@@ -276,6 +292,8 @@ def _article() -> object:
             [
                 "Jump to content Main menu Navigation Main page Contents Current events",
                 "Franklin County had 1,326,063 residents.",
+                _ARTICLE_BODY,
+                _ARTICLE_TAIL,
             ]
         ],
         names=["Franklin County, Ohio - Wikipedia"],
@@ -337,6 +355,88 @@ def test_the_chunk_list_truncates_the_way_the_page_preview_does() -> None:
     )
     assert line.endswith("...")
     assert len(line) == len("p1.c1  ") + TOC_PREVIEW_CHARS + len("...")
+
+
+# ---------------------------------------------------------------------------
+# a source that came back a shell says so wherever it is listed
+# ---------------------------------------------------------------------------
+
+
+def _login_wall() -> object:
+    """A page that answered with a sign-in form: a real snapshot of nothing.
+
+    27 characters of text, ingested cleanly, `1 page` like any success — the
+    row an agent could cite the shell of without a signal that it was one.
+    """
+    return pdf_document(
+        "q4-results",
+        "q4-results.html",
+        [["Please sign in to continue."]],
+        media_type="html",
+    )
+
+
+def test_a_thin_source_is_marked_in_the_document_list(
+    fake_gate_registry: FakeDocumentRegistry,
+) -> None:
+    """The signal `ingest` printed once, on the surface the writer actually reads.
+
+    The agent that writes is usually not the process that ingested — the skill
+    says to ingest everything up front — so off this list a 34,000-character
+    article and a 27-character login wall were the same row.
+    """
+    fake_gate_registry.add(_login_wall())
+    assert (
+        "q4-results  q4-results.html       html  1 page    little text: 27 chars"
+        in read(fake_gate_registry)
+    )
+
+
+def test_only_the_thin_row_says_anything_new(
+    fake_gate_registry: FakeDocumentRegistry,
+) -> None:
+    """A registry of real sources gains no column: the mark rides on the rows
+    that have one, and every other row is byte-identical to what it printed
+    before there was a mark at all."""
+    before = read(fake_gate_registry).splitlines()
+    fake_gate_registry.add(_login_wall())
+    after = read(fake_gate_registry).splitlines()
+    assert [line for line in after if "q4-results" not in line] == [
+        line.replace("2 documents", "3 documents") for line in before
+    ]
+
+
+def test_a_thin_source_says_so_in_its_headline(
+    fake_gate_registry: FakeDocumentRegistry,
+) -> None:
+    """`read <slug>` is where an agent goes to decide whether to read the source;
+    the headline is the line it decides on."""
+    fake_gate_registry.add(_login_wall())
+    assert read(fake_gate_registry, "q4-results").startswith(
+        "q4-results  (q4-results.html, html, 1 page, little text: 27 chars)"
+    )
+
+
+def test_a_source_that_extracted_nothing_at_all_counts_zero() -> None:
+    """The limit case, and the one a scanned PDF actually hits."""
+    registry = FakeDocumentRegistry().add(pdf_document("scan", "scan.pdf", [[]]))
+    assert "little text: 0 chars" in read(registry)
+
+
+def test_the_mark_stops_at_the_threshold() -> None:
+    """A source one character over is an ordinary source and says nothing.
+
+    The threshold is a heuristic and the cost of it being wrong is one mark, so
+    what matters is that it is read from one place and applied at one boundary.
+    """
+    over = FakeDocumentRegistry().add(
+        pdf_document("real", "real.pdf", [["x" * THIN_SOURCE_CHARS]])
+    )
+    under = FakeDocumentRegistry().add(
+        pdf_document("shell", "shell.pdf", [["x" * (THIN_SOURCE_CHARS - 1)]])
+    )
+    assert "little text" not in read(over)
+    assert f"little text: {THIN_SOURCE_CHARS - 1} chars" in read(under)
 
 
 # ---------------------------------------------------------------------------
