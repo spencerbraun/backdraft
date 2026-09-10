@@ -58,6 +58,7 @@ __all__ = [
     "GENERATION",
     "UNCHANGED",
     "Ingested",
+    "Naming",
     "Registry",
     "RegistryError",
     "Resolution",
@@ -126,6 +127,32 @@ _MEDIA_SUFFIXES: dict[str, MediaType] = {
 
 class RegistryError(BackdraftError):
     """The registry could not do what was asked of it."""
+
+
+@dataclass(frozen=True, slots=True)
+class Naming:
+    """What a source would be called here, settled before it is ingested.
+
+    A slug is permanent the moment a token carries it, so "what will this be
+    called" is a question that has to be answerable while the answer is still
+    cheap to change. `stem` is the name the source's own address suggests;
+    `slug` is what this registry would actually hand it, and the two differ
+    exactly where the registry had a say — the source is already here under a
+    slug of its own, or the name it suggests was taken by something else and
+    `_dedupe` numbered it.
+    """
+
+    slug: str
+    stem: str
+    media_type: MediaType
+    ingested: bool
+    withdrawn: bool = False
+    """Already here, and `forget` has withdrawn it — so ingesting restores it."""
+
+    @property
+    def deduped(self) -> bool:
+        """True when `stem` was taken and the answer is a numbered name instead."""
+        return not self.ingested and self.slug != self.stem
 
 
 @dataclass(frozen=True, slots=True)
@@ -488,6 +515,53 @@ class Registry:
             self._write_pages(document, extraction_id, previous, pages, now)
         return _ingested(
             document, CREATED if existing is None else GENERATION, restored=restored
+        )
+
+    def naming(
+        self, path: Path, *, slug: str | None = None, url: str | None = None
+    ) -> Naming:
+        """The slug and media type `ingest` would hand this source, without ingesting it.
+
+        Takes what `ingest` takes and answers the part of the answer that is
+        settled before an extractor runs: a file by its path, a fetched source
+        by the name its bytes would be staged under plus the `url` they came
+        from. Nothing is written and no anchor is minted, and the registry opens
+        no socket here either — fetching is the CLI's job in both directions.
+
+        Identity is matched the way `ingest` matches it, through the same
+        `_find_document`, so the prediction cannot drift from the thing it
+        predicts. For a file that means reading the bytes, because a copy of a
+        document already here *is* that document and would keep its slug. For a
+        URL there are no bytes yet, so continuity rests on the URL alone —
+        which is what a re-fetch matches on anyway, and the honest gap is that a
+        page whose bytes are already here under a different address reads as new.
+
+        A requested `slug` is treated as `ingest` treats it: taken raises, and a
+        source already in the registry keeps the slug it has, since a slug is
+        stable once assigned and `--slug` cannot rename one.
+        """
+        path = Path(path)
+        # No bytes without a fetch, and no stored digest is empty — so for a URL
+        # the byte arm of the lookup simply cannot fire, and the URL arm answers.
+        sha256 = "" if url is not None else content_hash(_read_source(path))
+        existing = self._find_document(sha256=sha256, path=path, url=url)
+        stem = slug if slug is not None else slug_for(path.name)
+        if existing is not None:
+            # Its media type is recorded, not predicted: a fetched document was
+            # typed by the content type its server actually sent, which is the
+            # one thing about a URL a dry run otherwise cannot know.
+            return Naming(
+                slug=existing.slug,
+                stem=stem,
+                media_type=existing.media_type,
+                ingested=True,
+                withdrawn=existing.withdrawn_at is not None,
+            )
+        return Naming(
+            slug=self._assign_slug(slug, path.name),
+            stem=stem,
+            media_type=media_type_for(path),
+            ingested=False,
         )
 
     def forget(self, slug: str) -> Document:
@@ -1102,7 +1176,11 @@ class Registry:
         taken = {row[0] for row in self._connection.execute("SELECT slug FROM documents")}
         if requested is not None:
             if requested in taken:
-                raise RegistryError(f"slug {requested!r} is already taken")
+                raise RegistryError(
+                    f"slug {requested!r} is already taken. Pick another name — "
+                    "`backdraft ingest <source> --dry-run` says which one a "
+                    "source would take on its own, and whether that is free."
+                )
             return requested
         return _dedupe(slug_for(filename), taken, SLUG_MAX)
 

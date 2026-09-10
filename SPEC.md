@@ -302,8 +302,10 @@ All switches **default off** (`--check` opts in). Verdicts are recorded evidence
 
 ```
 backdraft init                      # create .backdraft/, print status
-backdraft ingest <sources...> [--extractor auto] [--slug S] [--config k=v]
+backdraft ingest <sources...> [--extractor auto] [--slug S] [--config k=v] [--dry-run]
                                     # a source is a path or an http(s) URL
+                                    # --dry-run: the slug and media type each source
+                                    # would take, fetching and writing nothing
 backdraft forget <slug> [--yes]      # withdraw a source; citations keep resolving
 backdraft ls | backdraft read ...   # gate, above
 backdraft search "<query>" [--in slug] [--limit N]
@@ -371,6 +373,19 @@ class Registry:
         # URL as its path, carries {url, fetched_at} as meta, and matches an earlier
         # fetch by URL rather than by the temporary file. Identity stays the bytes.
         # The registry never fetches; `fetch.py` does, and the CLI calls it.
+
+    def naming(self, path: Path, *, slug: str | None = None,
+               url: str | None = None) -> Naming: ...
+        # What `ingest` would call this source, without ingesting it: Naming(slug, stem,
+        # media_type, ingested, withdrawn), where `stem` is the name the source's own
+        # address suggests and `slug` is what this registry would hand it — different
+        # where the source is already here, or where `_dedupe` numbered a taken name.
+        # Takes ingest's arguments and matches identity through the same `_find_document`,
+        # so the prediction cannot drift from the thing it predicts. Reads a file's bytes
+        # (identity is the bytes); for a URL there are none yet, so continuity rests on
+        # the URL, which is what a re-fetch matches on. Writes nothing, mints nothing,
+        # opens no socket. A slug is permanent once a token carries it, and this is what
+        # `ingest --dry-run` asks so the choice can be seen before it is made.
 
     def forget(self, slug: str) -> Document: ...
         # Withdraw a document: out of the readable set, nothing removed. Idempotent,

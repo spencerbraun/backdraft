@@ -59,6 +59,7 @@ from .registry import (
     GENERATION,
     UNCHANGED,
     Ingested,
+    Naming,
     Registry,
     withdrawn_reason,
 )
@@ -205,6 +206,16 @@ def ingest(
             ),
         ),
     ] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help=(
+                "Print the slug and media type each source would take, then stop. "
+                "Fetches nothing, writes nothing, mints nothing."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Snapshot files or web pages into the registry, minting their anchors.
 
@@ -231,6 +242,13 @@ def ingest(
     text came out of gets a note naming the likely cause, at exit 0: a thin
     snapshot is still a real one.
 
+    `--dry-run` answers what each source would be *called* and stops there: the
+    slug and the media type, nothing fetched, nothing written, no anchor minted.
+    A slug is permanent once a token carries it, so this is how to see the
+    default before `--slug` has to overrule it. A source already in the registry
+    says so and names the slug it already has; a name another document has taken
+    says that too, with the numbered slug it would land on instead.
+
     `--config` keys are checked against the extractor that was chosen, which for
     `auto` is per file. Both PDF paths (`pdf-text`, `vlm`) take `dpi`; every path
     that stores a page image — those two and `image` — takes `snapshot_quality`
@@ -249,6 +267,9 @@ def ingest(
     with guard():
         if slug is not None and len(sources) > 1:
             raise UsageError("--slug names one document; pass one source")
+        if dry_run:
+            _report_naming(sources, slug)
+            return
         settings = _parse_config(config or [])
         with opened_registry() as registry:
             for source in sources:
@@ -355,7 +376,130 @@ def ingest(
         )
     if unread:
         # Last, and it carries the exit code: everything above is what landed.
-        fail(_unread_report(unread, len(sources)))
+        fail(
+            _unread_report(
+                unread,
+                len(sources),
+                verb="ingested",
+                closing=(
+                    "fix these and re-run the same command: a source already in "
+                    "the registry re-ingests as a no-op when its bytes, extractor "
+                    "and config are unchanged."
+                ),
+            )
+        )
+
+
+def _report_naming(sources: list[str], slug: str | None) -> None:
+    """`ingest --dry-run`: what each source would be called, before that is permanent.
+
+    Called from inside `ingest`'s own guard, so it opens the registry the long
+    way rather than through `opened_registry` — one guard, one mapping from a
+    `BackdraftError` to exit 1.
+
+    Every source gets a line in `ingest`'s own shape, so the prediction and the
+    thing predicted read alike. A source that cannot be read is a line in the
+    failure report instead, the way it is under a real ingest: a dry run is
+    most often somebody checking a name they are unsure of, and a confident
+    slug for a path that does not exist is the worst answer available.
+    """
+    named: list[tuple[str, Naming]] = []
+    unread: list[tuple[str, str]] = []
+    registry = open_registry()
+    try:
+        for source in sources:
+            try:
+                named.append((source, _naming(registry, source, slug)))
+            except BackdraftError as error:
+                unread.append((source, str(error)))
+    finally:
+        registry.close()
+    for source, naming in named:
+        typer.echo(f"{naming.slug}  {source}  {naming.media_type}{_naming_note(naming, slug)}")
+    for line in _naming_notes(named, slug):
+        typer.echo(line)
+    if unread:
+        fail(
+            _unread_report(
+                unread,
+                len(sources),
+                verb="named",
+                closing=(
+                    "fix these and ask again. Nothing was ingested either way — "
+                    "`--dry-run` reads the addresses and the registry, and stops."
+                ),
+            )
+        )
+
+
+def _naming(registry: Registry, source: str, slug: str | None) -> Naming:
+    """What `source` would be called, asked of the registry the same way `ingest` asks.
+
+    The split is `_staged`'s, minus the network: a path is itself, and a URL
+    resolves to the name its bytes *would* be staged under plus the URL as its
+    origin. That the staged name is knowable without fetching is the whole
+    reason this command can exist — `fetch.filename_for` settles the stem from
+    the address, and only the suffix waits on the content type the server sends.
+    """
+    if not fetch.is_url(source):
+        return registry.naming(Path(source), slug=slug)
+    fetch.require_web(source)
+    return registry.naming(Path(fetch.filename_for(source)), slug=slug, url=source)
+
+
+def _naming_note(naming: Naming, requested: str | None) -> str:
+    """Why this slug is not simply the source's own name. A fresh one says nothing.
+
+    `_outcome_note`'s shape, for the same reason: the common case is a source
+    nothing here has an opinion about, and a mark on every line would bury the
+    two that matter.
+    """
+    if naming.ingested:
+        marks = ["already ingested"]
+        if naming.withdrawn:
+            marks.append("withdrawn")
+        if requested is not None and requested != naming.slug:
+            # `--slug` is honoured only for a new document, so saying nothing
+            # here would let a caller believe it was about to be renamed.
+            marks.append("--slug would not rename it")
+        return "  " + ", ".join(marks)
+    if naming.deduped:
+        return f"  {naming.stem} is taken"
+    return ""
+
+
+def _naming_notes(named: list[tuple[str, Naming]], requested: str | None) -> list[str]:
+    """The two things the lines above cannot say for themselves.
+
+    The web note is the honest gap: a slug comes from the address, so it is
+    settled here, but a media type comes from the content type the server sends
+    and no dry run can know it. Stating which half is provisional is the
+    difference between a prediction and a guess.
+
+    The `--slug` note fires only where it still applies — a source already
+    ingested has its name, and telling its caller to choose one would be advice
+    that cannot be taken.
+    """
+    notes: list[str] = []
+    # Only for a web source nothing here has met: one already ingested was typed
+    # by the content type its server sent, so its media type is a record rather
+    # than a guess and warning about it would be warning about nothing.
+    if any(fetch.is_url(source) and not naming.ingested for source, naming in named):
+        notes.append(
+            "note: nothing was fetched. A slug comes from the address alone, so "
+            "the ones above are what ingest would use; a media type comes from "
+            "the content type the server sends, so the ones above are what the "
+            "address implies and the fetch settles."
+        )
+    fresh = [naming.slug for _, naming in named if not naming.ingested]
+    if fresh and requested is None:
+        notes.append(
+            "note: nothing is ingested yet, so `--slug <name>` still names "
+            f"{', '.join(fresh)}. After ingest it is fixed: every token written "
+            "against the source carries the slug, so changing it means "
+            "re-ingesting and rewriting the draft."
+        )
+    return notes
 
 
 SKILLS = ("backdraft", "backdraft-backfill", "backdraft-artifact")
@@ -722,7 +866,9 @@ def _wants_snapshots(registry: Registry, document: Document, pages: list[Page]) 
     )
 
 
-def _unread_report(unread: list[tuple[str, str]], total: int) -> str:
+def _unread_report(
+    unread: list[tuple[str, str]], total: int, *, verb: str, closing: str
+) -> str:
     """What `ingest` could not read, as one message: the count, each source, the fix.
 
     One line per *source* rather than per reason — the mirror image of the
@@ -731,20 +877,19 @@ def _unread_report(unread: list[tuple[str, str]], total: int) -> str:
     two files rarely fail for the same reason; a reason that does repeat (a
     config key no extractor reads) repeats cheaply.
 
-    The closing line says re-running the whole list is safe, because the
-    alternative is an agent hand-diffing `ls` against its own arguments to
-    rebuild the half that failed.
+    `verb` and `closing` are what the two callers differ on and all they differ
+    on: an ingest reports what it ingested and says re-running the list is safe,
+    a dry run reports what it named and says nothing was ingested to begin with.
+    The `!` lines are the shape anything parsing this report reads, so they have
+    one owner.
     """
     landed = total - len(unread)
     noun = "source" if total == 1 else "sources"
     # The two counts add up to the whole list, which is the fact the old
     # abandon-on-first-failure behaviour could not state: nothing was skipped.
-    lines = [f"{landed} of {total} {noun} ingested; {len(unread)} failed:"]
+    lines = [f"{landed} of {total} {noun} {verb}; {len(unread)} failed:"]
     lines += [f"  ! {source} — {reason}" for source, reason in unread]
-    lines.append(
-        "fix these and re-run the same command: a source already in the registry "
-        "re-ingests as a no-op when its bytes, extractor and config are unchanged."
-    )
+    lines.append(closing)
     return "\n".join(lines)
 
 

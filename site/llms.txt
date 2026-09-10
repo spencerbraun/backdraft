@@ -65,7 +65,14 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # that gets edited reports drifted, correctly and uselessly. Pass --slug with
 # it — a URL ending /index.php, /view or a bare id falls back to a slug built
 # from the host, which names the site and still not the page, and a slug is
-# permanent once tokens carry it. JavaScript-rendered pages and anything
+# permanent once tokens carry it. `backdraft ingest <source> --dry-run` prints
+# the slug and media type each source would take and stops there — nothing
+# fetched, nothing written, no anchor minted — so ask it before you commit to a
+# name rather than after: it also says when a source is already ingested (and
+# under which slug) and when the name it wants is taken. A slug comes from the
+# address alone, so the dry run settles it; a media type comes from the content
+# type the server sends, so for a URL it is the address's implication until the
+# fetch. JavaScript-rendered pages and anything
 # behind a login are out of reach — you get what a plain GET returns. No
 # boilerplate stripping: nav and footers are part of the page.
 # Each ingest line ends with the extracted character count and what happened:
@@ -95,6 +102,7 @@ construct or edit a token by hand; copy it from gate output.
 
 backdraft init                              # once per project
 backdraft ingest report.pdf model.xlsx      # every source up front
+backdraft ingest <url> --dry-run            # what would this be called?
 backdraft ingest <url> --slug <name>        # a URL is a source too
 backdraft forget <slug> --yes               # a source ingest should not have
                                             # taken (a scratch copy, the same

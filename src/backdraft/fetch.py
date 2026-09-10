@@ -42,6 +42,7 @@ __all__ = [
     "fetch",
     "filename_for",
     "is_url",
+    "require_web",
 ]
 
 SCHEMES = ("http", "https")
@@ -143,6 +144,23 @@ def is_url(source: str) -> bool:
     return len(scheme) > 1 and scheme.isascii() and scheme.isalnum()
 
 
+def require_web(url: str) -> None:
+    """Raise unless this is a URL `fetch` will actually GET.
+
+    Split out of `fetch` because the answer needs no network and one caller
+    needs it without one: `ingest --dry-run` says what a source would be called
+    without fetching it, and a scheme this module will not fetch is the same
+    refusal whether or not any bytes were going to move. One owner for the
+    wording, so the dry run and the fetch refuse an `ftp://` argument alike.
+    """
+    scheme = urlsplit(url).scheme
+    if scheme not in SCHEMES:
+        raise FetchError(
+            f"cannot fetch {scheme!r} URLs; ingest reads {' and '.join(SCHEMES)}. "
+            "For a local file, pass its path rather than a URL."
+        )
+
+
 def fetch(url: str, *, timeout: float = TIMEOUT, max_bytes: int = MAX_BYTES) -> Fetched:
     """GET `url` and return its bytes, its content type, and the fetch time.
 
@@ -155,12 +173,7 @@ def fetch(url: str, *, timeout: float = TIMEOUT, max_bytes: int = MAX_BYTES) -> 
     the `!` line of its failure report), and a reason that says it again reads
     as noise exactly where a calling agent is deciding what to tell its user.
     """
-    scheme = urlsplit(url).scheme
-    if scheme not in SCHEMES:
-        raise FetchError(
-            f"cannot fetch {scheme!r} URLs; ingest reads {' and '.join(SCHEMES)}. "
-            "For a local file, pass its path rather than a URL."
-        )
+    require_web(url)
     request = urllib.request.Request(  # noqa: S310 - scheme checked above
         url,
         headers={

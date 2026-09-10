@@ -59,6 +59,14 @@ link* — `?oldid=` serves one revision's bytes forever — because a citation i
 a live article reports `drifted` the moment somebody edits it, and the quoted
 sentence would no longer be the sentence there.
 
+`--slug` is there because that URL's default name would be
+`en-wikipedia-org-index` — its last segment is `/index.php`, a handler rather
+than a page, so the host stands in — and a slug is permanent once tokens carry
+it. `backdraft ingest <source> --dry-run` is how to see that before choosing:
+it prints the slug and media type each source would take and stops, fetching
+nothing and writing nothing, and it says when a source is already ingested or
+when the name it wants is taken.
+
 Every ingest line ends with how much text came out, and says which of three
 things happened: a document created, a **new generation** of one whose bytes
 moved — which is when citations into the previous snapshot start reporting

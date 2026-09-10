@@ -22,6 +22,7 @@ agent config directories; installs from PyPI need no special permissions.
 ```bash
 backdraft init                                    # once per project
 backdraft ingest report.pdf model.xlsx notes.md   # every source, up front
+backdraft ingest <url> --dry-run                  # what would that be called?
 backdraft ingest <url> --slug <name>              # a URL is a source too
 backdraft session start --id s-<short-name>       # do this; see below
 export BACKDRAFT_SESSION=s-<short-name>
@@ -116,8 +117,13 @@ last path segment; when that segment names the site's plumbing rather than its
 page — `/index.php`, `/view`, a bare number — the host goes in front of it
 instead, so you get `en-wikipedia-org-index` rather than `index`. That names the
 site and still not the page, and a slug is permanent once your tokens carry it.
-Quote the URL in the shell — `&` in a query string backgrounds the command
-otherwise.
+You do not have to guess which case you are in: `backdraft ingest <url>
+--dry-run` prints the slug and media type that URL would take and stops there,
+fetching nothing and writing nothing, so ask it first and pass `--slug` when
+the answer names the site rather than the page. It also tells you when the
+source is already ingested — under which slug, and that `--slug` would not
+rename it — and when the name it wants is taken by another document. Quote the
+URL in the shell — `&` in a query string backgrounds the command otherwise.
 
 Ingest also stores each PDF page's image — both paths, since the text-layer
 path renders the pages locally through poppler — so the artifact can show the

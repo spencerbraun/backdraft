@@ -100,7 +100,28 @@ cites, and it is what makes a re-bind six months from now still say `resolved`.
 path segment, which here is `index.php` — a handler, not a page, so the host is
 used instead and the document would be `en-wikipedia-org-index`. That says which
 site the memo's tokens point at and nothing about which article, which is what
-`--slug` is for. Notice what the output calls the source: the URL, not a
+`--slug` is for.
+
+You do not have to know that in advance. `--dry-run` answers what a source
+would be called and stops there — nothing fetched, nothing written, no anchor
+minted:
+
+```bash
+backdraft ingest "https://en.wikipedia.org/w/index.php?title=Franklin_County,_Ohio&oldid=1367935775" --dry-run
+```
+
+```
+en-wikipedia-org-index  https://en.wikipedia.org/w/index.php?title=Franklin_County,_Ohio&oldid=1367935775  html
+note: nothing was fetched. A slug comes from the address alone, so the ones above are what ingest would use; a media type comes from the content type the server sends, so the ones above are what the address implies and the fetch settles.
+note: nothing is ingested yet, so `--slug <name>` still names en-wikipedia-org-index. After ingest it is fixed: every token written against the source carries the slug, so changing it means re-ingesting and rewriting the draft.
+```
+
+Which is the whole argument for `--slug` in one line: a name that says which
+site and not which article, offered while it is still free to change. Run the
+same command after the ingest and it says `franklin-county  ...  already
+ingested` instead — the answer moves because the registry is part of it.
+
+Notice what the ingest output calls the source: the URL, not a
 filename. The fetch does invent one to stage the bytes in —
 `en.wikipedia.org-index.html` — but no such file is on your disk, so no surface
 that names a source ever shows it: not `ls`, not the gate's list, and not the

@@ -32,43 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. What a URL will be called, before the answer is permanent
-
-**Intent.** Three docs now tell an agent to pass `--slug` when it ingests a URL,
-because a slug is permanent once tokens carry it and the default may name a
-site rather than a page. None of them lets the agent find out what the default
-would be. `fetch.filename_for` settles the answer from the address alone,
-before any bytes exist — that is the 2026-08-19 row's own words — so the
-question is cheap and answerable, and today the only way to ask it is to ingest
-and live with the result. An agent that guesses wrong has written a name into
-every token of the document, and the fix is re-ingesting under a new slug and
-rewriting the draft.
-
-**Shape.** Small and read-only. The natural home is beside the thing it
-predicts: a flag on `ingest` that resolves each source to the slug and media
-type it would take and prints them without fetching, writing or minting
-anything, or a sibling command if a flag on a writing verb reads badly — pick
-one and say why in the DESIGN row, since "a verb that does not do its verb" is
-the objection to answer. For a URL the answer comes from `fetch.filename_for`
-plus `registry.slug_for` and needs no network; the media type is the honest
-gap, because only the served content type settles it, and the output must say
-so rather than guessing. For a file, both are already knowable. Existing
-collisions matter: a slug already taken must be reported as taken, since that is
-what turns a predicted `index` into a real `index-2`.
-
-**Acceptance.** Against `demo/`, asking about
-`https://en.wikipedia.org/w/index.php?title=Franklin_County,_Ohio&oldid=1367935775`
-prints `en-wikipedia-org-index` and does not create a document, open a socket,
-or touch the ledger — check the registry's document count and `ls` before and
-after. Asking about a path prints the slug the file would take. Asking about a
-source whose slug is already in the registry says so. `README.md`,
-`site/docs.html`, `site/llms.txt` and `skills/backdraft/SKILL.md` name it where
-they currently say "pass `--slug`", so the advice comes with the way to check
-it.
-
-**Size.** One day.
-
-### 2. A calling agent parses prose to find out what happened
+### 1. A calling agent parses prose to find out what happened
 
 **Intent.** `bind` and `verify` are the two commands whose *output* is the
 product — the exit code says clean or not, and everything actionable is in the
@@ -109,7 +73,7 @@ relay the human report to the user.
 
 **Size.** Two to three days.
 
-### 3. An artifact you were sent cannot be checked against a registry you have
+### 2. An artifact you were sent cannot be checked against a registry you have
 
 **Intent.** `verify`'s second tier runs only where a `.backdraft/` is
 discoverable from cwd, and the reason is good: an artifact is a file people
@@ -145,7 +109,7 @@ runs only in the project it was bound in.
 
 **Size.** One day.
 
-### 4. A claim that straddles a chunk boundary gets one token instead of two
+### 3. A claim that straddles a chunk boundary gets one token instead of two
 
 **Intent.** `skills/backdraft/SKILL.md` tells the writing agent that "a claim
 that spans two chunks needs both tokens, not the nearest one" — a correct
@@ -180,7 +144,7 @@ one" with the surface that now says which both are.
 
 **Size.** Two to three days.
 
-### 5. A re-ingested source strands citations one at a time
+### 4. A re-ingested source strands citations one at a time
 
 **Intent.** This is DESIGN.md's oldest Open line — "re-bind/orphan pass on
 re-ingest of changed docs (chunk ordinal drift)" — and the week that taught
@@ -222,7 +186,7 @@ extraction and ledger counts are identical before and after.
 
 **Size.** Three days.
 
-### 6. What this install can do, said before a verb needs it
+### 5. What this install can do, said before a verb needs it
 
 **Intent.** backdraft degrades rather than fails, which is right, and the price
 is that its capabilities are discovered one at a time at the moment each is
@@ -259,7 +223,7 @@ run in an unfamiliar environment.
 
 **Size.** Two days.
 
-### 7. `bind` never says which ledger it judged `not_shown` against
+### 6. `bind` never says which ledger it judged `not_shown` against
 
 **Intent.** `bind`'s report names the mode, the claim and citation counts, every
 status, every check that ran and every failure — everything except the one input
@@ -304,7 +268,7 @@ DESIGN row.
 
 **Size.** Two days.
 
-### 8. A withdrawn source is invisible, including to the person looking for it
+### 7. A withdrawn source is invisible, including to the person looking for it
 
 **Intent.** `forget` withdraws a source from every surface that offers one, which
 is right, and the result is that nothing lists what was withdrawn. `ls` says `no
@@ -341,7 +305,7 @@ and `skills/backdraft/SKILL.md` say where to look. DESIGN row.
 
 **Size.** One day.
 
-### 9. `--slug` is dropped without a word when the document is already there
+### 8. `--slug` is dropped without a word when the document is already there
 
 **Intent.** `Registry.ingest`'s docstring says "`slug` is honoured only when the
 document is new — a slug is stable once assigned", which is the right rule and is
@@ -351,9 +315,10 @@ never mentions that the flag did nothing; the same is true of a URL re-fetch,
 where the fallback slug the docs warn about is exactly what the caller was trying
 to replace. This is the one input `ingest` accepts and does not report on, in the
 week it learned to report everything else it did — `unchanged`, `new generation`,
-`restored`, thin extractions, and every source that never landed. It is not item
-4, which predicts what a source *not yet in the registry* would be called; this is
-`ingest` saying what it did with a flag for a source that is.
+`restored`, thin extractions, and every source that never landed. It is not
+`ingest --dry-run`, which predicts what a source would be called *before* the
+ingest and already says there that `--slug` would not rename a document that has
+one; this is the ingest itself saying what it did with the flag it was handed.
 
 **Shape.** `cli.ingest`, in the shape `_outcome_note` and the grouped notes
 already use — a mark on the source's line or one grouped note, matching how
@@ -378,7 +343,7 @@ pass `--slug`. DESIGN row.
 
 **Size.** One day.
 
-### 10. `verify` cannot re-check the one status only the ledger can settle
+### 9. `verify` cannot re-check the one status only the ledger can settle
 
 **Intent.** `verify`'s source tier re-resolves every token and reports the
 statuses "as `bind` would", with one gap the code names out loud: `not_shown`
@@ -418,7 +383,7 @@ DESIGN row.
 
 **Size.** Two to three days.
 
-### 11. `bind` and `verify` name the failure and not the move
+### 10. `bind` and `verify` name the failure and not the move
 
 **Intent.** 2026-09-01 made `ingest`'s failures say what to do as well as what
 went wrong, on the argument that a calling agent reads the reason and acts on it.
