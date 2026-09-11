@@ -51,7 +51,7 @@ from .extract import snapshots, vlm_ready
 # needed it. All are downward imports, which SPEC § Dependency rule spells "`cli`
 # imports everything"; the mount guard below is about sub-*apps*, and `gate`
 # itself does not need typer.
-from .gate import THIN_SOURCE_CHARS, WITHDRAWN_HINT, extracted_chars, thin_mark, unit
+from .gate import WITHDRAWN_HINT, extracted_chars, thin_mark, unit
 from .kernel.errors import BackdraftError
 from .kernel.model import Document, Page, source_name
 from .registry import (
@@ -267,10 +267,13 @@ def ingest(
     with guard():
         if slug is not None and len(sources) > 1:
             raise UsageError("--slug names one document; pass one source")
+        # Parsed before the dry run branches off, because `ingest` refuses a
+        # malformed pair before it touches any source: a dry run that exited 0
+        # on a command that cannot start would be a prediction worse than none.
+        settings = _parse_config(config or [])
         if dry_run:
             _report_naming(sources, slug)
             return
-        settings = _parse_config(config or [])
         with opened_registry() as registry:
             for source in sources:
                 # One unreadable source is data, not the end of the run: the rest
@@ -299,7 +302,7 @@ def ingest(
                             regenerated.append(document.slug)
                         if document.restored:
                             restored.append(document.slug)
-                        if chars < THIN_SOURCE_CHARS:
+                        if thin_mark(pages):
                             thin.setdefault(
                                 _thin_cause(document.media_type), []
                             ).append(document.slug)

@@ -540,14 +540,28 @@ def test_ingest_ls_and_read_count_a_source_in_the_same_characters(
 
     The count is derivable from any extraction, which is exactly why three
     surfaces deriving it separately would drift — `gate.extracted_chars` owns
-    it and `gate.THIN_SOURCE_CHARS` is read from that one place. This pins the
-    three answers together rather than pinning any one string.
+    it. This pins the three answers together rather than pinning any one string.
     """
     ingested = runner.invoke(cli.app, ["ingest", str(_login_wall(tmp_path))]).stdout
     chars = re.search(r"(\d+) chars", ingested).group(1)
     assert f"little text: {chars} chars" in runner.invoke(cli.app, ["ls"]).stdout
     assert f"little text: {chars} chars" in runner.invoke(cli.app, ["read"]).stdout
-    assert cli.THIN_SOURCE_CHARS is reader.THIN_SOURCE_CHARS
+
+
+def test_every_surface_reads_the_one_threshold_the_gate_owns(
+    project: Path, note: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Moved, not copied: raise the gate's threshold and all four surfaces follow.
+
+    Pinned by behaviour because identity cannot pin it. `200 is 200` holds for
+    any two copies of the constant in CPython, so the check that `cli`'s name and
+    the gate's were one object passed whether or not there were two of them.
+    """
+    monkeypatch.setattr(reader, "THIN_SOURCE_CHARS", 10_000)
+    assert "note: little text extracted" in runner.invoke(cli.app, ["ingest", str(note)]).stdout
+    assert "little text: " in runner.invoke(cli.app, ["ls"]).stdout
+    assert "little text: " in runner.invoke(cli.app, ["read"]).stdout
+    assert "little text: " in runner.invoke(cli.app, ["read", "quarterly-notes"]).stdout
 
 
 def test_a_registry_with_nothing_thin_in_it_says_nothing_about_it(

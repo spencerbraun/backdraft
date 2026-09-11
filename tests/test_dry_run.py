@@ -358,6 +358,22 @@ def test_a_slug_with_several_sources_is_a_usage_error_here_too(
     assert result.exit_code == cli.EXIT_USAGE
 
 
+def test_a_malformed_config_fails_the_dry_run_as_it_fails_the_ingest(
+    project: Path, note: Path
+) -> None:
+    """What `ingest` refuses before touching a source, a dry run refuses too.
+
+    Otherwise the dry run exits 0 on a command that cannot start. Whether a
+    well-formed key is one the extractor reads is still the ingest's to say:
+    `auto` chooses per source, and naming one is all a dry run does.
+    """
+    for dry in (["--dry-run"], []):
+        result = runner.invoke(cli.app, ["ingest", str(note), *dry, "--config", "dpi"])
+        assert result.exit_code == cli.EXIT_USAGE
+        assert "--config expects key=value, got 'dpi'" in result.stderr
+        assert result.stdout == ""
+
+
 def test_a_dry_run_without_a_registry_says_to_init(tmp_path: Path, monkeypatch) -> None:
     """The answer depends on what is already ingested, so there is no answering
     without a registry to ask."""
