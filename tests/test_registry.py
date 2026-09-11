@@ -441,6 +441,91 @@ def test_a_slug_survives_re_ingest(registry: Registry, note: Path) -> None:
     assert registry.ingest(note, slug="something-else").slug == "t12-audit"
 
 
+# ---- naming: what ingest would call a source, asked before it --------------
+#
+# Reached only through `ingest --dry-run` until now, so the branches were pinned
+# at the CLI and nowhere at the layer that owns them.
+
+
+def test_naming_predicts_what_ingest_assigns(registry: Registry, note: Path) -> None:
+    named = registry.naming(note)
+    assert (named.slug, named.media_type, named.ingested, named.deduped) == (
+        "quarterly-notes",
+        "text",
+        False,
+        False,
+    )
+    ingested = registry.ingest(note)
+    assert (ingested.slug, ingested.media_type) == (named.slug, named.media_type)
+
+
+def test_naming_writes_nothing(registry: Registry, note: Path, tmp_path: Path) -> None:
+    """No document, extraction, anchor or ledger row — for a file, for a
+    requested slug, and for a URL whose staging file does not exist yet."""
+    registry.ingest(note)
+    before = registry.export_json()
+    registry.naming(note)
+    registry.naming(note, slug="t12-audit")
+    registry.naming(tmp_path / "never-written.html", url="https://example.com/q4")
+    assert registry.export_json() == before
+
+
+def test_naming_a_taken_requested_slug_raises_as_ingest_does(
+    registry: Registry, note: Path, tmp_path: Path
+) -> None:
+    registry.ingest(note, slug="t12-audit")
+    other = tmp_path / "other.md"
+    other.write_text("different bytes entirely", encoding="utf-8")
+    with pytest.raises(RegistryError, match="already taken"):
+        registry.naming(other, slug="t12-audit")
+
+
+def test_naming_an_ingested_source_keeps_its_slug_whatever_is_requested(
+    registry: Registry, note: Path
+) -> None:
+    """`stem` is what the caller asked for; `slug` is what the registry will do."""
+    registry.ingest(note, slug="t12-audit")
+    named = registry.naming(note, slug="something-else")
+    assert (named.slug, named.stem, named.ingested, named.deduped) == (
+        "t12-audit",
+        "something-else",
+        True,
+        False,
+    )
+
+
+def test_naming_numbers_a_stem_another_document_took(
+    registry: Registry, note: Path, tmp_path: Path
+) -> None:
+    registry.ingest(note)
+    twin = tmp_path / "elsewhere" / note.name
+    twin.parent.mkdir()
+    twin.write_text("different bytes, the same filename", encoding="utf-8")
+    named = registry.naming(twin)
+    assert (named.slug, named.stem, named.deduped) == (
+        "quarterly-notes-2",
+        "quarterly-notes",
+        True,
+    )
+
+
+def test_naming_a_url_matches_on_the_url_and_reads_no_bytes(
+    registry: Registry, note: Path, tmp_path: Path
+) -> None:
+    """There are no bytes before a fetch, so the staging path need not exist —
+    and the media type is the one the first fetch recorded, not a guess."""
+    registry.ingest(note, url="https://example.com/q4", fetched_at="2026-09-01T00:00:00Z")
+    named = registry.naming(tmp_path / "never-written.html", url="https://example.com/q4")
+    assert (named.slug, named.ingested, named.media_type) == ("quarterly-notes", True, "text")
+
+
+def test_naming_a_withdrawn_source_says_it_is_withdrawn(registry: Registry, note: Path) -> None:
+    registry.ingest(note)
+    registry.forget("quarterly-notes")
+    named = registry.naming(note)
+    assert (named.slug, named.ingested, named.withdrawn) == ("quarterly-notes", True, True)
+
+
 # ---- sheetrefs --------------------------------------------------------------
 
 

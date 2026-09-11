@@ -279,6 +279,21 @@ def test_declared_title_needs_no_pages_method() -> None:
     assert declared_title(object(), "memo") == ""
 
 
+def test_a_one_sheet_workbook_is_not_named_by_its_styling_meta() -> None:
+    """The other page that carries `meta`, and the negative branch a real
+    registry actually holds: one sheet is a one-page source, and what its meta
+    carries is presentation — a palette and column widths — never a name."""
+    sheet = Page(
+        number=1,
+        kind="sheet",
+        text="| ... |",
+        name="model",
+        meta={"palette": ["FF000000"], "widths": {"A": 12.0}},
+    )
+    registry = FakeEvidenceRegistry(docs={}, page_rows={"uw": [sheet]}, images={})
+    assert declared_title(registry, "uw") == ""
+
+
 def test_meta_that_is_not_provenance_adds_nothing() -> None:
     registry = _registry()
     registry.docs["memo"] = Document(

@@ -251,8 +251,9 @@ named too. Then say it in the format: `spec/artifact.md`'s `session_id` row and
 the legend's `not_shown` line must tell a reader what a default session means for
 the status, since the record travels and the CLI does not. That is a legend
 change, so goldens and the demo regenerate — the 2026-08-24 trade, taken twice
-before. Not item 5's ground: that item makes the report machine-readable, this
-one adds a fact the report does not currently carry in any form.
+before. Not the ground of "A calling agent parses prose to find out what
+happened": that item makes the report machine-readable, this one adds a fact the
+report does not currently carry in any form.
 
 **Acceptance.** In `demo/`, `backdraft bind memo.md` with no session and no
 `BACKDRAFT_SESSION` names `default` and prints the note; `--session s-bridgeview`
@@ -407,8 +408,9 @@ format's and closed, so the mapping is total and a test asserts every
 `CitationStatus` has a line. `verify` adds the `receipt` case, which is not a
 citation status and is the finding that means something categorically different.
 Display only: no exit code moves, no status moves, no record field is added — a
-run that came out clean prints exactly what it prints today. Not item 5, which
-gives the same two commands a machine-readable payload; that item serves a caller
+run that came out clean prints exactly what it prints today. Not "A calling agent
+parses prose to find out what happened", which gives the same two commands a
+machine-readable payload; that item serves a caller
 that parses, this one serves the caller that reads, and both are wanted because
 the human report is what gets relayed to the user.
 
