@@ -425,6 +425,227 @@ verify blocks show the real output. DESIGN row.
 
 **Size.** Two days.
 
+### 11. A chunk the table of contents lists is a chunk no read can ask for
+
+**Intent.** Since 2026-09-07 `backdraft read <slug>` on a one-page source lists
+that page's chunks — `p1.c9  From Wikipedia, the free encyclopedia...` — and the
+walkthrough tells the reader the list is how to find where an article starts.
+It then offers one way in: `backdraft read franklin-county p1`, which begins at
+the site's navigation menu and, under the 2026-09-08 budget, spends 12,000
+characters to reach `c25`. The locator the list just printed is not something
+`read` accepts. `backdraft read franklin-county p1.c9` exits 1 with `no page or
+sheet named 'p1.c9'; sheets: Franklin County, Ohio - Wikipedia`, which is wrong
+twice: the selector is refused, and a web page's title is called a sheet. So an
+agent that did the right thing and read the map is left to compute a character
+`--offset` it has no way to derive, or to search for words it has not seen yet.
+
+**Shape.** The gate's selector grammar, not the token grammar: `p1.c9` is a
+locator `spec/tokens.md` already defines, and this only lets `select_pages`
+accept `pN.cM` and `pN.cM-cK` as *read* selectors (SPEC § Gate lists the forms).
+A chunk selection is a `Selection` that also carries an ordinal range, and
+`render_page_read` shows exactly those chunks through `_Window`, so the budget,
+the whole-chunk rule and the continuation line — with its `--limit` and typed
+`--session` — keep working, and the continuation names a command in the same
+selector form. Minting is the gate's rule unchanged: what is printed is minted
+and nothing else. Only `page`-kind pages take a chunk selector; on a sheet it is
+refused with a message saying a sheet is read by name or page and cited by cell.
+Cell *ranges* are Parked's "Excel region maps and range reads" and stay there
+with their objection. A backwards range, or one naming no chunk, is a
+`GateError` naming the page's chunk span in `_what_exists`'s shape. Fix
+`_what_exists` while there: it prints `sheets:` whenever every page has a name,
+which is true of every titled web page, so key it on `kind`. The one-page
+table of contents' `[Read one: …]` hint stays `p1`, which keeps every existing
+TOC byte-identical; the walkthrough's paragraph about finding `p1.c9` gains the
+command that reads from there.
+
+**Acceptance.** In `demo/`, `backdraft read franklin-county p1.c9` prints `c9`
+alone under its own token and the ledger gains that one anchor and no other;
+`p1.c9-c14` prints six chunks; `p1.c14-c9` and `p1.c99` exit 1 naming the page's
+chunk span. A chunk range longer than the budget closes with a continuation that,
+followed, walks the range exactly once — drive it with
+`tests/continuation_util.py`. `backdraft read underwriting-model p1.c1` exits 1
+saying how a sheet is read and cited. A titled web page's unknown-selector error
+no longer says `sheets:`. Every existing selector form prints byte for byte what
+it does today, pinned by the existing goldens. SPEC § Gate, `site/docs.html`,
+`site/llms.txt`, `skills/backdraft/SKILL.md` and `demo/walkthrough.md` name the
+form.
+
+**Size.** Two days.
+
+### 12. A search hit's excerpt can leave out the words that matched
+
+**Intent.** `search` prints each hit's first 160 characters, and
+`searcher._excerpt`'s NOTE says so on purpose: the cut is from the start rather
+than centred on the match, because FTS5 decides what matched and the gate
+re-derives nothing the registry owns. The walkthrough's own step 11 shows the
+cost. `backdraft search "replacement reserve"` returns
+`bd:t12-summary:p3.c4:6f0f` over an excerpt about capital expenditures that never
+contains the phrase — the sentence that does starts past character 200 — and
+the walkthrough can say "that is the snippet that actually says it" only because
+it ran `show` next. An agent choosing among twenty hits does not run `show` on
+each; it picks by excerpts that, for any chunk longer than a couple of lines, are
+the chunk's opening rather than its evidence. Web pages, whose chunks run to a
+thousand characters, made that the common case.
+
+**Shape.** Answer the NOTE rather than override it: ask the registry, which does
+own what matched. The `search` table in `registry/schema.sql` is a
+content-storing FTS5 table, so `Registry.search` can return FTS5's own window
+for each hit — `snippet()`, or match offsets out of `highlight()` markers — and
+`SearchHit` gains that field. The gate then renders the window it was handed,
+which is the rule the NOTE protects, and `Registry.search` stays the only place
+an FTS5 function is called. Display only: token, anchor and receipt are
+untouched, and the excerpt stays one line of at most `EXCERPT_CHARS` with an
+elision mark at whichever end was cut. Keep byte-identity where it is free: a
+hit whose match already falls inside the first `EXCERPT_CHARS` prints exactly
+today's excerpt, so only the hits that were hiding their evidence change, and
+most documented `search` blocks do not move. A phrase-fallback retry windows on
+the phrase that actually ran. The DESIGN row says what replaced the NOTE and why
+the registry, not the gate, computes the window.
+
+**Acceptance.** In `demo/`, `backdraft search "replacement reserve"` shows the
+`p3.c4` excerpt containing "replacement reserve", opening with an elision mark.
+`backdraft search "24850000"` and every other `search` block in
+`demo/walkthrough.md` and `README.md` whose match lies in the first 160
+characters is byte-identical, pinned. A query that matches only late in a long
+chunk, and a query run through the phrase fallback, each window on what FTS5
+matched, asserted by test. No `registry-v1` export field changes. SPEC § Gate's
+`search` line follows. DESIGN row.
+
+**Size.** Two days.
+
+### 13. A small table is marked a shell, and the skill says not to cite it
+
+**Intent.** The thin-source mark (2026-08-20, carried onto every list
+2026-09-09) is a character count under `THIN_SOURCE_CHARS`, and for prose that
+is a fair proxy: a login wall and a scanned PDF both extract almost nothing. For
+a table it is not. A three-row `rates.csv` — a going-in and an exit cap rate —
+ingests at 188 characters, and ingest says `note: little text extracted` and
+tells the agent to "tell the user the source came back thin rather than citing
+the shell of it"; `ls` ends its row `little text: 188 chars`; and
+`skills/backdraft/SKILL.md` says a row carrying that mark "is a source to read
+and report on, not one to cite". The heuristic built to stop an agent citing an
+empty page now stops it citing a correct, complete rate table, and has it tell
+the user something false about the source. Sheets are where small and complete
+is normal: an assumptions tab, a rate card, a cap table.
+
+**Shape.** `gate.thin_mark` owns the rule and is the only place it changes;
+`ingest`'s grouped note and all three list surfaces follow, which is what the
+2026-09-09 single owner was for (and what Friday's cleanup made true of `ingest`,
+which had kept a private copy of the threshold). Decide by page kind, not by
+extension: an extraction whose pages are sheets is thin when it holds no
+non-empty cell values at all — `Registry.pages` already returns sheet pages with
+their `cells` — because a sheet's shell is a workbook of charts, images or pivot
+caches, not a short table, and the rendered text's pipes and `[B10]` prefixes
+make a character count meaningless there anyway. Prose keeps the character
+threshold exactly. `cli._THIN_CAUSE` gains the sheet cause. The DESIGN row
+amends 2026-08-20 rather than contradicting it: still display only, still exit
+0, still no token, anchor or status derived from it. A registry's output changes
+only on the table rows this exists to unmark and on sheet sources that hold no
+values at all.
+
+**Acceptance.** `backdraft ingest rates.csv` for a three-row table prints no
+thin note, and `ls`, `backdraft read` and its table of contents carry no mark. A
+workbook whose only sheet holds no cell values is still marked and gets the
+sheet cause. A 27-character HTML login wall, a zero-page PDF and every existing
+thin-source test are unchanged, and the demo's three sources print byte for byte
+what they do today. `skills/backdraft/SKILL.md`,
+`skills/backdraft-backfill/SKILL.md`, `site/llms.txt` and `README.md` say what the
+mark means for a table. DESIGN row.
+
+**Size.** One day.
+
+### 14. `ingest --dry-run` names the source and not the run
+
+**Intent.** The dry run (2026-09-10) answers what a source would be called, and
+`tests/test_dry_run.py` pins that the prediction equals the outcome — for the
+name. The rest of the command it predicts is unchecked:
+`backdraft ingest report.pdf --dry-run --extractor bogus` and
+`--config nonsense=1` both exit 0 with a clean line, while the real ingest fails
+that source on the unknown extractor or on a key the chosen extractor never
+reads. And the dry run is silent on the fact an agent most needs before a PDF
+batch: whether `auto` will send the pages to the vision model, which spends
+against `BACKDRAFT_VLM_API_KEY`, or read the text layer for free. That choice is
+`extract_base.select`'s, made from the media type and `vlm_ready` with no bytes
+and no network, so it is as knowable in advance as the slug.
+
+**Shape.** One owner for "which extractor, with which settings", shared by
+`Registry.ingest` and `Registry.naming`: lift the `select`/`get` and
+`check_config` lines at the top of `ingest` into one registry method both call,
+so the prediction cannot drift from the run — the argument that already put
+`_find_document` behind both. `Naming` gains the extractor's name. A failure to
+choose, or a rejected key, becomes that source's `!` line in the existing
+failure report exactly as under the real ingest, and the dry run exits 1 for it.
+Where the extractor goes on the line is the decision to write down:
+`_report_naming` promises the dry run's line reads like `ingest`'s, and
+`ingest`'s line does not name its extractor. Prefer a trailing mark in
+`_naming_note`'s shape (`would extract with vlm`) over widening both lines,
+which would move every documented ingest block. For a URL the media type is
+provisional, so the extractor is too, and the existing note says both rather
+than adding a note. A source already ingested reports its current generation's
+extractor. `vlm_ready` answers presence and nothing else; no key value reaches
+output. Not the ground of "What this install can do, said before a verb needs
+it", which reports the machine; this reports what one command will do to one
+source. `demo/walkthrough.md`'s dry-run block moves and is regenerated, not
+hand-edited.
+
+**Acceptance.** `backdraft ingest demo/sources/t12-summary.pdf --dry-run` names
+`pdf-text` with no key configured and `vlm` with `BACKDRAFT_VLM_API_KEY=fake`
+set, with no model call and no network request in either case — blocked
+structurally, the way `tests/test_dry_run.py` already blocks `fetch.fetch`. The
+fake key's value appears nowhere in the output, pinned by a test that greps for
+it. `--extractor bogus` and `--config nonsense=1` fail the dry run with the same
+reason text the real ingest's `!` line gives, asserted by comparing the two. For
+every source in the prediction-equals-outcome tests, the extractor the dry run
+names is the one the ingest records in its extraction. `README.md`,
+`site/docs.html`, `site/llms.txt` and `skills/backdraft/SKILL.md` say the dry run
+shows which extractor will run, and that `vlm` is a model call per page. DESIGN
+row.
+
+**Size.** Two days.
+
+### 15. `session show` counts what was read and cannot say what was not
+
+**Intent.** `session show` (2026-08-31) answers "have I read enough to write
+this yet?" with a count per document. Since the page-read budget (2026-09-08) a
+long page arrives in windows, and an agent that read the first window of a
+57-chunk article, lost its context to compaction and came back has
+`franklin-county  25` and nothing else: it cannot tell whether those 25 are the
+navigation menu or the demographics section, and the only way to find what is
+left is to re-read from the top, re-spending the context the budget was meant to
+save. The ledger holds exactly the answer — which anchors this session was shown
+— and no surface prints it by locator. A count is coverage for a report; a
+writer needs coverage it can take a next step from.
+
+**Shape.** `session show --in <slug>`, the flag `search` already uses to mean one
+document. Under it, per page of the current extraction, the chunk locators
+shown and not shown, compressed into ranges (`p1  shown c1-c25  not shown
+c26-c57`); a sheet page reports whether its page anchor was shown and a count of
+cells shown rather than enumerating cells. It emits no tokens and mints nothing
+— locators are addresses, the stance `render_toc`'s chunk list already takes —
+so it stays the one gate command that takes `--session` without minting into
+it. Read it in `registry/ledger.py` beside `shown_by_document`, as one query
+joining the ledger to the current extraction's anchors; anchors shown from a
+superseded generation count the way `shown_by_document` counts them, and the
+DESIGN row says which way that is. The closing hint names the read that covers
+the first unshown range — in the chunk-selector form if "A chunk the table of
+contents lists is a chunk no read can ask for" has landed, otherwise as the page
+read with its `--offset` — carrying a typed `--session` through
+`gate.reader.session_argument`. A withdrawn or unknown slug is refused in
+`require_document`'s words, as `search --in` refuses it. Without `--in`,
+`session show` is byte-identical, pinned.
+
+**Acceptance.** In a copy of `demo/`'s registry, under a fresh session,
+`backdraft read franklin-county p1` then `backdraft session show --in
+franklin-county` reports `c1-c25` shown and `c26-c57` not shown, and its hint,
+run, shows `c26` first. After `backdraft read t12-summary p1`, `--in
+t12-summary` reports `p1` wholly shown and `p2` and `p3` not shown. The ledger's
+row count is identical before and after the command. `session show` with no
+`--in` prints exactly what `demo/walkthrough.md` shows. `README.md`,
+`site/llms.txt` and `skills/backdraft/SKILL.md` tell the agent to ask it after a
+context loss rather than re-reading from the top. DESIGN row.
+
+**Size.** Two days.
+
 ## Parked
 
 Deliberately not queued, each with the reason, so picking one up starts from
