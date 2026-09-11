@@ -206,3 +206,29 @@ def test_a_result_list_without_the_flag_still_renders() -> None:
     from backdraft.gate.searcher import render_search
 
     assert PHRASE_FALLBACK_NOTE not in render_search("anything", [])
+
+
+# --- the session a hint carries ---------------------------------------------
+#
+# Every hint names a command that mints. Following one that dropped a typed
+# `--session` records the next read in a ledger the writer is not binding against.
+
+
+def test_every_hint_carries_a_typed_session() -> None:
+    """The read hints and the widen hint alike; nothing above them moves."""
+    output = search(_three_alphas(), "alpha", limit=2, session="s-deal", session_flag="s-deal")
+    assert output == "\n".join(
+        f"{line[:-1]} --session s-deal]" if line.startswith(("[Read", "[See")) else line
+        for line in CAPPED.splitlines()
+    )
+
+
+def test_an_empty_search_carries_it_to_the_list() -> None:
+    output = search(_three_alphas(), "zzz", session="s-deal", session_flag="s-deal")
+    assert output == EMPTY.replace("backdraft read]", "backdraft read --session s-deal]")
+
+
+def test_a_session_nobody_typed_is_named_nowhere() -> None:
+    """The ordinary run: a session out of the environment needs no flag, so the
+    output is the one pinned above, byte for byte."""
+    assert search(_three_alphas(), "alpha", limit=2, session="s-deal") == CAPPED

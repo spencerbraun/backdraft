@@ -766,6 +766,33 @@ def test_the_continuation_command_carries_the_session_it_was_given() -> None:
     assert following["session"] == "s-deal"
 
 
+def test_a_typed_session_that_needs_quoting_survives_the_hint() -> None:
+    """An id is whatever `session start --id` was handed, and the hint is a command."""
+    registry = FakeDocumentRegistry().add(_long_page(200))
+    output = read(registry, "county", "p1", session="deal 7", session_flag="deal 7")
+    assert output.endswith(" --session 'deal 7']")
+    following = continuation(output)
+    assert following is not None
+    assert following["session"] == "deal 7"
+
+
+def test_the_list_and_the_contents_carry_a_typed_session_too(
+    fake_gate_registry: FakeDocumentRegistry,
+) -> None:
+    """Neither mints, and both name the command that does: dropping the session
+    here would lose it one hop before the read that needed it."""
+    assert read(fake_gate_registry, session_flag="s-deal") == DOCUMENTS.replace(
+        "<slug>]", "<slug> --session s-deal]"
+    )
+    for slug, pinned in (("t12-audit", TOC_PDF), ("rent-model", TOC_SHEETS)):
+        # Line by line: a sheet's preview carries `[A1]`-style references, and
+        # only the hint lines are commands.
+        assert read(fake_gate_registry, slug, session_flag="s-deal") == "\n".join(
+            f"{line[:-1]} --session s-deal]" if line.startswith("[Read") else line
+            for line in pinned.splitlines()
+        )
+
+
 # ---------------------------------------------------------------------------
 # selection
 # ---------------------------------------------------------------------------
@@ -906,3 +933,22 @@ def test_the_session_summary_mints_nothing(fake_gate_registry: FakeDocumentRegis
     before = fake_gate_registry.shown_tokens("s-count")
     render_session(fake_gate_registry, "s-count", source="--session")
     assert fake_gate_registry.shown_tokens("s-count") == before
+
+
+def test_the_session_block_sends_more_reading_to_the_session_it_inspected(
+    fake_gate_registry: FakeDocumentRegistry,
+) -> None:
+    """`session show --session s-deal` is asking about s-deal, so the read it names
+    is a read into s-deal — not into whatever the environment says."""
+    assert render_session(
+        fake_gate_registry, "s-fresh", source="--session", session_flag="s-fresh"
+    ) == SESSION_EMPTY.replace("backdraft read]", "backdraft read --session s-fresh]")
+
+    read(fake_gate_registry, "t12-audit", "p2", session="s-deal")
+    read(fake_gate_registry, "t12-audit", "p3", session="s-deal")
+    search(fake_gate_registry, "Vacancy", session="s-deal")
+    assert render_session(
+        fake_gate_registry, "s-deal", source="--session", session_flag="s-deal"
+    ) == SESSION_HELD.replace("(from BACKDRAFT_SESSION)", "(from --session)").replace(
+        "<page>]", "<page> --session s-deal]"
+    )

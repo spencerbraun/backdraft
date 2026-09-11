@@ -76,6 +76,17 @@ def test_nothing_is_minted_without_a_session(
     assert fake_gate_registry.shown_tokens("default") == set()
 
 
+def test_the_hints_carry_a_typed_session(fake_gate_registry: FakeDocumentRegistry) -> None:
+    """Both hints a shown token can earn name a command that mints, so both carry
+    the `--session` the caller typed; the blocks above them do not move."""
+    resolved = show(fake_gate_registry, [CHUNK], session="s-deal", session_flag="s-deal")
+    assert resolved.text == RESOLVED.replace(" p2]", " p2 --session s-deal]")
+    unresolved = show(fake_gate_registry, ["bd:t12-audit:p9.c1:1a2b"], session_flag="s-deal")
+    assert unresolved.text == UNRESOLVED.replace(
+        "read t12-audit]", "read t12-audit --session s-deal]"
+    )
+
+
 def test_a_well_formed_token_naming_nothing_says_which_half_is_wrong(
     fake_gate_registry: FakeDocumentRegistry,
 ) -> None:

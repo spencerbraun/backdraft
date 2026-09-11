@@ -59,6 +59,7 @@ __all__ = [
     "render_page_read",
     "require_document",
     "select_pages",
+    "session_argument",
     "show",
     "thin_mark",
     "unit",
@@ -207,6 +208,29 @@ def _fold(name: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# hints
+# ---------------------------------------------------------------------------
+
+
+def session_argument(session_flag: str | None) -> str:
+    """` --session <id>` for the command a hint names, or `""`.
+
+    Every bracketed hint the gate prints names a `read` or a `search`, and both
+    mint — so a hint that drops the `--session` its caller typed sends the next
+    command's tokens into a ledger the writer is not binding against, and reading
+    the writer really did comes back `not_shown`. `session_flag` is the id only
+    where it was typed: an exported `BACKDRAFT_SESSION` is still in effect when
+    the hint is followed and needs no flag, which is why a run without
+    `--session` prints exactly what it always did. `gate.cli` decides which rule
+    supplied the id, as it did first for the continuation line (2026-09-08).
+
+    Shell-quoted, because the hint is a command and an id is whatever
+    `session start --id` was handed.
+    """
+    return "" if session_flag is None else f" --session {shlex.quote(session_flag)}"
+
+
+# ---------------------------------------------------------------------------
 # dispatch
 # ---------------------------------------------------------------------------
 
@@ -226,12 +250,13 @@ def read(
     No arguments lists documents; a slug alone prints its table of contents;
     a slug plus a selector prints token-marked content and mints it into
     `session`. Listing and the table of contents emit no tokens, so they mint
-    nothing.
+    nothing — but their hints name commands that do, so all three forms carry
+    `session_flag` into every hint (`session_argument`).
     """
     if slug is None:
-        return render_documents(registry)
+        return render_documents(registry, session_flag=session_flag)
     if selector is None:
-        return render_toc(registry, slug)
+        return render_toc(registry, slug, session_flag=session_flag)
     return render_page_read(
         registry,
         slug,
@@ -248,7 +273,7 @@ def read(
 # ---------------------------------------------------------------------------
 
 
-def render_documents(registry: Registry) -> str:
+def render_documents(registry: Registry, *, session_flag: str | None = None) -> str:
     """One line per document: slug, name, media type, page count.
 
     The name is `source_name`'s — a filename, or a fetched page's origin URL in
@@ -303,7 +328,7 @@ def render_documents(registry: Registry) -> str:
         )
         for (slug, name, media, pages), count in zip(rows, counts, strict=True)
     ]
-    lines += ["", "[Table of contents: backdraft read <slug>]"]
+    lines += ["", f"[Table of contents: backdraft read <slug>{session_argument(session_flag)}]"]
     return _block(lines)
 
 
@@ -312,7 +337,7 @@ def render_documents(registry: Registry) -> str:
 # ---------------------------------------------------------------------------
 
 
-def render_toc(registry: Registry, slug: str) -> str:
+def render_toc(registry: Registry, slug: str, *, session_flag: str | None = None) -> str:
     """One line per page or sheet: number, name, summary or first 120 chars.
 
     A source that is a single page of prose gets its chunks listed underneath,
@@ -356,13 +381,14 @@ def render_toc(registry: Registry, slug: str) -> str:
         lines += ["", *chunks] if rows else chunks
 
     first = pages[0]
-    lines += ["", f"[Read one: backdraft read {slug} p{first.number}]"]
+    carried = session_argument(session_flag)
+    lines += ["", f"[Read one: backdraft read {slug} p{first.number}{carried}]"]
     if len(pages) > 1 and first.kind == "page":
         lines.append(
-            f"[Read a range: backdraft read {slug} p{first.number}-{pages[-1].number}]"
+            f"[Read a range: backdraft read {slug} p{first.number}-{pages[-1].number}{carried}]"
         )
     if first.name:
-        lines.append(f'[Read by name: backdraft read {slug} "{first.name}"]')
+        lines.append(f'[Read by name: backdraft read {slug} "{first.name}"{carried}]')
     return _block(lines)
 
 
@@ -568,8 +594,7 @@ class _Window:
             flags = f" --offset {end}"
             if limit is not None:
                 flags += f" --limit {limit}"
-            if session is not None:
-                flags += f" --session {shlex.quote(session)}"
+            flags += session_argument(session)
             line += f" Continue with: backdraft read {slug} {shlex.quote(selector)}{flags}"
         return line + "]"
 
@@ -774,7 +799,11 @@ class Shown:
 
 
 def show(
-    registry: Registry, tokens: Sequence[str], *, session: str | None = None
+    registry: Registry,
+    tokens: Sequence[str],
+    *,
+    session: str | None = None,
+    session_flag: str | None = None,
 ) -> Shown:
     """The inverse of minting: what does this token say?
 
@@ -828,7 +857,11 @@ def show(
             # with `LIST_HINT` — and the same next step twice in one block is a
             # reader deciding which of two to trust.
             if known:
-                _remember(toc_hints, f"[Table of contents: backdraft read {slug}]")
+                _remember(
+                    toc_hints,
+                    f"[Table of contents: backdraft read {slug}"
+                    f"{session_argument(session_flag)}]",
+                )
             continue
         anchor = resolution.anchor
         shown: tuple[Anchor | None, ...]
@@ -856,7 +889,8 @@ def show(
         if anchor.page_number is not None:
             _remember(
                 read_hints,
-                f"[Read the page: backdraft read {anchor.slug} p{anchor.page_number}]",
+                f"[Read the page: backdraft read {anchor.slug} p{anchor.page_number}"
+                f"{session_argument(session_flag)}]",
             )
 
     _mint(registry, session, minted)
@@ -973,14 +1007,20 @@ is marked — otherwise a coverage check counts anchors that can no longer be
 cited, which is the "looks fine, is not" failure `forget` exists to end.
 """
 
-EMPTY_SESSION_HINT = "[Start reading: backdraft read]"
+EMPTY_SESSION_HINT = "[Start reading: backdraft read{session}]"
 """Where an empty session sends the caller. `backdraft read` with no arguments
 lists what is ingested, which is the first thing to know when nothing has been
-shown — including the case where the registry itself is empty."""
+shown — including the case where the registry itself is empty. `{session}` is
+`session_argument`'s, empty unless the session inspected was typed."""
 
 
 def render_session(
-    registry: Registry, session_id: str, *, source: str, note: str | None = None
+    registry: Registry,
+    session_id: str,
+    *,
+    source: str,
+    note: str | None = None,
+    session_flag: str | None = None,
 ) -> str:
     """What the session holds: the id, then a document and a count per document.
 
@@ -1005,11 +1045,12 @@ def render_session(
     rows = registry.shown_by_document(session_id)
     total = sum(count for _, count in rows)
     lines = [f"session {session_id}  (from {source})", ""]
+    carried = session_argument(session_flag)
     if not rows:
         lines += [
             "nothing shown yet — a citation bound against it reports `not_shown`",
             "",
-            EMPTY_SESSION_HINT,
+            EMPTY_SESSION_HINT.format(session=carried),
         ]
     else:
         slug_width = max(len(slug) for slug, _ in rows)
@@ -1023,7 +1064,7 @@ def render_session(
             f"  {slug.ljust(slug_width)}  {count:>{count_width}}{marks[slug]}"
             for slug, count in rows
         ]
-        lines += ["", "[Read more: backdraft read <slug> <page>]"]
+        lines += ["", f"[Read more: backdraft read <slug> <page>{carried}]"]
         if any(marks.values()):
             lines += ["", WITHDRAWN_SESSION_NOTE]
     if note:

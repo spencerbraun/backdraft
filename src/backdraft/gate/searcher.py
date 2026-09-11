@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 from ..kernel.hashing import normalize
 
-from .reader import require_document
+from .reader import require_document, session_argument
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -49,13 +49,15 @@ def search(
     slug: str | None = None,
     limit: int = _DEFAULT_LIMIT,
     session: str | None = None,
+    session_flag: str | None = None,
 ) -> str:
     """Run `query` through the registry's FTS index and render the results.
 
     Each hit is one line carrying its token, its document and page, and an
     excerpt of its snippet; a read hint follows for every distinct page matched.
     Every hit's anchor is recorded in `session` before the text is returned — a
-    result the writer saw is a result the writer may cite.
+    result the writer saw is a result the writer may cite. Every hint carries
+    `session_flag`, the `--session` the caller typed (`reader.session_argument`).
 
     Raises a `GateError` if `slug` names no document the gate will serve — an
     unknown slug, or one `forget` withdrew. `require_document` owns both
@@ -66,10 +68,16 @@ def search(
         require_document(registry, slug)
     hits = registry.search(query, slug=slug, limit=limit)
     _mint(registry, session, hits)
-    return render_search(query, hits, slug=slug)
+    return render_search(query, hits, slug=slug, session_flag=session_flag)
 
 
-def render_search(query: str, hits: Iterable[SearchHit], *, slug: str | None = None) -> str:
+def render_search(
+    query: str,
+    hits: Iterable[SearchHit],
+    *,
+    slug: str | None = None,
+    session_flag: str | None = None,
+) -> str:
     """Render search results. Pure: minting happens in `search`.
 
     NOTE: `phrase_fallback` and `total` are read *before* `hits` is copied into
@@ -82,13 +90,14 @@ def render_search(query: str, hits: Iterable[SearchHit], *, slug: str | None = N
         total = len(hits)
     scope = f" in {slug}" if slug else ""
     note = [PHRASE_FALLBACK_NOTE] if retried else []
+    carried = session_argument(session_flag)
     if not hits and not total:
         return "\n".join(
             [
                 f'No results for "{query}"{scope}.',
                 *note,
                 "",
-                "[List documents: backdraft read]",
+                f"[List documents: backdraft read{carried}]",
             ]
         )
 
@@ -106,23 +115,25 @@ def render_search(query: str, hits: Iterable[SearchHit], *, slug: str | None = N
     for hit in hits:
         if (hit.slug, hit.page_number) not in seen:
             seen.append((hit.slug, hit.page_number))
-    lines += [f"[Read the page: backdraft read {s} p{n}]" for s, n in seen]
+    lines += [f"[Read the page: backdraft read {s} p{n}{carried}]" for s, n in seen]
     if total > len(hits):
-        lines.append(_widen_hint(query, slug, total))
+        lines.append(_widen_hint(query, slug, total, carried))
     return "\n".join(line.rstrip() for line in lines).rstrip("\n")
 
 
-def _widen_hint(query: str, slug: str | None, total: int) -> str:
+def _widen_hint(query: str, slug: str | None, total: int, carried: str = "") -> str:
     """The line that names the command showing the results `--limit` cut.
 
     `read`'s continuation hint is the model: say what was withheld and give the
     exact command that produces it, rather than leaving the caller to work out
     which flag to move. The query is shell-quoted because a real one carries `$`
     and commas, and a hint that has to be repaired before it runs is not a hint.
+    `carried` is the typed `--session`, since the wider search mints too.
     """
     scope = f" --in {slug}" if slug else ""
     return (
-        f"[See all {total}: backdraft search {shlex.quote(query)}{scope} --limit {total}]"
+        f"[See all {total}: backdraft search {shlex.quote(query)}{scope} "
+        f"--limit {total}{carried}]"
     )
 
 

@@ -54,6 +54,20 @@ def _session_source(explicit: str | None) -> str:
     return "default"
 
 
+def _typed(session: str | None) -> str | None:
+    """The `--session` every hint in the output must carry: the typed id, or None.
+
+    Keyed on the *rule* that supplied the id, not on the id. An exported
+    `BACKDRAFT_SESSION` is still in effect when a hint is followed and the default
+    is reached by passing nothing, so neither needs a flag; a typed `--session`
+    is gone the moment the command ends, and a hint that dropped it would mint
+    the next read into a ledger the writer is not binding against. (`session
+    show`'s default note keys on the id instead, because what it warns about is
+    the shared ledger and not how you reached it.)
+    """
+    return session or None
+
+
 # ---------------------------------------------------------------------------
 # commands
 # ---------------------------------------------------------------------------
@@ -109,15 +123,9 @@ def read(
                 session=session_id,
                 offset=offset,
                 limit=limit,
-                # Keyed on the *rule* that supplied the id, not on the id: a
-                # session out of `BACKDRAFT_SESSION` is still exported when the
-                # continuation runs and needs no flag, while one passed as
-                # `--session` is gone the moment the command ends — and a
-                # continuation that dropped it would mint the rest of the page
-                # into a ledger the writer is not binding against. (The
-                # 2026-08-31 note keys on the id instead, because what it warns
-                # about is the shared ledger and not how you reached it.)
-                session_flag=session_id if session else None,
+                # For the list and the table of contents too: they mint nothing
+                # themselves, but every hint they print names a command that does.
+                session_flag=_typed(session),
             )
         )
 
@@ -159,7 +167,9 @@ def show(
     """
     session_id = resolve_session(session)
     with opened_registry() as registry:
-        shown = show_tokens(registry, tokens, session=session_id)
+        shown = show_tokens(
+            registry, tokens, session=session_id, session_flag=_typed(session)
+        )
         typer.echo(shown.text)
     if not shown.complete:
         raise typer.Exit(EXIT_USAGE)
@@ -180,7 +190,16 @@ def search(
     """Search every anchor's snippet. Results are citable without a page read."""
     session_id = resolve_session(session)
     with opened_registry() as registry:
-        typer.echo(run_search(registry, query, slug=in_, limit=limit, session=session_id))
+        typer.echo(
+            run_search(
+                registry,
+                query,
+                slug=in_,
+                limit=limit,
+                session=session_id,
+                session_flag=_typed(session),
+            )
+        )
 
 
 @session_app.command("start")
@@ -216,6 +235,7 @@ def session_show(session: _InspectedSession = None) -> None:
                 registry,
                 registry.ensure_session(resolved),
                 source=_session_source(session),
+                session_flag=_typed(session),
                 # Keyed on the id rather than on which rule supplied it: an
                 # explicit `--session default` lands in the same shared ledger
                 # and costs the same thing.

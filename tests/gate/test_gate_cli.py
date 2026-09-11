@@ -7,6 +7,8 @@ pick, and that a `GateError` leaves as exit code 1 rather than a traceback.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from fake_registry import FakeDocumentRegistry
 from typer.testing import CliRunner
@@ -325,3 +327,54 @@ def test_reads_without_a_session_flag_use_the_default(
 ) -> None:
     runner.invoke(cli.app, ["read", "t12-audit", "p1"])
     assert wired.shown_tokens(top_cli.DEFAULT_SESSION) == {"bd:t12-audit:p1.c1:5ff8"}
+
+
+# ---------------------------------------------------------------------------
+# every hint carries the session the caller typed
+# ---------------------------------------------------------------------------
+
+_HINT = re.compile(r"^\[[^\]]*\bbackdraft (?:read|search)\b")
+"""A bracketed line naming a gate command — the lines a caller copies and runs."""
+
+HINTED = {
+    "document list": ["read"],
+    "table of contents": ["read", "t12-audit"],
+    "sheet contents": ["read", "rent-model"],
+    "continuation": ["read", "t12-audit", "p2", "--limit", "60"],
+    "search": ["search", "NOI"],
+    "capped search": ["search", "NOI", "--limit", "1"],
+    "empty search": ["search", "zzz"],
+    "show": ["show", "bd:t12-audit:p2.c1:50bd", "bd:t12-audit:p9.c1:1a2b"],
+    "empty session": ["session", "show"],
+}
+"""One run per surface that prints such a line, and every kind of line each prints."""
+
+
+def _hints(output: str) -> list[str]:
+    return [line for line in output.splitlines() if _HINT.match(line)]
+
+
+@pytest.mark.parametrize("args", HINTED.values(), ids=HINTED.keys())
+def test_every_hint_carries_the_session_the_caller_typed(
+    runner: CliRunner, wired: FakeDocumentRegistry, args: list[str]
+) -> None:
+    """The continuation line's rule, applied to every line naming a command: all
+    of them mint, and a typed `--session` is gone once this command ends."""
+    hints = _hints(runner.invoke(cli.app, [*args, "--session", "run-a"]).output)
+    assert hints
+    assert all(hint.endswith(" --session run-a]") for hint in hints), hints
+
+
+@pytest.mark.parametrize("args", HINTED.values(), ids=HINTED.keys())
+def test_no_hint_names_a_session_nobody_typed(
+    runner: CliRunner,
+    wired: FakeDocumentRegistry,
+    monkeypatch: pytest.MonkeyPatch,
+    args: list[str],
+) -> None:
+    """An exported session is still exported when the hint is followed, so the
+    ordinary run's hints are what they always were."""
+    monkeypatch.setenv(cli.SESSION_ENV, "run-b")
+    hints = _hints(runner.invoke(cli.app, args).output)
+    assert hints
+    assert not any("--session" in hint for hint in hints), hints
