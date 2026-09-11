@@ -648,10 +648,10 @@ backdraft render memo.md --to html
 memo.backdraft.html
 ```
 
-[`memo.backdraft.html`](memo.backdraft.html) is one file, 568 KB — most of it the
+[`memo.backdraft.html`](memo.backdraft.html) is one file, 569 KB — most of it the
 embedded page images — with no external request of any kind: no font, no
 stylesheet, no script that executes. `bind --lean` skips the images and takes it
-to 172 KB, at the cost of the cited page being shown. Open it
+to 173 KB, at the cost of the cited page being shown. Open it
 from `file://` with the network off. Hover or focus a claim to reveal its
 receipt: the verbatim snippet, the source slug and locator, the token, the full
 snippet hash, and a badge per verdict. A claim citing a fetched page carries one
