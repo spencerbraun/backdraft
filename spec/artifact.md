@@ -5,8 +5,8 @@ Status: v0, 2026-07-27. This file is the portable specification of
 itself — the format string, the legend, and the payload writer, shared by bind
 which writes it and render which reads it — and `src/backdraft/render/` implements
 the renderers over it. Another implementation reads this file and nothing else.
-Where they disagree, this file and the tests in `tests/test_sidecar.py` and
-`tests/test_html.py` decide.
+Where they disagree, this file and the tests in `tests/test_sidecar.py`,
+`tests/test_html.py` and `tests/test_verify_cli.py` decide.
 
 An **artifact** is a rendered, self-contained deliverable: an authored document
 plus, for every claim in it, the verbatim evidence behind that claim. It exists
@@ -327,6 +327,79 @@ the statuses. It exits 0 when everything it checked passed, 1 when the file is
 not an artifact of this format, and 2 when something did not verify. A record
 that carries a non-`resolved` citation still passes: what the producer found is
 data the record faithfully carries, not a defect in it.
+
+### The verify report
+
+`backdraft verify <artifact> --json` writes the result of the list above as one
+JSON object on stdout, and nothing else; the exit code is the one the plain run
+gives. On exit 1 nothing is written to stdout, and the reason is on stderr as
+always. (`backdraft bind --json` is the same flag on the producing side and
+needs no format of its own: it writes the payload specified above, the bytes of
+the sidecar that run wrote.)
+
+The two causes of exit 2 want opposite responses — a receipt that does not hold
+means the file was changed after it was written, while a citation the sources do
+not resolve means the file is intact and the sources do not stand behind it —
+and the exit code cannot separate them. The object does, in `findings[].kind`,
+so a caller never reads a sentence to find out which it got. A caller that acts
+on the result — an agent, a hook, a CI job — SHOULD read this object rather than
+the plain report, whose lines are worded for a person and are reworded between
+releases; the plain report is what to show that person.
+
+```json
+{
+  "$format": "backdraft/verify-v1",
+  "artifact": "memo.backdraft.html",
+  "record": {
+    "ran": true, "receipts": 17, "receipts_held": 17, "summary_agrees": true,
+    "claims": 17, "citations": 18,
+    "by_status": {"resolved": 17, "unresolved": 1}, "unmatched": 0
+  },
+  "sources": {
+    "ran": true, "registry": "/work/project",
+    "by_status": {"resolved": 17, "unresolved": 1}
+  },
+  "findings": [
+    {"kind": "source", "token": "bd:t12-summary:p4.c1:1a2b",
+     "status": "unresolved", "recorded": "unresolved", "error": null,
+     "claim": {"text": "replacement reserve of $250 per unit per year",
+               "start": 3629, "end": 3703}}
+  ]
+}
+```
+
+| Key | Type | Is |
+|---|---|---|
+| `$format` | string | `backdraft/verify-v1`, matched exactly, under the rule in *Versioning* |
+| `artifact` | string | the file checked, as the command was given it |
+| `record` | object | steps 1 to 4, which always run when there is an object at all |
+| `sources` | object | the outside check, which runs only where a registry was found |
+| `findings` | array | everything that did not verify, in the order the checks run: receipts, the recount, then the sources. Empty exactly when the exit code is 0 |
+
+`record` carries `ran` (always `true`), `receipts` (citations carrying an
+anchor, each checked) and `receipts_held`, `summary_agrees` (step 4), and the
+recounted `claims`, `citations`, `by_status` and `unmatched` — what the record
+says, which is not a finding: a kept failure is the record working. `sources`
+carries `ran`, `registry` (the project root whose registry answered, or `null`)
+and `by_status` (every citation's status against that registry, or `null` when
+the check did not run). Every `by_status` is keyed in sorted order.
+
+Each finding has a `kind`, and the kind fixes its other keys:
+
+| `kind` | Means | Keys |
+|---|---|---|
+| `receipt` | a receipt in the file does not hold — the file was edited | `check`, `token`, `detail`, `claim` |
+| `recount` | `summary` disagrees with a recount of `claims` | `recorded` (the file's `summary`), `recounted` |
+| `source` | a citation does not resolve against the registry today | `token`, `status` (today's), `recorded` (the record's), `error`, `claim` |
+
+A `receipt` finding's `check` names the step that failed, and only the first to
+fail is reported per citation, in this order: `snippet_sha256` (step 2),
+`token_parses`, `token_hash`, `token_slug`, `token_locator` (step 3). A `source`
+finding whose `status` differs from `recorded` is a source that moved since
+binding; one where they agree is the record's own kept failure, still not
+resolved today. `claim` is `{text, start, end}` as in `claims[]`. `detail` and
+`error` are sentences for a person and may be reworded between releases; `kind`,
+`check` and the statuses are the values to branch on.
 
 ## The markdown projection (informative)
 

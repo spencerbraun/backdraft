@@ -39,6 +39,12 @@ benign, so the reasons print under it, grouped:
 Grouped rather than listed per citation, per the 2026-08-13 rule: one cause
 explains the whole cluster and there is nothing per-citation to go fix.
 
+`--json` is the same run for a caller that parses: the record goes to stdout —
+the bytes `kernel.artifact.dumps` writes into the sidecar, so there is no second
+serialization to keep in step with the format — and none of the lines above are
+printed. The exit code does not move. The lines are worded for a reader and get
+reworded; the record's keys are `spec/artifact.md`'s and do not.
+
 Registry discovery and session resolution come from `backdraft.cli_context`
 (SPEC Addendum B), imported at module level like every other sub-app's. The
 registry is opened from the *document's* directory rather than the process's
@@ -57,6 +63,7 @@ so the command lands as `backdraft bind`, with no group name in between.
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Annotated
@@ -72,7 +79,7 @@ from ..cli_context import (
     open_registry,
     resolve_session,
 )
-from ..kernel.artifact import bound_path, sidecar_path
+from ..kernel.artifact import bound_path, dumps, sidecar_path
 from ..kernel.model import Citation, CitationStatus, Claim, VerdictStatus
 from .binder import bind as run_bind, record_target
 
@@ -113,6 +120,16 @@ def bind(
         bool,
         typer.Option("--bound", help="Also write the rewritten-markdown projection."),
     ] = False,
+    as_json: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help=(
+                "Print the record as JSON instead of the report: the same bytes the "
+                "sidecar gets, evidence included. Same exit code."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Resolve every citation, run enabled checks, rewrite, report."""
     with guard():
@@ -132,7 +149,10 @@ def bind(
             raise UsageError(str(error)) from error
         finally:
             _close(registry)
-    _print_report(report, doc, bound=bound, record=record_target(doc, registry))
+    if as_json:
+        sys.stdout.write(dumps(report))
+    else:
+        _print_report(report, doc, bound=bound, record=record_target(doc, registry))
     unmatched = [claim for claim in report.claims if claim.unmatched]
     if report.unresolved or unmatched:
         raise typer.Exit(EXIT_UNRESOLVED)

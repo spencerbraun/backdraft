@@ -266,6 +266,17 @@ going unnoticed. Exit 0 when everything it checked passed, 2 when something did
 not, so a hook can gate on it. It opens no session and mints nothing: an audit
 must not make its subject citable.
 
+**Scripts and agents read keys, not lines.** The reports above are worded for
+people, and the wording changes. `backdraft bind memo.md --json` prints the
+record in place of the report (the same bytes bind writes), and
+`backdraft verify memo.backdraft.html --json` prints the check as one object whose
+`findings` each carry a `kind`: `receipt` when the file was edited, `source`
+when a citation does not resolve against the sources today (its status beside
+the record's says whether they moved since binding), `recount` when the summary
+disagrees with the claims. Exit codes are unchanged; the payload says which kind
+of exit 2 you got. The format is in
+[spec/artifact.md](spec/artifact.md#the-verify-report).
+
 **Theming.** The artifact ships with a default look and two alternates,
 `press` and `slate`:
 

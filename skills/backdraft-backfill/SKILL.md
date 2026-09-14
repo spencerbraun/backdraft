@@ -154,7 +154,12 @@ of the run.
 A backfill report carries the other line items too, for tokens you attached that
 did not resolve: `! unresolved: <token> — <the claim's own words> @<offset>`.
 Both kinds name their claim, so step 6's open list can be read straight off the
-report without searching the draft.
+report without searching the draft. If you build that list programmatically,
+parse keys rather than these lines: `--json` prints the record in place of the
+report, same exit code, and the open list is every claim with `unmatched: true`
+plus every citation whose `status` is not `resolved`. It carries the embedded
+evidence too, so pipe it into a parser rather than reading it raw — and show the
+user the plain report, not the JSON.
 
 ## 6. Report the open list
 

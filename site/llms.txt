@@ -218,6 +218,19 @@ the file was edited after it was written; report that first. A tier-two line
 ending `— the record says resolved` means the source moved since the document
 was bound: re-read and confirm, do not delete.
 
+Parse keys, not lines: the lines are worded for the user and get reworded. To
+act on a result as data, add --json — same exit codes, one JSON object on
+stdout, nothing on stdout at exit 1. `bind --json` prints the record, the same
+bytes bind writes under .backdraft/records/: every citation's token, status and
+error under claims[].citations[], counts in summary.by_status. It carries the
+embedded evidence (page images make it hundreds of KB), so pipe it into a
+parser. `verify --json` prints a small object (format backdraft/verify-v1):
+record.ran and sources.ran say which tiers ran, and each findings[] entry has a
+kind — receipt (the file was edited; check names which), recount (summary
+disagrees with claims) or source (status is today's, recorded is the record's;
+differing means the source moved). findings is empty exactly when exit is 0.
+Relay the plain report to the user, never the JSON.
+
 ## Files
 
 memo.md (authored, yours) · memo.backdraft.html (the deliverable, document +

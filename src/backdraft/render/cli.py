@@ -29,10 +29,12 @@ before `verify` and the `theme` group joined `render` here.
 
 from __future__ import annotations
 
+import json
 import sys
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any, NamedTuple
 
 import typer
 
@@ -47,6 +49,7 @@ from ..kernel.artifact import (
     ARTIFACT_SUFFIX,
     FOOTNOTES_SUFFIX,
     SIDECAR_SUFFIX,
+    VERIFY_FORMAT,
 )
 from ..kernel.errors import TokenError
 from ..kernel.hashing import snippet_hash
@@ -211,6 +214,16 @@ def verify(
         Path,
         typer.Argument(help="A .backdraft.html artifact or a .backdraft.json sidecar."),
     ],
+    as_json: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help=(
+                "Print the check as one JSON object instead of the report: both tiers, "
+                "and every finding with its kind (receipt, recount, source). Same exit code."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Check an artifact against itself, and against the sources when they are here.
 
@@ -232,6 +245,11 @@ def verify(
     an artifact · 2 something did not verify, so a hook can gate on it. A record
     that faithfully carries an `unresolved` citation still exits 0 on tier one —
     a kept failure is the record working, not the record broken.
+
+    `--json` prints the same check as one object instead of the report. Its
+    `findings` carry a `kind` — `receipt` means the file was edited, `source`
+    that the sources do not stand behind a citation today — so the causes of an
+    exit 2 are told apart without reading a sentence.
     """
     with guard():
         if not artifact.is_file():
@@ -242,53 +260,106 @@ def verify(
         except (ValueError, KeyError, TypeError, OSError, UnicodeDecodeError) as error:
             raise UsageError(_not_an_artifact(artifact, error)) from error
 
+    checked = _check(payload, report, find_root())
+    if as_json:
+        document = _verification(artifact, checked)
+        sys.stdout.write(json.dumps(document, indent=2, ensure_ascii=False) + "\n")
+    else:
+        _print_verification(artifact, checked)
+    if not checked.clean:
+        raise typer.Exit(EXIT_UNRESOLVED)
+
+
+class _Problem(NamedTuple):
+    """A receipt that did not hold: which check failed, and the sentence saying how."""
+
+    check: str
+    detail: str
+
+
+@dataclass(frozen=True)
+class _Checked:
+    """One verify run's findings, before anything is said about them.
+
+    The report and `--json` are two ways of saying this, and neither decides
+    anything: the exit code reads `clean`, and `clean` reads the findings. The
+    finding is the boolean; the sentence is how it is said. Keeping the two apart
+    matters because a check that re-read its own prose to decide would change
+    meaning the next time someone improves the wording — and so would a caller
+    that scraped it, which is what `--json` exists to stop.
+    """
+
+    payload: dict[str, Any]
+    report: BindReport
+    receipts: int
+    """Citations carrying an anchor, each of which was checked."""
+    broken: list[tuple[Claim, Citation, _Problem]]
+    recounts: bool
+    """The file's `summary` equals a recount of its `claims`."""
+    root: Path | None
+    """The registry tier two ran against, or None when it did not run."""
+    against: list[tuple[Claim, Citation, Citation]]
+    """Every citation re-resolved: the claim, what the record says, what the registry says."""
+
+    @property
+    def moved(self) -> list[tuple[Claim, Citation, Citation]]:
+        """Tier two's findings: every citation the sources do not resolve today."""
+        return [row for row in self.against if row[2].status is not CitationStatus.RESOLVED]
+
+    @property
+    def clean(self) -> bool:
+        return not self.broken and self.recounts and not self.moved
+
+
+def _check(payload: dict[str, Any], report: BindReport, root: Path | None) -> _Checked:
+    """Both tiers of spec/artifact.md § Checking an artifact, run once."""
     receipts = [
         (claim, citation)
         for claim in report.claims
         for citation in claim.citations
         if citation.anchor is not None
     ]
-    broken = [
-        (claim, citation, reason)
-        for claim, citation in receipts
-        if (reason := _receipt_problem(citation)) is not None
-    ]
-    summary = report.summary
-    # The finding is the boolean; the sentence is how it is said. Keeping the
-    # two apart matters because the exit code below is one of the checks, and a
-    # check that re-reads its own prose to decide would change meaning the next
-    # time someone improves the wording.
-    recounts = payload.get("summary") == summary
-    recount = (
-        "the summary recount agrees"
-        if recounts
-        else "the summary does NOT agree with a recount of claims — trust claims"
+    return _Checked(
+        payload=payload,
+        report=report,
+        receipts=len(receipts),
+        broken=[
+            (claim, citation, problem)
+            for claim, citation in receipts
+            if (problem := _receipt_problem(citation)) is not None
+        ],
+        recounts=payload.get("summary") == report.summary,
+        root=root,
+        against=[] if root is None else _against_sources(report, root),
     )
 
-    typer.echo(f"checked {artifact} [{payload['$format']}]")
-    typer.echo(f"  receipts: {len(receipts) - len(broken)} of {len(receipts)} hold")
+
+def _print_verification(artifact: Path, checked: _Checked) -> None:
+    """The human report: the two tiers' counts, then every finding as a line item."""
+    summary = checked.report.summary
+    recount = (
+        "the summary recount agrees"
+        if checked.recounts
+        else "the summary does NOT agree with a recount of claims — trust claims"
+    )
+    typer.echo(f"checked {artifact} [{checked.payload['$format']}]")
+    typer.echo(f"  receipts: {checked.receipts - len(checked.broken)} of {checked.receipts} hold")
     typer.echo(
         f"  record: {summary['claims']} claim(s), {summary['citations']} citation(s); "
         f"{recount}"
     )
-    typer.echo(f"  recorded: {_counts(summary['by_status'])}{_unmatched(report)}")
-
-    root = find_root()
-    against: list[tuple[Claim, Citation, Citation]] = []
-    if root is None:
+    typer.echo(f"  recorded: {_counts(summary['by_status'])}{_unmatched(checked.report)}")
+    if checked.root is None:
         typer.echo("  sources: no .backdraft/ found from here — not re-checked")
     else:
-        against = _against_sources(report, root)
         typer.echo(
-            f"  sources: re-resolved against {root} — "
-            f"{_counts(_tally(fresh for _, _, fresh in against))}"
+            f"  sources: re-resolved against {checked.root} — "
+            f"{_counts(_tally(fresh for _, _, fresh in checked.against))}"
         )
 
-    for claim, citation, reason in broken:
-        typer.echo(f"  ! receipt: {citation.token} — {reason} — {_where(claim)}")
-    for claim, recorded, fresh in against:
-        if fresh.status is CitationStatus.RESOLVED:
-            continue
+    for claim, citation, problem in checked.broken:
+        typer.echo(f"  ! receipt: {citation.token} — {problem.detail} — {_where(claim)}")
+    for claim, recorded, fresh in checked.moved:
         # The reason first, where the registry has one — a token whose source was
         # withdrawn and one whose source was never there are both `unresolved`
         # against the sources, and only the reason tells a reader which happened.
@@ -300,17 +371,92 @@ def verify(
         )
         typer.echo(f"  ! {fresh.status}: {fresh.token}{reason}{moved} — {_where(claim)}")
 
-    if root is None:
+    if checked.root is None:
         typer.echo(
             "[Re-check against the sources: run this inside the project it was bound in.]"
         )
-    if broken or not recounts or any(
-        fresh.status is not CitationStatus.RESOLVED for _, _, fresh in against
-    ):
-        raise typer.Exit(EXIT_UNRESOLVED)
 
 
-def _receipt_problem(citation: Citation) -> str | None:
+def _verification(artifact: Path, checked: _Checked) -> dict[str, Any]:
+    """`verify --json`'s object — spec/artifact.md § Checking an artifact is its format.
+
+    The same facts the report prints, keyed rather than worded. `findings` is
+    empty exactly when the run exits 0, and is ordered as the checks run:
+    receipts, the recount, then the sources. `kind` is the field a caller
+    branches on, because the two causes of an exit 2 want opposite responses — a
+    `receipt` finding means the file changed after it was written, a `source`
+    finding that the file is intact and the sources do not stand behind the
+    citation today — and `detail` and `error` stay sentences for a person, free
+    to be reworded.
+
+    Counts are sorted by status so the object is a pure function of the run; the
+    claim is carried whole, as `claims[]` carries it, rather than cut to the
+    report's line width, since a caller that parses has no line to fit.
+    """
+    report = checked.report
+    summary = report.summary
+    ran = checked.root is not None
+    findings: list[dict[str, Any]] = [
+        {
+            "kind": "receipt",
+            "check": problem.check,
+            "token": citation.token,
+            "detail": problem.detail,
+            "claim": _claim_at(claim),
+        }
+        for claim, citation, problem in checked.broken
+    ]
+    if not checked.recounts:
+        findings.append(
+            {
+                "kind": "recount",
+                "recorded": checked.payload.get("summary"),
+                "recounted": summary,
+            }
+        )
+    findings.extend(
+        {
+            "kind": "source",
+            "token": fresh.token,
+            "status": str(fresh.status),
+            "recorded": str(recorded.status),
+            "error": fresh.error,
+            "claim": _claim_at(claim),
+        }
+        for claim, recorded, fresh in checked.moved
+    )
+    return {
+        "$format": VERIFY_FORMAT,
+        "artifact": str(artifact),
+        "record": {
+            "ran": True,
+            "receipts": checked.receipts,
+            "receipts_held": checked.receipts - len(checked.broken),
+            "summary_agrees": checked.recounts,
+            "claims": summary["claims"],
+            "citations": summary["citations"],
+            "by_status": dict(sorted(summary["by_status"].items())),
+            "unmatched": _unmatched_count(report),
+        },
+        "sources": {
+            "ran": ran,
+            "registry": str(checked.root) if ran else None,
+            "by_status": (
+                dict(sorted(_tally(fresh for _, _, fresh in checked.against).items()))
+                if ran
+                else None
+            ),
+        },
+        "findings": findings,
+    }
+
+
+def _claim_at(claim: Claim) -> dict[str, Any]:
+    """A finding's claim, in the record's own keys: its words and its span."""
+    return {"text": claim.text, "start": claim.start, "end": claim.end}
+
+
+def _receipt_problem(citation: Citation) -> _Problem | None:
     """Why this citation's receipt does not hold up, or None when it does.
 
     `spec/artifact.md` § Checking an artifact, steps 2 and 3, in order: the
@@ -327,28 +473,42 @@ def _receipt_problem(citation: Citation) -> str | None:
     that locator *now*, so the two hashes are supposed to differ. `slug` and
     `locator` are still the anchor's on both sides: drift is defined as the same
     locator holding different text.
+
+    Each problem names its check as well as saying it — `snippet_sha256`,
+    `token_parses`, `token_hash`, `token_slug`, `token_locator`, the values
+    spec/artifact.md fixes for `--json` — so a caller can tell a rehashed
+    snippet from a re-pointed token without matching on the sentence.
     """
     anchor = citation.anchor
     assert anchor is not None  # callers filter; kept so the type is not a lie
     digest = snippet_hash(anchor.receipt.snippet)
     if digest != anchor.receipt.snippet_sha256:
-        return (
+        return _Problem(
+            "snippet_sha256",
             f"the snippet hashes to {digest[:16]}, "
-            f"the record says {anchor.receipt.snippet_sha256[:16]}"
+            f"the record says {anchor.receipt.snippet_sha256[:16]}",
         )
     try:
         token = parse_token(citation.token)
     except TokenError as error:
-        return f"the token does not parse: {error}"
+        return _Problem("token_parses", f"the token does not parse: {error}")
     cited = digest if citation.drifted_from is None else snippet_hash(citation.drifted_from)
     if not cited.startswith(token.hash):
         named = "the snippet" if citation.drifted_from is None else "drifted_from"
-        return f"the token's hash {token.hash} is not a prefix of {named}'s {cited[:16]}"
+        return _Problem(
+            "token_hash",
+            f"the token's hash {token.hash} is not a prefix of {named}'s {cited[:16]}",
+        )
     if token.slug != anchor.slug:
-        return f"the token names {token.slug}, the anchor is in {anchor.slug}"
+        return _Problem(
+            "token_slug", f"the token names {token.slug}, the anchor is in {anchor.slug}"
+        )
     located = format_locator(anchor.locator)
     if format_locator(token.locator) != located:
-        return f"the token points at {format_locator(token.locator)}, the anchor at {located}"
+        return _Problem(
+            "token_locator",
+            f"the token points at {format_locator(token.locator)}, the anchor at {located}",
+        )
     return None
 
 
@@ -422,8 +582,12 @@ def _unmatched(report: BindReport) -> str:
     something the record honestly says was never anchored, not something that
     failed a check here.
     """
-    count = sum(1 for claim in report.claims if claim.unmatched)
+    count = _unmatched_count(report)
     return f"; {count} unmatched claim(s)" if count else ""
+
+
+def _unmatched_count(report: BindReport) -> int:
+    return sum(1 for claim in report.claims if claim.unmatched)
 
 
 @theme_app.command("list")

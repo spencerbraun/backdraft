@@ -46,6 +46,25 @@ under `sources:` means the citation does not resolve against the registry today;
 when it also says `— the record says resolved`, the source moved *since the
 document was bound*, which is a stale artifact rather than a dishonest one.
 
+Exit 2 covers both of those, and they call for opposite conclusions, so **decide
+from `--json`, not from the lines**:
+
+```bash
+backdraft verify path/to/memo.backdraft.html --json
+```
+
+prints one small object in place of the report, with the same exit code.
+`record.ran` and `sources.ran` say which tiers ran — `sources.registry` names
+the project that answered, or is `null`. Each entry in `findings` has a `kind`:
+`receipt` (the file was edited; `check` names which receipt check failed),
+`recount` (`summary` disagrees with `claims`), or `source` (the citation does
+not resolve today; `status` is today's and `recorded` the record's, so the two
+differing is a source that moved). `findings` is empty exactly when the exit is
+0. Branch on `kind`, `check` and the statuses; `detail` and `error` are
+sentences, and sentences get reworded. `verify` is read-only, so running it
+again without `--json` costs nothing — **that plain report is what you quote to
+the user**, never the JSON.
+
 `verify` is read-only: it opens no session and mints nothing. That is what makes
 it safe to run on someone else's artifact, and what separates it from
 `backdraft show`, which mints. Use `show <token>` afterwards to drill into one

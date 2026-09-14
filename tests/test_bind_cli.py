@@ -340,6 +340,69 @@ def test_the_skip_reason_does_not_reach_the_record(
     assert payload["summary"]["by_method"] == {"overlap": {"skip": 1}}
 
 
+# --- --json: the record, for a caller that parses ---------------------------
+#
+# The report's lines are worded for a reader and get reworded; a caller that
+# scraped them breaks each time. `--json` hands that caller the record instead —
+# the sidecar's own bytes, not a second serialization — and moves nothing else.
+
+
+def test_json_prints_exactly_the_record_it_wrote(tmp_path, fake_bind_registry) -> None:
+    doc = write(tmp_path, "NOI was [$4.12M](bd:ghost:p1.c1:0000).\n")
+    result = run(str(doc), "--session", "s1", "--json")
+    assert result.exit_code == bind_cli.EXIT_UNRESOLVED, result.output
+    assert result.stdout == sidecar_path(doc).read_text(encoding="utf-8")
+    payload = json.loads(result.stdout)
+    assert payload["summary"]["by_status"] == {"unresolved": 1}
+
+
+def test_json_prints_no_report_lines(tmp_path, fake_bind_registry) -> None:
+    """One object and nothing else: not the counts, the line items or `wrote`.
+
+    Parsing the whole of stdout is the assertion — a report line before or after
+    the object would make it invalid JSON. (Substrings would not do: the legend
+    inside the record says "wrote" on its own.)
+    """
+    doc = write(tmp_path, "NOI was [$4.12M](bd:ghost:p1.c1:0000).\n")
+    result = run(str(doc), "--session", "s1", "--json", "--bound")
+    assert bound_path(doc).exists(), "--json changes what is printed, not what is written"
+    assert isinstance(json.loads(result.stdout), dict)
+    assert not any(
+        line.startswith(("bound ", "wrote ", "  ! ")) for line in result.stdout.splitlines()
+    )
+    assert result.stderr == ""
+
+
+@pytest.mark.parametrize(
+    ("body", "shown", "code"),
+    [
+        ("NOI was [$4.12M]({token}).\n", True, 0),
+        ("NOI was [$4.12M]({token}).\n", False, bind_cli.EXIT_UNRESOLVED),
+        ("Net operating income was 4,120,000 last year.\n", False, bind_cli.EXIT_UNRESOLVED),
+    ],
+    ids=["clean", "not_shown", "unmatched"],
+)
+def test_json_leaves_the_exit_code_where_the_report_puts_it(
+    tmp_path, fake_bind_registry, body, shown, code
+) -> None:
+    resolved = token(fake_bind_registry)
+    if shown:
+        fake_bind_registry.show("s1", resolved)
+    doc = write(tmp_path, body.format(token=resolved))
+    mode = ["--mode", "backfill"] if "{token}" not in body else []
+    plain = run(str(doc), "--session", "s1", *mode)
+    parsed = run(str(doc), "--session", "s1", *mode, "--json")
+    assert plain.exit_code == parsed.exit_code == code, parsed.output
+
+
+def test_json_keeps_a_usage_error_off_stdout(tmp_path, fake_bind_registry) -> None:
+    """Exit 1 writes no object: a caller parsing stdout gets nothing to misread."""
+    result = run(str(tmp_path / "absent.md"), "--json")
+    assert result.exit_code == bind_cli.EXIT_USAGE
+    assert result.stdout == ""
+    assert "no such document" in result.stderr
+
+
 # --- behavior --------------------------------------------------------------
 
 

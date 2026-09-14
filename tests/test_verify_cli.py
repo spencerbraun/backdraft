@@ -26,7 +26,7 @@ from typer.testing import CliRunner
 
 from conftest_registry import PAGE_BREAK
 
-from backdraft.kernel.artifact import ISLAND_ID, sidecar as artifact_payload
+from backdraft.kernel.artifact import ISLAND_ID, VERIFY_FORMAT, sidecar as artifact_payload
 from backdraft.kernel.model import BindReport
 from backdraft.registry import Registry
 from backdraft.render import sidecar
@@ -530,6 +530,211 @@ def test_the_html_artifact_verifies_against_the_registry_too(project) -> None:
 
     assert result.exit_code == 0, result.output
     assert f"sources: re-resolved against {root}" in result.output
+
+
+# ---- --json: the same check, keyed rather than worded -----------------------
+#
+# Exit 2 has two causes that want opposite responses: a receipt that did not
+# hold means the file was edited, a citation the sources no longer resolve means
+# the file is honest and stale. The code cannot tell them apart and must not
+# grow a third value, so the object does — and every assertion below reads keys,
+# never a sentence, because a caller that has to read the sentence is the
+# problem `--json` exists to end.
+
+
+def _checked(*args: str):
+    """Run `verify --json`; the result and its parsed object."""
+    result = runner.invoke(app, ["verify", *args, "--json"])
+    return result, json.loads(result.stdout)
+
+
+def test_json_on_a_clean_record_names_both_tiers_and_no_findings(
+    record: pathlib.Path,
+) -> None:
+    result, checked = _checked(str(record))
+
+    assert result.exit_code == 0, result.output
+    assert checked["$format"] == VERIFY_FORMAT == "backdraft/verify-v1"
+    assert checked["artifact"] == str(record)
+    assert checked["record"]["ran"] is True
+    assert checked["record"]["summary_agrees"] is True
+    assert checked["record"]["receipts"] == checked["record"]["receipts_held"] > 0
+    assert checked["sources"] == {"ran": False, "registry": None, "by_status": None}
+    assert checked["findings"] == []
+
+
+def test_json_prints_one_object_and_no_report(record: pathlib.Path) -> None:
+    result = runner.invoke(app, ["verify", str(record), "--json"])
+    assert "checked " not in result.stdout
+    assert "[Re-check" not in result.stdout
+    assert result.stderr == ""
+    assert isinstance(json.loads(result.stdout), dict)
+
+
+def test_json_counts_what_the_record_carries(record: pathlib.Path, demo: BindReport) -> None:
+    """A kept failure is counted, not found: tier one still has nothing to report."""
+    _, checked = _checked(str(record))
+    assert checked["record"]["by_status"] == dict(sorted(demo.summary["by_status"].items()))
+    assert checked["record"]["claims"] == demo.summary["claims"]
+    assert checked["record"]["citations"] == demo.summary["citations"]
+    assert checked["record"]["unmatched"] == 0
+
+
+def test_json_counts_unmatched_claims(tmp_path: pathlib.Path, backfill: BindReport) -> None:
+    path = sidecar.write(backfill, tmp_path / "notes.backdraft.json")
+    _, checked = _checked(str(path))
+    assert checked["record"]["unmatched"] == 1
+    assert checked["findings"] == []
+
+
+def _tamper_snippet(citation: dict) -> None:
+    citation["anchor"]["snippet"] = citation["anchor"]["snippet"][:-1] + "#"
+
+
+def _tamper_hash(citation: dict) -> None:
+    anchor = citation["anchor"]
+    citation["token"] = f"bd:{anchor['slug']}:{anchor['locator']}:dead"
+
+
+def _tamper_slug(citation: dict) -> None:
+    anchor = citation["anchor"]
+    citation["token"] = f"bd:elsewhere:{anchor['locator']}:{anchor['snippet_sha256'][:4]}"
+
+
+def _tamper_locator(citation: dict) -> None:
+    anchor = citation["anchor"]
+    citation["token"] = f"bd:{anchor['slug']}:p99:{anchor['snippet_sha256'][:4]}"
+
+
+def _tamper_grammar(citation: dict) -> None:
+    citation["token"] = "bd:not a token"
+
+
+RECEIPT_CHECKS = {
+    "snippet_sha256": _tamper_snippet,
+    "token_hash": _tamper_hash,
+    "token_slug": _tamper_slug,
+    "token_locator": _tamper_locator,
+    "token_parses": _tamper_grammar,
+}
+"""Every value `check` can take, each with the one edit that fails it alone."""
+
+
+@pytest.mark.parametrize("check", sorted(RECEIPT_CHECKS))
+def test_json_names_which_receipt_check_failed(record: pathlib.Path, check: str) -> None:
+    payload = _payload(record)
+    # A paged, undrifted citation, so each edit trips its own check and no
+    # earlier one: a drifted token's hash names `drifted_from`, not the anchor.
+    citation = next(
+        c
+        for claim in payload["claims"]
+        for c in claim["citations"]
+        if "anchor" in c and c["anchor"]["locator"].startswith("p") and not c.get("drifted_from")
+    )
+    claim = next(c for c in payload["claims"] if citation in c["citations"])
+    RECEIPT_CHECKS[check](citation)
+    _rewrite(record, payload)
+
+    result, checked = _checked(str(record))
+
+    assert result.exit_code == EXIT_UNVERIFIED, result.output
+    assert [finding["kind"] for finding in checked["findings"]] == ["receipt"]
+    finding = checked["findings"][0]
+    assert finding["check"] == check
+    assert finding["token"] == citation["token"]
+    assert finding["claim"] == {k: claim[k] for k in ("text", "start", "end")}
+    assert checked["record"]["receipts_held"] == checked["record"]["receipts"] - 1
+
+
+def test_json_reports_a_disagreeing_summary_as_a_recount_finding(record: pathlib.Path) -> None:
+    payload = _payload(record)
+    recounted = dict(payload["summary"])
+    payload["summary"]["citations"] += 4
+    _rewrite(record, payload)
+
+    result, checked = _checked(str(record))
+
+    assert result.exit_code == EXIT_UNVERIFIED, result.output
+    assert checked["record"]["summary_agrees"] is False
+    assert checked["findings"] == [
+        {"kind": "recount", "recorded": payload["summary"], "recounted": recounted}
+    ]
+
+
+def test_json_on_a_moved_source_is_a_source_finding(project) -> None:
+    registry, root, source = project
+    token = _token(registry, 2)
+    path = _bound(root, registry, f"The file says [1.42x]({token}).\n")
+    source.write_text(PAGE_BREAK.join([PAGE_ONE, PAGE_TWO_EDITED]), encoding="utf-8")
+    registry.ingest(source, extractor="paged")
+
+    result, checked = _checked(str(path))
+
+    assert result.exit_code == EXIT_UNVERIFIED, result.output
+    assert checked["sources"]["ran"] is True
+    assert checked["sources"]["registry"] == str(root)
+    assert checked["sources"]["by_status"] == {"drifted": 1}
+    assert checked["findings"] == [
+        {
+            "kind": "source",
+            "token": token,
+            "status": "drifted",
+            "recorded": "resolved",
+            "error": None,
+            "claim": {"text": "1.42x", "start": 14, "end": 14 + len(f"[1.42x]({token})")},
+        }
+    ]
+
+
+def test_an_edited_file_and_a_moved_source_are_told_apart_by_kind_alone(project) -> None:
+    """The acceptance pin: both exit 2, and `kind` is enough to say which happened."""
+    registry, root, source = project
+    token = _token(registry, 2)
+    body = f"The file says [1.42x]({token}).\n"
+
+    edited = _bound(root, registry, body)
+    payload = _payload(edited)
+    _tamper_snippet(_first_anchored(payload))
+    _rewrite(edited, payload)
+    by_edit, edit_checked = _checked(str(edited))
+
+    moved = _bound(root, registry, body)
+    source.write_text(PAGE_BREAK.join([PAGE_ONE, PAGE_TWO_EDITED]), encoding="utf-8")
+    registry.ingest(source, extractor="paged")
+    by_move, move_checked = _checked(str(moved))
+
+    assert by_edit.exit_code == by_move.exit_code == EXIT_UNVERIFIED
+    assert {finding["kind"] for finding in edit_checked["findings"]} == {"receipt"}
+    assert {finding["kind"] for finding in move_checked["findings"]} == {"source"}
+
+
+def test_json_leaves_every_exit_code_where_the_report_puts_it(record: pathlib.Path) -> None:
+    clean = runner.invoke(app, ["verify", str(record)]).exit_code
+    assert runner.invoke(app, ["verify", str(record), "--json"]).exit_code == clean == 0
+
+    payload = _payload(record)
+    _tamper_snippet(_first_anchored(payload))
+    _rewrite(record, payload)
+    broken = runner.invoke(app, ["verify", str(record)]).exit_code
+    assert runner.invoke(app, ["verify", str(record), "--json"]).exit_code == broken == 2
+
+
+def test_json_keeps_a_usage_error_off_stdout(tmp_path: pathlib.Path) -> None:
+    result = runner.invoke(app, ["verify", str(tmp_path / "nope.backdraft.json"), "--json"])
+    assert result.exit_code == EXIT_USAGE
+    assert result.stdout == ""
+    assert "no such file" in result.stderr
+
+
+def test_the_artifact_spec_names_every_value_json_can_carry() -> None:
+    """spec/artifact.md is where a caller learns these; a value it omits is one
+    nobody can branch on without reading this file."""
+    spec = (pathlib.Path(__file__).parents[1] / "spec" / "artifact.md").read_text(
+        encoding="utf-8"
+    )
+    section = spec.split("## Checking an artifact", 1)[1].split("\n## ", 1)[0]
+    for value in (VERIFY_FORMAT, "receipt", "recount", "source", *RECEIPT_CHECKS):
+        assert f"`{value}`" in section, f"spec/artifact.md does not name {value!r}"
 
 
 # ---- the island reader ------------------------------------------------------

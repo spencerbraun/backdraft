@@ -296,7 +296,7 @@ All switches **default off** (`--check` opts in). Verdicts are recorded evidence
 - `--to footnotes` → plain markdown projection. `--to json` → sidecar alone.
 - `--theme <name|file>` restyles the html artifact — a TOML file of colors, font stacks and heading treatment, resolved by `render/theme.py` into one CSS block emitted *after* the stylesheet (so an unthemed render is byte-identical to one from before themes existed). Precedence: `--theme` > project `.backdraft/theme.toml` > XDG `~/.config/backdraft/theme.toml` > built-in. `backdraft theme list` names the bundled themes and which file is in effect; `theme show <name|file>` prints one, validated, so redirecting `show default` bootstraps a commented starting file and `show ./mine.toml` lints one. Display only: no token, receipt or record moves, and layout is outside the allowlist.
 - Artifact format string: `backdraft/artifact-v1` (prose spec in spec/artifact.md).
-- `verify <artifact>` is the reader half made a command: it takes the `.backdraft.html` or the `.backdraft.json` and runs spec/artifact.md § Checking an artifact — every `snippet_sha256` recomputed, every token checked against the anchor it names (against `drifted_from` where there is one), `summary` recounted. Where a registry is discoverable from cwd it also re-resolves every token through `registry.citation_for`, the walk `bind` takes, and reports the statuses. Read-only: no session, no minting, so an audit never makes its subject citable.
+- `verify <artifact>` is the reader half made a command: it takes the `.backdraft.html` or the `.backdraft.json` and runs spec/artifact.md § Checking an artifact — every `snippet_sha256` recomputed, every token checked against the anchor it names (against `drifted_from` where there is one), `summary` recounted. Where a registry is discoverable from cwd it also re-resolves every token through `registry.citation_for`, the walk `bind` takes, and reports the statuses. Read-only: no session, no minting, so an audit never makes its subject citable. `--json` writes the same check as one `backdraft/verify-v1` object instead of the report (spec/artifact.md § The verify report): each tier with whether it ran, and `findings` whose `kind` — `receipt`, `recount`, `source` — separates a file edited after it was written from a citation the sources do not stand behind today, which the shared exit 2 cannot. `bind --json` is its producing-side twin and writes the sidecar payload itself; on both, the exit code does not move.
 
 ## CLI (cli.py — typer)
 
@@ -312,9 +312,11 @@ backdraft search "<query>" [--in slug] [--limit N]
                                     # a run `--limit` cut says how many matched and
                                     # names the command that shows the rest
 backdraft show <token>...           # gate: what does this token say?
-backdraft bind <doc.md> [--session S] [--check ...] [--mode ...]
+backdraft bind <doc.md> [--session S] [--check ...] [--mode ...] [--json]
+                                    # --json: the record on stdout, not the report
 backdraft render <doc.md> [--to html|footnotes|json] [-o out] [--theme name|file]
-backdraft verify <artifact>          # check a record: receipts, then the sources
+backdraft verify <artifact> [--json] # check a record: receipts, then the sources
+                                    # --json: backdraft/verify-v1 on stdout
 backdraft theme [list|show <name|file>]
 backdraft export [--out registry.json]
 backdraft session [start|show] 

@@ -25,6 +25,7 @@ from .model import BindReport
 
 __all__ = [
     "FORMAT",
+    "VERIFY_FORMAT",
     "ISLAND_ID",
     "LEGEND",
     "ARTIFACT_SUFFIX",
@@ -41,6 +42,15 @@ __all__ = [
 
 FORMAT = "backdraft/artifact-v1"
 """The artifact format string. Readers match it exactly; see `LEGEND["version"]`."""
+
+VERIFY_FORMAT = "backdraft/verify-v1"
+"""The format string of `backdraft verify --json`'s object.
+
+Not the artifact: the result of checking one, specified beside the checks it
+reports in `spec/artifact.md` § Checking an artifact. Kernel-owned for the reason
+`FORMAT` is — the spec file's in-code copy lives in this module — and matched
+exactly by whatever reads it, under the same no-guessing rule.
+"""
 
 ISLAND_ID = "backdraft-artifact"
 """The id of the HTML artifact's record island.

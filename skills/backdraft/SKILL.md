@@ -317,6 +317,19 @@ the report already tells you which sentence to go fix and where it sits in the
 document. Do not grep for the token; the offset is what distinguishes two line
 items carrying the same one.
 
+**Parse keys, not lines.** When you need the result as data — to loop over the
+failures, or in a script or a hook — do not scrape the report: its wording is
+for the user and changes between releases. Prefer `--json`:
+`backdraft bind memo.md --session s-<short-name> --json` prints the record in
+place of the report, with the same exit code. Every citation's `token`, `status`
+and `error` sit under `claims[].citations[]` beside the claim's `text` and
+`start`, and `summary.by_status` counts them. It is the whole record, embedded
+evidence included — hundreds of kilobytes once page images are in it — so pipe
+it into a parser rather than printing it into your context. It is byte for byte
+the file bind writes under `.backdraft/records/`, so a run you already made can
+be parsed from there instead of binding twice. **Relay the plain report to the
+user, never the JSON.**
+
 On exit 2, `backdraft show <token>` is the first move on any line item: it runs
 the token back to what it names, and its answer is the same status bind just
 printed, with the reason attached.

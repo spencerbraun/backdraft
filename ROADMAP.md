@@ -32,48 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. A calling agent parses prose to find out what happened
-
-**Intent.** `bind` and `verify` are the two commands whose *output* is the
-product — the exit code says clean or not, and everything actionable is in the
-lines. An agent is the primary caller of both, and today it must scrape them:
-`! unresolved: <token> — <reason> — <claim words> @<start>`, or `! receipt:`,
-or `receipts: 16 of 17 hold`. Every wording fix this repo lands — and it lands
-them often, four this week alone — is a silent breaking change for anything
-that scraped the last wording. Worse, the shapes collide: `verify` exits 2 both
-for a receipt that did not hold, which means the file was edited, and for a
-source that moved since binding, which means the file is honest and stale. Those
-demand opposite responses and the exit code cannot tell them apart, so the agent
-is pushed back to the prose to find out which it got.
-
-**Shape.** `--json` on `bind` and on `verify`, writing one object to stdout and
-nothing else, with the human report suppressed. For `bind` the object already
-exists — it is the sidecar payload `render.sidecar.dumps` writes, which the
-artifact spec already governs — so this is a flag choosing the existing
-serialization, not a new format. `verify` needs a small one of its own, and it
-belongs in `spec/artifact.md` § Checking an artifact beside the checks it
-reports: the format string, the two tiers with a ran/not-ran flag each, per
-citation the token and what failed, and a `findings` list whose entries carry a
-kind (`receipt`, `source`, `recount`) so the two exit-2 causes are separable
-without reading a sentence. Exit codes do not move — the codes are the contract
-and a third one would break every hook written against 0/1/2; the distinction
-lives in the payload, which is exactly what the payload is for. `--json` with
-`-o -` on `render` is the precedent for writing structured output to stdout.
-
-**Acceptance.** `backdraft bind memo.md --json` in `demo/` emits a single JSON
-object, exits 2 as it does today, and prints no report lines; the object parses
-and equals the sidecar it wrote. `backdraft verify memo.backdraft.html --json`
-emits an object naming both tiers, and in `demo/` its `findings` carries one
-entry of kind `source` and none of kind `receipt`; with a snippet edited by one
-byte it carries a `receipt` entry. A test asserts the two kinds are
-distinguishable without any string matching on prose. `spec/artifact.md`,
-`site/llms.txt` and `skills/backdraft/SKILL.md` and
-`skills/backdraft-artifact/SKILL.md` tell the agent to prefer `--json` and to
-relay the human report to the user.
-
-**Size.** Two to three days.
-
-### 2. An artifact you were sent cannot be checked against a registry you have
+### 1. An artifact you were sent cannot be checked against a registry you have
 
 **Intent.** `verify`'s second tier runs only where a `.backdraft/` is
 discoverable from cwd, and the reason is good: an artifact is a file people
@@ -91,11 +50,12 @@ write access to that checkout.
 `cli_context.find_root` accepts `BACKDRAFT_HOME`, and bypassing the cwd walk
 when given. It answers rather than violates the 2026-08-24 objection, and the
 DESIGN row must say so: discovery stays refusal-by-default and the flag is the
-recipient asserting a link the tool must never infer, which is the same shape
-as `--slug` overruling a derived name. The `sources:` line names the registry it
-used either way, so a report never leaves which registry answered ambiguous.
-`BACKDRAFT_HOME` already overrides discovery process-wide and must keep
-working; the flag wins over it, and a test pins that order.
+recipient asserting a link the tool must never infer, which is the same shape as
+`--slug` overruling a derived name. The `sources:` line names the registry it
+used either way, as `--json`'s `sources.registry` already does, so a report
+never leaves which registry answered ambiguous. `BACKDRAFT_HOME` already
+overrides discovery process-wide and must keep working; the flag wins over it,
+and a test pins that order.
 
 **Acceptance.** From a directory with no `.backdraft/` anywhere above it,
 `backdraft verify memo.backdraft.html --against ../backdraft/demo` re-resolves
@@ -109,7 +69,7 @@ runs only in the project it was bound in.
 
 **Size.** One day.
 
-### 3. A claim that straddles a chunk boundary gets one token instead of two
+### 2. A claim that straddles a chunk boundary gets one token instead of two
 
 **Intent.** `skills/backdraft/SKILL.md` tells the writing agent that "a claim
 that spans two chunks needs both tokens, not the nearest one" — a correct
@@ -144,7 +104,7 @@ one" with the surface that now says which both are.
 
 **Size.** Two to three days.
 
-### 4. A re-ingested source strands citations one at a time
+### 3. A re-ingested source strands citations one at a time
 
 **Intent.** This is DESIGN.md's oldest Open line — "re-bind/orphan pass on
 re-ingest of changed docs (chunk ordinal drift)" — and the week that taught
@@ -186,7 +146,7 @@ extraction and ledger counts are identical before and after.
 
 **Size.** Three days.
 
-### 5. What this install can do, said before a verb needs it
+### 4. What this install can do, said before a verb needs it
 
 **Intent.** backdraft degrades rather than fails, which is right, and the price
 is that its capabilities are discovered one at a time at the moment each is
@@ -223,7 +183,7 @@ run in an unfamiliar environment.
 
 **Size.** Two days.
 
-### 6. `bind` never says which ledger it judged `not_shown` against
+### 5. `bind` never says which ledger it judged `not_shown` against
 
 **Intent.** `bind`'s report names the mode, the claim and citation counts, every
 status, every check that ran and every failure — everything except the one input
@@ -243,17 +203,17 @@ beside it.
 
 **Shape.** `bind/cli.py`'s report header, and `spec/artifact.md`. Name the
 session on the summary line, and where it is the default one, close with
-`gate.reader.DEFAULT_SESSION_NOTE` — imported, not re-written, which is the whole
-point of the item: two wordings for one cost is how the `session show` note and
-this one drift apart. Keyed on the resolved id rather than on which rule supplied
-it, exactly as `session show` keys it, so an explicit `--session default` is
-named too. Then say it in the format: `spec/artifact.md`'s `session_id` row and
-the legend's `not_shown` line must tell a reader what a default session means for
-the status, since the record travels and the CLI does not. That is a legend
-change, so goldens and the demo regenerate — the 2026-08-24 trade, taken twice
-before. Not the ground of "A calling agent parses prose to find out what
-happened": that item makes the report machine-readable, this one adds a fact the
-report does not currently carry in any form.
+`gate.reader.DEFAULT_SESSION_NOTE` — imported, not re-written, which is the
+whole point of the item: two wordings for one cost is how the `session show`
+note and this one drift apart. Keyed on the resolved id rather than on which
+rule supplied it, exactly as `session show` keys it, so an explicit
+`--session default` is named too. Then say it in the format: `spec/artifact.md`'s
+`session_id` row and the legend's `not_shown` line must tell a reader what a
+default session means for the status, since the record travels and the CLI does
+not. That is a legend change, so goldens and the demo regenerate — the
+2026-08-24 trade, taken twice before. Not what `bind --json` (2026-09-14)
+settled: the record it prints already carries `session_id`, and what neither it
+nor the report says is what a default session means for the statuses beside it.
 
 **Acceptance.** In `demo/`, `backdraft bind memo.md` with no session and no
 `BACKDRAFT_SESSION` names `default` and prints the note; `--session s-bridgeview`
@@ -269,7 +229,7 @@ DESIGN row.
 
 **Size.** Two days.
 
-### 7. A withdrawn source is invisible, including to the person looking for it
+### 6. A withdrawn source is invisible, including to the person looking for it
 
 **Intent.** `forget` withdraws a source from every surface that offers one, which
 is right, and the result is that nothing lists what was withdrawn. `ls` says `no
@@ -306,7 +266,7 @@ and `skills/backdraft/SKILL.md` say where to look. DESIGN row.
 
 **Size.** One day.
 
-### 8. `--slug` is dropped without a word when the document is already there
+### 7. `--slug` is dropped without a word when the document is already there
 
 **Intent.** `Registry.ingest`'s docstring says "`slug` is honoured only when the
 document is new — a slug is stable once assigned", which is the right rule and is
@@ -344,7 +304,7 @@ pass `--slug`. DESIGN row.
 
 **Size.** One day.
 
-### 9. `verify` cannot re-check the one status only the ledger can settle
+### 8. `verify` cannot re-check the one status only the ledger can settle
 
 **Intent.** `verify`'s source tier re-resolves every token and reports the
 statuses "as `bind` would", with one gap the code names out loud: `not_shown`
@@ -358,17 +318,19 @@ claim a recipient holding the registry cannot re-check. That recipient is the
 project, and the check they most want is the one that says the author read it.
 
 **Shape.** `render/cli.py`'s source tier plus one registry read. The record
-already carries `session_id`, and `Registry.was_shown(session_id, token)` already
-answers the question one token at a time — that is the call `bind` makes, so a
-status printed here stays the status a re-bind would print. The standing
-objection is in the docstring and must be answered rather than overridden:
-"read-only, it opens no session and mints nothing, which is what separates it
-from `backdraft show`". Reading a ledger is not minting into one, and the session
-read is the one the record names rather than one verify chose — so
-`ensure_session` must not be called, a session id absent from the registry is
+already carries `session_id`, and `Registry.was_shown(session_id, token)`
+already answers the question one token at a time — that is the call `bind`
+makes, so a status printed here stays the status a re-bind would print. The
+standing objection is in the docstring and must be answered rather than
+overridden: "read-only, it opens no session and mints nothing, which is what
+separates it from `backdraft show`". Reading a ledger is not minting into one,
+and the session read is the one the record names rather than one verify chose —
+so `ensure_session` must not be called, a session id absent from the registry is
 reported as absent rather than created, and a `session_id` of `null` is reported
 as a run that had none. Nothing about `show`'s minting changes. The `sources:`
-line gains the status; the existing counts must keep meaning what they mean.
+line gains the status, and so do `--json`'s `sources.by_status` and `findings` —
+one set of findings, two presenters (2026-09-14); the existing counts must keep
+meaning what they mean.
 
 **Acceptance.** In `demo/`, bind a memo under a session that was never shown one
 of its citations, render, then `backdraft verify` in the project: the source tier
@@ -384,7 +346,7 @@ DESIGN row.
 
 **Size.** Two to three days.
 
-### 10. `bind` and `verify` name the failure and not the move
+### 9. `bind` and `verify` name the failure and not the move
 
 **Intent.** 2026-09-01 made `ingest`'s failures say what to do as well as what
 went wrong, on the argument that a calling agent reads the reason and acts on it.
@@ -402,17 +364,16 @@ that reached the command another way.
 **Shape.** A closing block on both commands, one line per status actually
 present, naming the exact command that addresses it — the shape `ingest`'s
 grouped notes already use, and never a hint appended to each of eighteen line
-items. One owner for the mapping, imported by `bind/cli.py` and
-`render/cli.py` rather than written twice; the status set is the artifact
-format's and closed, so the mapping is total and a test asserts every
-`CitationStatus` has a line. `verify` adds the `receipt` case, which is not a
-citation status and is the finding that means something categorically different.
-Display only: no exit code moves, no status moves, no record field is added — a
-run that came out clean prints exactly what it prints today. Not "A calling agent
-parses prose to find out what happened", which gives the same two commands a
-machine-readable payload; that item serves a caller
-that parses, this one serves the caller that reads, and both are wanted because
-the human report is what gets relayed to the user.
+items. One owner for the mapping, imported by `bind/cli.py` and `render/cli.py`
+rather than written twice; the status set is the artifact format's and closed,
+so the mapping is total and a test asserts every `CitationStatus` has a line.
+`verify` adds the `receipt` case, which is not a citation status and is the
+finding that means something categorically different. Display only: no exit code
+moves, no status moves, no record field is added — a run that came out clean
+prints exactly what it prints today. Not `--json` (2026-09-14), which gave the
+same two commands a machine-readable payload; that serves a caller that parses,
+this one serves the caller that reads, and both are wanted because the human
+report is what gets relayed to the user.
 
 **Acceptance.** In `demo/`, `backdraft bind memo.md --session s-bridgeview
 --check value-trace,overlap` closes by naming `backdraft search` for its one
@@ -425,7 +386,7 @@ verify blocks show the real output. DESIGN row.
 
 **Size.** Two days.
 
-### 11. A chunk the table of contents lists is a chunk no read can ask for
+### 10. A chunk the table of contents lists is a chunk no read can ask for
 
 **Intent.** Since 2026-09-07 `backdraft read <slug>` on a one-page source lists
 that page's chunks — `p1.c9  From Wikipedia, the free encyclopedia...` — and the
@@ -472,7 +433,7 @@ form.
 
 **Size.** Two days.
 
-### 12. A search hit's excerpt can leave out the words that matched
+### 11. A search hit's excerpt can leave out the words that matched
 
 **Intent.** `search` prints each hit's first 160 characters, and
 `searcher._excerpt`'s NOTE says so on purpose: the cut is from the start rather
@@ -513,7 +474,7 @@ matched, asserted by test. No `registry-v1` export field changes. SPEC § Gate's
 
 **Size.** Two days.
 
-### 13. A small table is marked a shell, and the skill says not to cite it
+### 12. A small table is marked a shell, and the skill says not to cite it
 
 **Intent.** The thin-source mark (2026-08-20, carried onto every list
 2026-09-09) is a character count under `THIN_SOURCE_CHARS`, and for prose that
@@ -554,7 +515,7 @@ mark means for a table. DESIGN row.
 
 **Size.** One day.
 
-### 14. `ingest --dry-run` names the source and not the run
+### 13. `ingest --dry-run` names the source and not the run
 
 **Intent.** The dry run (2026-09-10) answers what a source would be called, and
 `tests/test_dry_run.py` pins that the prediction equals the outcome — for the
@@ -603,7 +564,7 @@ row.
 
 **Size.** Two days.
 
-### 15. `session show` counts what was read and cannot say what was not
+### 14. `session show` counts what was read and cannot say what was not
 
 **Intent.** `session show` (2026-08-31) answers "have I read enough to write
 this yet?" with a count per document. Since the page-read budget (2026-09-08) a
