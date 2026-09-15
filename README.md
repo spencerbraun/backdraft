@@ -266,6 +266,18 @@ going unnoticed. Exit 0 when everything it checked passed, 2 when something did
 not, so a hook can gate on it. It opens no session and mints nothing: an audit
 must not make its subject citable.
 
+Holding a file that was sent to you beside a checkout of the project it came
+out of, say so rather than moving the file:
+
+```console
+$ backdraft verify ~/Downloads/memo.backdraft.html --against ~/work/project
+```
+
+That runs the source check too, and its `sources:` line names the registry that
+answered. `verify` never works out which project a file belongs to from where it
+landed, so the link is yours to assert; a path with no registry in it is refused
+rather than quietly checking the file alone.
+
 **Scripts and agents read keys, not lines.** The reports above are worded for
 people, and the wording changes. `backdraft bind memo.md --json` prints the
 record in place of the report (the same bytes bind writes), and

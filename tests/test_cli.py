@@ -60,6 +60,48 @@ def test_backdraft_home_accepts_the_registry_directory_itself(
     assert cli.find_root(Path("/")) == tmp_path
 
 
+@pytest.mark.parametrize("form", ["root", "directory"])
+def test_a_named_registry_takes_both_forms_backdraft_home_takes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, form: str
+) -> None:
+    """One rule for naming a registry, however it is named."""
+    from backdraft.cli_context import named_root
+
+    (tmp_path / DIRECTORY).mkdir()
+    named = tmp_path if form == "root" else tmp_path / DIRECTORY
+    monkeypatch.setenv(cli.HOME_ENV, str(named))
+
+    assert named_root(named) == cli.find_root(Path("/")) == tmp_path
+
+
+def test_a_named_registry_resolves_a_relative_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backdraft.cli_context import named_root
+
+    (tmp_path / "project" / DIRECTORY).mkdir(parents=True)
+    (tmp_path / "elsewhere").mkdir()
+    monkeypatch.chdir(tmp_path / "elsewhere")
+
+    assert named_root(Path("../project/.backdraft")) == (tmp_path / "project").resolve()
+
+
+def test_a_named_directory_with_no_registry_is_refused_not_discovered_past(
+    tmp_path: Path,
+) -> None:
+    """Discovery answers None and walks on; naming one that is not there is an error."""
+    from backdraft.cli_context import UsageError, named_root
+
+    (tmp_path / DIRECTORY).mkdir()
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    assert cli.find_root(empty) == tmp_path.resolve()
+
+    with pytest.raises(UsageError, match="no registry at .*expected a project root"):
+        named_root(empty)
+    assert not (empty / DIRECTORY).exists()
+
+
 # ---- sessions ---------------------------------------------------------------
 
 

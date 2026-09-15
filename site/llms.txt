@@ -182,7 +182,8 @@ backdraft verify memo.backdraft.html        # check a record you were handed:
                                             # snippets rehashed, tokens checked
                                             # against their anchors, summary
                                             # recounted. Plus, only when a
-                                            # .backdraft/ is found from cwd,
+                                            # .backdraft/ is found from cwd or
+                                            # named by --against <project>,
                                             # every token re-resolved against
                                             # the sources. Read-only: mints
                                             # nothing, unlike `show`. Exit 2 if
@@ -216,7 +217,12 @@ passed — not that every claim is supported, and not that the sources were
 looked at unless the `sources:` line says they were. A `! receipt:` line means
 the file was edited after it was written; report that first. A tier-two line
 ending `— the record says resolved` means the source moved since the document
-was bound: re-read and confirm, do not delete.
+was bound: re-read and confirm, do not delete. To check a file you were sent
+against a project you have, pass `--against <project root or its .backdraft>`
+rather than copying the file into it — only when you know the file came from
+there, since verify never infers the link and the wrong registry reports honest
+citations as unresolved or drifted. The sources: line names the registry that
+answered; a path with no registry exits 1.
 
 Parse keys, not lines: the lines are worded for the user and get reworded. To
 act on a result as data, add --json — same exit codes, one JSON object on

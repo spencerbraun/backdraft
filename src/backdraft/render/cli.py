@@ -6,9 +6,11 @@ files a reader was handed, on a machine that has never seen the sources.
 
 `verify` lives here too: it is the reader half of the same format, and this
 module already holds the door onto it (`render.sidecar`). It is the one command
-in this file that may open the registry — and it opens it from *cwd*, never from
+in this file that may open the registry — and it finds it from *cwd*, never from
 the artifact's own directory, because an artifact is a file people forward and
-where it landed says nothing about which registry produced it.
+where it landed says nothing about which registry produced it. `--against` is
+the recipient saying which one instead: a link the caller asserts, never one
+the tool infers.
 
 Mounted by the top-level CLI as `app`, per SPEC Addendum B:
 
@@ -44,6 +46,7 @@ from ..cli_context import (
     claim_words,
     find_root,
     guard,
+    named_root,
 )
 from ..kernel.artifact import (
     ARTIFACT_SUFFIX,
@@ -214,6 +217,19 @@ def verify(
         Path,
         typer.Argument(help="A .backdraft.html artifact or a .backdraft.json sidecar."),
     ],
+    against: Annotated[
+        Path | None,
+        typer.Option(
+            "--against",
+            metavar="PROJECT",
+            help=(
+                "Check against the sources in this project's registry instead of one "
+                "found from the current directory: the project root or its .backdraft "
+                "directory. You are saying the artifact came from there; verify never "
+                "infers it."
+            ),
+        ),
+    ] = None,
     as_json: Annotated[
         bool,
         typer.Option(
@@ -234,17 +250,20 @@ def verify(
     an artifact, and it catches an edited artifact. Against the sources runs
     only when a `.backdraft/` is found from the current directory — not from the
     artifact's, because an artifact is a file people forward and the folder it
-    landed in says nothing about which registry it came from. It re-resolves
-    every token and reports the statuses as `bind` would.
+    landed in says nothing about which registry it came from — or when
+    `--against` names the project it came from, which is the one way to check a
+    file you were sent against a registry you have. It re-resolves every token
+    and reports the statuses as `bind` would, and names the registry it used.
 
     Read-only. It opens no session and mints nothing, which is what separates it
     from `backdraft show`: showing is minting, and an audit must not make its
     subject citable.
 
-    Exit codes: 0 everything checked passed · 1 the file is missing, or is not
-    an artifact · 2 something did not verify, so a hook can gate on it. A record
-    that faithfully carries an `unresolved` citation still exits 0 on tier one —
-    a kept failure is the record working, not the record broken.
+    Exit codes: 0 everything checked passed · 1 the file is missing, is not an
+    artifact, or `--against` names no registry · 2 something did not verify, so
+    a hook can gate on it. A record that faithfully carries an `unresolved`
+    citation still exits 0 on tier one — a kept failure is the record working,
+    not the record broken.
 
     `--json` prints the same check as one object instead of the report. Its
     `findings` carry a `kind` — `receipt` means the file was edited, `source`
@@ -259,8 +278,12 @@ def verify(
             report = sidecar.to_report(payload)
         except (ValueError, KeyError, TypeError, OSError, UnicodeDecodeError) as error:
             raise UsageError(_not_an_artifact(artifact, error)) from error
+        # NOTE: the flag bypasses discovery rather than joining it, so it also
+        # outranks `BACKDRAFT_HOME`: a name typed on this command is more
+        # specific than one exported for the whole shell.
+        root = named_root(against) if against is not None else find_root()
 
-    checked = _check(payload, report, find_root())
+    checked = _check(payload, report, root)
     if as_json:
         document = _verification(artifact, checked)
         sys.stdout.write(json.dumps(document, indent=2, ensure_ascii=False) + "\n")
@@ -297,7 +320,7 @@ class _Checked:
     recounts: bool
     """The file's `summary` equals a recount of its `claims`."""
     root: Path | None
-    """The registry tier two ran against, or None when it did not run."""
+    """The registry tier two ran against — discovered or named — or None when it did not run."""
     against: list[tuple[Claim, Citation, Citation]]
     """Every citation re-resolved: the claim, what the record says, what the registry says."""
 

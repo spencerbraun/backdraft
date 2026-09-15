@@ -743,6 +743,19 @@ rather than from the artifact's own, because an artifact is a file people
 forward and the folder it landed in proves nothing about which registry
 produced it.
 
+What the folder cannot prove, the person running the check can say. From the
+inbox, name the project the file came out of:
+
+```bash
+backdraft verify memo.backdraft.html --against path/to/backdraft/demo
+```
+
+and the report is the in-project one above, line for line — the same `sources:`
+line naming the same root, the same exit 2. It takes `demo/.backdraft` just as
+well. Point it at a directory holding no registry and it exits 1 saying what it
+expected, rather than quietly running the first tier alone and looking like the
+check you asked for.
+
 `recorded: resolved 17, unresolved 1` is a third fact and is neither check: it
 is what the producer found, carried faithfully. A kept failure is the record
 working, which is why the copy in an inbox exits 0 while carrying an unresolved

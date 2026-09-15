@@ -464,6 +464,166 @@ def test_the_registry_is_found_from_cwd_not_from_the_artifact(
     assert "no .backdraft/ found from here" in result.output
 
 
+# ---- --against: the recipient names the project -----------------------------
+#
+# Discovery stays refusal-by-default — the tests above pin that a forwarded file
+# does not find its registry by where it landed. The flag is the other half: the
+# caller asserting the link the tool must never infer, the way `--slug` overrules
+# a derived name. So it has to answer exactly as discovery would have from inside
+# the project, and a name that points at nothing has to be refused rather than
+# quietly downgraded to a tier-one run that looks like the check it was not.
+
+
+@pytest.fixture
+def inbox(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> pathlib.Path:
+    """A directory with no registry above it, and cwd inside it."""
+    outside = tmp_path / "inbox"
+    outside.mkdir()
+    monkeypatch.chdir(outside)
+    return outside
+
+
+def test_against_checks_a_forwarded_artifact_exactly_as_the_project_would(
+    project, inbox: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The whole report, not just the `sources:` line, is the in-project run's."""
+    registry, root, _ = project
+    path = _bound(root, registry, "The file says [1.42x](bd:ghost:p1.c1:0000).\n")
+    monkeypatch.chdir(root)
+    discovered = runner.invoke(app, ["verify", str(path)])
+    monkeypatch.chdir(inbox)
+
+    named = runner.invoke(app, ["verify", str(path), "--against", str(root)])
+
+    assert named.exit_code == discovered.exit_code == EXIT_UNVERIFIED, named.output
+    assert named.output == discovered.output
+    assert f"sources: re-resolved against {root} — unresolved 1" in named.output
+
+
+def test_against_takes_the_registry_directory_itself(project, inbox: pathlib.Path) -> None:
+    registry, root, _ = project
+    path = _bound(root, registry, f"The file says [1.42x]({_token(registry, 2)}).\n")
+
+    by_root = runner.invoke(app, ["verify", str(path), "--against", str(root)])
+    by_directory = runner.invoke(app, ["verify", str(path), "--against", str(root / ".backdraft")])
+
+    assert by_root.exit_code == by_directory.exit_code == 0, by_directory.output
+    assert by_directory.output == by_root.output
+    assert f"sources: re-resolved against {root} — resolved 1" in by_directory.output
+
+
+def test_against_a_relative_path_names_the_root_it_resolved_to(
+    project, inbox: pathlib.Path
+) -> None:
+    """`../project` in a report would mean something different to whoever reads it."""
+    registry, root, _ = project
+    path = _bound(root, registry, f"The file says [1.42x]({_token(registry, 2)}).\n")
+
+    result = runner.invoke(app, ["verify", str(path), "--against", "../project"])
+
+    assert result.exit_code == 0, result.output
+    assert f"sources: re-resolved against {root} — resolved 1" in result.output
+
+
+def test_against_a_directory_with_no_registry_is_a_usage_error(
+    project, inbox: pathlib.Path
+) -> None:
+    """Refused, not downgraded — and refused before anything could be created there.
+
+    `Registry.open` makes what it does not find, so a check that opened first and
+    asked questions later would leave a registry in whatever directory was typed.
+    """
+    registry, root, _ = project
+    path = _bound(root, registry, f"The file says [1.42x]({_token(registry, 2)}).\n")
+
+    result = runner.invoke(app, ["verify", str(path), "--against", str(inbox)])
+
+    assert result.exit_code == EXIT_USAGE, result.output
+    assert f"no registry at {inbox}" in result.output
+    assert "expected a project root containing .backdraft/" in result.output
+    assert "not re-checked" not in result.output
+    assert not (inbox / ".backdraft").exists()
+
+
+def test_against_a_path_that_does_not_exist_is_a_usage_error(
+    project, inbox: pathlib.Path
+) -> None:
+    registry, root, _ = project
+    path = _bound(root, registry, f"The file says [1.42x]({_token(registry, 2)}).\n")
+
+    result = runner.invoke(app, ["verify", str(path), "--against", "nowhere"])
+
+    assert result.exit_code == EXIT_USAGE, result.output
+    assert f"no registry at {inbox / 'nowhere'}" in result.output
+    assert not (inbox / "nowhere").exists()
+
+
+def test_against_outranks_backdraft_home(
+    project, inbox: pathlib.Path, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Flag, then `BACKDRAFT_HOME`, then the walk — and the environment still works.
+
+    The two registries disagree about the token on purpose, so the exit code says
+    which one answered as well as the line does.
+    """
+    registry, root, _ = project
+    path = _bound(root, registry, f"The file says [1.42x]({_token(registry, 2)}).\n")
+    other = tmp_path / "other"
+    Registry.open(other).close()
+
+    monkeypatch.chdir(other)
+    from_walk = runner.invoke(app, ["verify", str(path)])
+    over_walk = runner.invoke(app, ["verify", str(path), "--against", str(root)])
+    monkeypatch.chdir(inbox)
+    monkeypatch.setenv("BACKDRAFT_HOME", str(other))
+    from_environment = runner.invoke(app, ["verify", str(path)])
+    over_environment = runner.invoke(app, ["verify", str(path), "--against", str(root)])
+
+    for other_answered in (from_walk, from_environment):
+        assert other_answered.exit_code == EXIT_UNVERIFIED, other_answered.output
+        assert f"sources: re-resolved against {other} — unresolved 1" in other_answered.output
+    for flag_answered in (over_walk, over_environment):
+        assert flag_answered.exit_code == 0, flag_answered.output
+        assert f"sources: re-resolved against {root} — resolved 1" in flag_answered.output
+
+
+def test_against_is_named_in_json_as_the_registry_that_answered(
+    project, inbox: pathlib.Path
+) -> None:
+    registry, root, _ = project
+    path = _bound(root, registry, f"The file says [1.42x]({_token(registry, 2)}).\n")
+
+    result, checked = _checked(str(path), "--against", str(root / ".backdraft"))
+
+    assert result.exit_code == 0, result.output
+    assert checked["sources"] == {
+        "ran": True,
+        "registry": str(root),
+        "by_status": {"resolved": 1},
+    }
+
+
+def test_against_keeps_a_usage_error_off_stdout(project, inbox: pathlib.Path) -> None:
+    registry, root, _ = project
+    path = _bound(root, registry, f"The file says [1.42x]({_token(registry, 2)}).\n")
+
+    result = runner.invoke(app, ["verify", str(path), "--against", str(inbox), "--json"])
+
+    assert result.exit_code == EXIT_USAGE
+    assert result.stdout == ""
+
+
+def test_against_mints_nothing(project, inbox: pathlib.Path) -> None:
+    registry, root, _ = project
+    token = _token(registry, 2)
+    path = _bound(root, registry, f"The file says [1.42x]({token}).\n")
+    registry.ensure_session("default")
+
+    assert runner.invoke(app, ["verify", str(path), "--against", str(root)]).exit_code == 0
+
+    assert registry.was_shown("default", token) is False
+
+
 def test_a_token_naming_nothing_in_the_registry_exits_two(project) -> None:
     registry, root, _ = project
     path = _bound(root, registry, "The file says [1.42x](bd:ghost:p1.c1:0000).\n")

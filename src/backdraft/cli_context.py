@@ -44,6 +44,7 @@ __all__ = [
     "fail",
     "find_root",
     "guard",
+    "named_root",
     "open_registry",
     "opened_registry",
     "resolve_session",
@@ -99,13 +100,42 @@ def find_root(start: Path | None = None) -> Path | None:
     """
     override = os.environ.get(HOME_ENV)
     if override:
-        home = Path(override).expanduser()
-        return home.parent if home.name == DIRECTORY else home
+        return _either_form(Path(override).expanduser())
     current = (start or Path.cwd()).resolve()
     for candidate in (current, *current.parents):
         if (candidate / DIRECTORY).is_dir():
             return candidate
     return None
+
+
+def named_root(path: Path) -> Path:
+    """The project root of a registry the caller named outright, or `UsageError`.
+
+    For a command that lets its caller say which registry rather than having it
+    discovered — `verify --against`, where the artifact's own location is no
+    evidence at all. Both forms `BACKDRAFT_HOME` takes are taken here, through the
+    same rule, so the two ways of naming a registry cannot come to disagree.
+
+    Unlike discovery it never answers None: a walk that finds nothing has found
+    a directory with no project in it, but a caller who names one that is not
+    there has made a mistake, and falling back to anything would hide it. It
+    also refuses before anything is opened, because `Registry.open` creates what
+    it does not find, and naming the wrong directory must not leave a registry in
+    it. Resolved, so a report names the root the way the walk names what it finds.
+    """
+    home = Path(os.path.abspath(path.expanduser()))
+    root = _either_form(home)
+    if not (root / DIRECTORY).is_dir():
+        raise UsageError(
+            f"no registry at {home}: expected a project root containing {DIRECTORY}/, "
+            f"or the {DIRECTORY} directory itself"
+        )
+    return root.resolve()
+
+
+def _either_form(home: Path) -> Path:
+    """The project root, whether `home` names it or its `.backdraft` directory."""
+    return home.parent if home.name == DIRECTORY else home
 
 
 def open_registry(start: Path | None = None) -> Registry:

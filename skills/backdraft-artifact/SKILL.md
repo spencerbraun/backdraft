@@ -31,14 +31,30 @@ It reports two tiers and always says which ran:
   recounted from `claims`. Needs nothing but the file, and catches an edited
   artifact.
 - **Against the sources.** Only when a `.backdraft/` registry is discoverable
-  **from your current directory** — so it runs in the project the artifact came
-  out of, and not on a file someone emailed you. Every token is re-resolved and
-  the statuses are reported as `bind` would. When the output says
+  **from your current directory**, or you name one with `--against` — so it runs
+  in the project the artifact came out of, and not on a file someone emailed you
+  unless you say which project that file came from. Every token is re-resolved,
+  the statuses are reported as `bind` would, and the `sources:` line names the
+  registry that answered. When the output says
   `sources: no .backdraft/ found from here`, that check did not run: say so
   rather than implying the sources were confirmed.
 
+To check a file against a project you have without copying it there:
+
+```bash
+backdraft verify path/to/memo.backdraft.html --against path/to/project
+```
+
+It takes the project root or its `.backdraft` directory, and a path holding no
+registry exits 1. Pass it only when you know the file came out of that project —
+the user said so, or you bound it there. `verify` never guesses the link, and a
+wrong guess is expensive: citations checked against the wrong registry come back
+`unresolved` or `drifted`, which reads like a stale artifact rather than a wrong
+directory.
+
 Exit codes: **0** everything it checked passed · **1** the file is missing or is
-not an artifact of this format · **2** something did not verify.
+not an artifact of this format, or `--against` names no registry · **2**
+something did not verify.
 
 Read the whole output, not just the code. A `! receipt:` line means the file was
 edited after it was written — lead your report with it. A `! <status>:` line

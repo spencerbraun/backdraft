@@ -322,11 +322,15 @@ receipt exists to make rare.
 
 `backdraft verify <artifact>` is this list, implemented: steps 1 to 4 from the
 file alone, and — only where a registry is discoverable from the current
-directory — the outside check as well, re-resolving every token and reporting
-the statuses. It exits 0 when everything it checked passed, 1 when the file is
-not an artifact of this format, and 2 when something did not verify. A record
-that carries a non-`resolved` citation still passes: what the producer found is
-data the record faithfully carries, not a defect in it.
+directory, or where `--against <project>` names one — the outside check as well,
+re-resolving every token and reporting the statuses. Where the file sits is never
+evidence of which registry produced it, so a registry is found from where the
+check is run or named by whoever runs it, and never inferred from the artifact's
+own location. It exits 0 when everything it checked passed, 1 when the file is
+not an artifact of this format or `--against` names no registry, and 2 when
+something did not verify. A record that carries a non-`resolved` citation still
+passes: what the producer found is data the record faithfully carries, not a
+defect in it.
 
 ### The verify report
 
@@ -373,7 +377,7 @@ releases; the plain report is what to show that person.
 | `$format` | string | `backdraft/verify-v1`, matched exactly, under the rule in *Versioning* |
 | `artifact` | string | the file checked, as the command was given it |
 | `record` | object | steps 1 to 4, which always run when there is an object at all |
-| `sources` | object | the outside check, which runs only where a registry was found |
+| `sources` | object | the outside check, which runs only where a registry was found or named |
 | `findings` | array | everything that did not verify, in the order the checks run: receipts, the recount, then the sources. Empty exactly when the exit code is 0 |
 
 `record` carries `ran` (always `true`), `receipts` (citations carrying an

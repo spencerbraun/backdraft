@@ -32,44 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. An artifact you were sent cannot be checked against a registry you have
-
-**Intent.** `verify`'s second tier runs only where a `.backdraft/` is
-discoverable from cwd, and the reason is good: an artifact is a file people
-forward, so the folder it landed in says nothing about which registry produced
-it (2026-08-24). But the rule leaves no way to say what the agent often knows —
-"this artifact came out of *that* project" — so the only route to a source check
-is to copy the artifact into the project directory first, which is a filesystem
-move performed to change a discovery result. An agent auditing several
-artifacts against one registry does this repeatedly, and a reviewer holding a
-colleague's artifact next to a shared checkout cannot do it at all without
-write access to that checkout.
-
-**Shape.** One option on `verify`: a path naming the project root or the
-`.backdraft` directory itself, accepted in both forms exactly as
-`cli_context.find_root` accepts `BACKDRAFT_HOME`, and bypassing the cwd walk
-when given. It answers rather than violates the 2026-08-24 objection, and the
-DESIGN row must say so: discovery stays refusal-by-default and the flag is the
-recipient asserting a link the tool must never infer, which is the same shape as
-`--slug` overruling a derived name. The `sources:` line names the registry it
-used either way, as `--json`'s `sources.registry` already does, so a report
-never leaves which registry answered ambiguous. `BACKDRAFT_HOME` already
-overrides discovery process-wide and must keep working; the flag wins over it,
-and a test pins that order.
-
-**Acceptance.** From a directory with no `.backdraft/` anywhere above it,
-`backdraft verify memo.backdraft.html --against ../backdraft/demo` re-resolves
-every citation and prints the same `sources:` line the in-project run prints,
-naming that root. Pointing it at `demo/.backdraft` works identically. Pointing
-it at a directory with no registry is a usage error naming what was expected,
-not a silent fall back to tier one. Without the flag, behaviour is byte-identical
-to today. `README.md`, `site/docs.html`, `site/llms.txt` and
-`skills/backdraft-artifact/SKILL.md` name it where they currently say the check
-runs only in the project it was bound in.
-
-**Size.** One day.
-
-### 2. A claim that straddles a chunk boundary gets one token instead of two
+### 1. A claim that straddles a chunk boundary gets one token instead of two
 
 **Intent.** `skills/backdraft/SKILL.md` tells the writing agent that "a claim
 that spans two chunks needs both tokens, not the nearest one" — a correct
@@ -104,7 +67,7 @@ one" with the surface that now says which both are.
 
 **Size.** Two to three days.
 
-### 3. A re-ingested source strands citations one at a time
+### 2. A re-ingested source strands citations one at a time
 
 **Intent.** This is DESIGN.md's oldest Open line — "re-bind/orphan pass on
 re-ingest of changed docs (chunk ordinal drift)" — and the week that taught
@@ -146,7 +109,7 @@ extraction and ledger counts are identical before and after.
 
 **Size.** Three days.
 
-### 4. What this install can do, said before a verb needs it
+### 3. What this install can do, said before a verb needs it
 
 **Intent.** backdraft degrades rather than fails, which is right, and the price
 is that its capabilities are discovered one at a time at the moment each is
@@ -183,7 +146,7 @@ run in an unfamiliar environment.
 
 **Size.** Two days.
 
-### 5. `bind` never says which ledger it judged `not_shown` against
+### 4. `bind` never says which ledger it judged `not_shown` against
 
 **Intent.** `bind`'s report names the mode, the claim and citation counts, every
 status, every check that ran and every failure — everything except the one input
@@ -229,7 +192,7 @@ DESIGN row.
 
 **Size.** Two days.
 
-### 6. A withdrawn source is invisible, including to the person looking for it
+### 5. A withdrawn source is invisible, including to the person looking for it
 
 **Intent.** `forget` withdraws a source from every surface that offers one, which
 is right, and the result is that nothing lists what was withdrawn. `ls` says `no
@@ -266,7 +229,7 @@ and `skills/backdraft/SKILL.md` say where to look. DESIGN row.
 
 **Size.** One day.
 
-### 7. `--slug` is dropped without a word when the document is already there
+### 6. `--slug` is dropped without a word when the document is already there
 
 **Intent.** `Registry.ingest`'s docstring says "`slug` is honoured only when the
 document is new — a slug is stable once assigned", which is the right rule and is
@@ -304,7 +267,7 @@ pass `--slug`. DESIGN row.
 
 **Size.** One day.
 
-### 8. `verify` cannot re-check the one status only the ledger can settle
+### 7. `verify` cannot re-check the one status only the ledger can settle
 
 **Intent.** `verify`'s source tier re-resolves every token and reports the
 statuses "as `bind` would", with one gap the code names out loud: `not_shown`
@@ -346,7 +309,7 @@ DESIGN row.
 
 **Size.** Two to three days.
 
-### 9. `bind` and `verify` name the failure and not the move
+### 8. `bind` and `verify` name the failure and not the move
 
 **Intent.** 2026-09-01 made `ingest`'s failures say what to do as well as what
 went wrong, on the argument that a calling agent reads the reason and acts on it.
@@ -386,7 +349,7 @@ verify blocks show the real output. DESIGN row.
 
 **Size.** Two days.
 
-### 10. A chunk the table of contents lists is a chunk no read can ask for
+### 9. A chunk the table of contents lists is a chunk no read can ask for
 
 **Intent.** Since 2026-09-07 `backdraft read <slug>` on a one-page source lists
 that page's chunks — `p1.c9  From Wikipedia, the free encyclopedia...` — and the
@@ -433,7 +396,7 @@ form.
 
 **Size.** Two days.
 
-### 11. A search hit's excerpt can leave out the words that matched
+### 10. A search hit's excerpt can leave out the words that matched
 
 **Intent.** `search` prints each hit's first 160 characters, and
 `searcher._excerpt`'s NOTE says so on purpose: the cut is from the start rather
@@ -474,7 +437,7 @@ matched, asserted by test. No `registry-v1` export field changes. SPEC § Gate's
 
 **Size.** Two days.
 
-### 12. A small table is marked a shell, and the skill says not to cite it
+### 11. A small table is marked a shell, and the skill says not to cite it
 
 **Intent.** The thin-source mark (2026-08-20, carried onto every list
 2026-09-09) is a character count under `THIN_SOURCE_CHARS`, and for prose that
@@ -515,7 +478,7 @@ mark means for a table. DESIGN row.
 
 **Size.** One day.
 
-### 13. `ingest --dry-run` names the source and not the run
+### 12. `ingest --dry-run` names the source and not the run
 
 **Intent.** The dry run (2026-09-10) answers what a source would be called, and
 `tests/test_dry_run.py` pins that the prediction equals the outcome — for the
@@ -564,7 +527,7 @@ row.
 
 **Size.** Two days.
 
-### 14. `session show` counts what was read and cannot say what was not
+### 13. `session show` counts what was read and cannot say what was not
 
 **Intent.** `session show` (2026-08-31) answers "have I read enough to write
 this yet?" with a count per document. Since the page-read budget (2026-09-08) a
