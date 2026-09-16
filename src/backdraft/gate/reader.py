@@ -25,6 +25,7 @@ import shlex
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from ..kernel.chunking import PARAGRAPH_BREAK
 from ..kernel.claims import parse_citation
 from ..kernel.errors import BackdraftError
 from ..kernel.hashing import normalize
@@ -39,10 +40,15 @@ if TYPE_CHECKING:
     from ..registry.store import Registry
 
 __all__ = [
+    "ADJOINING_NOTE",
+    "Adjoining",
     "GateError",
+    "adjoining",
+    "adjoining_lines",
     "cells",
     "DEFAULT_BUDGET",
     "DEFAULT_SESSION_NOTE",
+    "EXCERPT_CHARS",
     "GRAMMAR_HINT",
     "LIST_HINT",
     "THIN_SOURCE_CHARS",
@@ -51,6 +57,7 @@ __all__ = [
     "WITHDRAWN_SESSION_NOTE",
     "Selection",
     "Shown",
+    "excerpt",
     "extracted_chars",
     "read",
     "render_documents",
@@ -96,6 +103,33 @@ source as `ingest` was given it and is therefore literally re-runnable.
 
 TOC_PREVIEW_CHARS = 120
 """How much of a page's text stands in for a missing summary (SPEC § Gate)."""
+
+EXCERPT_CHARS = 160
+"""How much of a snippet a one-line excerpt shows before deferring to a read.
+
+A search hit's excerpt and an adjoining chunk's are the same length, and both
+mint a token over only this much of its snippet — the token names the whole
+chunk, and `backdraft show` prints the rest. It lives here rather than in
+`searcher.py`, which first needed it, because a page read names adjoining chunks
+too and the searcher imports this module, never the other way round.
+"""
+
+ADJOINING_NOTE = (
+    "note: text can run on across a paragraph split in two or a page break, so the "
+    "chunk on the other side is named and recorded as shown. A claim whose words "
+    "come from both sides cites both tokens."
+)
+"""Closes any `search` or page read that named an adjoining chunk (`adjoining`).
+
+Two things a reader would otherwise have to infer. Why a token appeared that the
+query did not match or the selector did not name — and that it is minted, which
+is the gate's rule for anything printed with a token and is a real cost: that
+chunk now binds `resolved` though only its edge was shown. And what to do with
+it, which used to live only in the writing skill as "a claim that spans two
+chunks needs both tokens" — correct, and no help to an agent that could not see
+where the chunks split. Printed once per run, and never where nothing adjoins,
+so an output with no split paragraph and no page break in it is what it was.
+"""
 
 THIN_SOURCE_CHARS = 200
 """Below this many extracted characters, a source is probably a shell.
@@ -228,6 +262,142 @@ def session_argument(session_flag: str | None) -> str:
     `session start --id` was handed.
     """
     return "" if session_flag is None else f" --session {shlex.quote(session_flag)}"
+
+
+# ---------------------------------------------------------------------------
+# adjoining chunks
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Adjoining:
+    """The chunks a chunk's text may run on into: one per side, or None."""
+
+    before: Anchor | None = None
+    after: Anchor | None = None
+
+
+def adjoining(registry: Registry, anchors: Iterable[Anchor]) -> dict[str, Adjoining]:
+    """For each chunk anchor, the chunks either side that its text may run on into.
+
+    Keyed by token; an anchor with nothing adjoining is absent, which is every
+    cell, every sheet's page anchor, and every chunk a blank line separates from
+    both of its neighbours. Decided by the chunks' own edges and never by reading
+    the prose, because what this decides is minted:
+
+    - **On one page**, a neighbour adjoins when the whitespace between the two
+      chunks holds no blank line (`kernel.chunking.PARAGRAPH_BREAK`). The chunker
+      splits on blank lines before anything else, so two chunks with none between
+      them are one paragraph that rule 3 cut for length.
+    - **Across a page break**, the neighbour always adjoins: the last chunk of the
+      page before, the first chunk of the page after. Each page is chunked alone,
+      so nothing a chunk carries says whether a paragraph crossed the break, and
+      the one way to decide would be a guess at where sentences end.
+
+    Read off `anchors_for_page` and `page`, recomputing nothing, and each page is
+    fetched once however many anchors ask about it. A chunk that is not on its
+    page's current anchors — a superseded generation's — has no neighbours, and
+    a pair whose offsets are unknown is not claimed to be one paragraph.
+    """
+    chunks: dict[tuple[str, int], list[Anchor]] = {}
+    texts: dict[tuple[str, int], str | None] = {}
+
+    def on(slug: str, number: int) -> list[Anchor]:
+        if (slug, number) not in chunks:
+            found = registry.anchors_for_page(slug, number) if number >= 1 else []
+            chunks[(slug, number)] = _chunks(found)
+        return chunks[(slug, number)]
+
+    def text(slug: str, number: int) -> str | None:
+        if (slug, number) not in texts:
+            page = registry.page(slug, number)
+            texts[(slug, number)] = page.text if page is not None else None
+        return texts[(slug, number)]
+
+    found: dict[str, Adjoining] = {}
+    for anchor in anchors:
+        if not isinstance(anchor.locator, ChunkLocator):
+            continue
+        slug, number = anchor.slug, anchor.locator.page
+        page = on(slug, number)
+        index = next((i for i, chunk in enumerate(page) if chunk.token == anchor.token), None)
+        if index is None:
+            continue
+        before = after = None
+        if index > 0:
+            if _one_paragraph(text(slug, number), page[index - 1], page[index]):
+                before = page[index - 1]
+        elif previous := on(slug, number - 1):
+            before = previous[-1]
+        if index + 1 < len(page):
+            if _one_paragraph(text(slug, number), page[index], page[index + 1]):
+                after = page[index + 1]
+        elif following := on(slug, number + 1):
+            after = following[0]
+        if before is not None or after is not None:
+            found[anchor.token] = Adjoining(before=before, after=after)
+    return found
+
+
+def adjoining_lines(anchor: Anchor, beside: Adjoining, *, indent: str = "") -> list[str]:
+    """The lines naming what adjoins `anchor`: a label and token, then an excerpt.
+
+    One shape for `search` and the page read, so the two surfaces cannot say it
+    differently. The label says what is known and nothing more — `same
+    paragraph` where the chunker's own edges prove it, `previous page ends` and
+    `next page begins` where a page break means nothing can — and the excerpt is
+    the edge that touches `anchor`: the end of the chunk before it, the start of
+    the chunk after.
+    """
+    lines: list[str] = []
+    if beside.before is not None:
+        across = beside.before.locator.page != anchor.locator.page  # type: ignore[union-attr]
+        label = "previous page ends" if across else "same paragraph, before"
+        lines += [
+            f"{indent}{label}: [{beside.before.token}]",
+            f"{indent}  {_tail_excerpt(beside.before.receipt.snippet)}",
+        ]
+    if beside.after is not None:
+        across = beside.after.locator.page != anchor.locator.page  # type: ignore[union-attr]
+        label = "next page begins" if across else "same paragraph, after"
+        lines += [
+            f"{indent}{label}: [{beside.after.token}]",
+            f"{indent}  {excerpt(beside.after.receipt.snippet)}",
+        ]
+    return lines
+
+
+def _one_paragraph(text: str | None, left: Anchor, right: Anchor) -> bool:
+    """True when no blank line separates two chunks of one page."""
+    if text is None or left.end is None or right.start is None or left.end > right.start:
+        return False
+    return PARAGRAPH_BREAK.search(text[left.end : right.start]) is None
+
+
+def excerpt(snippet: str) -> str:
+    """A snippet collapsed onto one line and cut to `EXCERPT_CHARS`.
+
+    NOTE: the cut is from the start rather than centred on the match. FTS5
+    decides what matched (stemming, phrase queries), and the gate does not
+    re-derive anything the registry owns; the token beside it is the thing to
+    cite, and a read is the way to see the rest.
+    """
+    text = normalize(snippet)
+    return text if len(text) <= EXCERPT_CHARS else text[:EXCERPT_CHARS] + _ELLIPSIS
+
+
+def _tail_excerpt(snippet: str) -> str:
+    """`excerpt` cut from the other end, for the chunk that comes before."""
+    text = normalize(snippet)
+    return text if len(text) <= EXCERPT_CHARS else _ELLIPSIS + text[-EXCERPT_CHARS:]
+
+
+def _chunks(anchors: Iterable[Anchor]) -> list[Anchor]:
+    """A page's chunk anchors in ordinal order; its page and cell anchors dropped."""
+    return sorted(
+        (anchor for anchor in anchors if isinstance(anchor.locator, ChunkLocator)),
+        key=lambda anchor: anchor.locator.ordinal,  # type: ignore[union-attr]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -402,14 +572,7 @@ def _chunk_lines(registry: Registry, slug: str, pages: Sequence[Page]) -> list[s
     """
     if len(pages) != 1:
         return []
-    anchors = sorted(
-        (
-            anchor
-            for anchor in registry.anchors_for_page(slug, pages[0].number)
-            if isinstance(anchor.locator, ChunkLocator)
-        ),
-        key=lambda anchor: anchor.locator.ordinal,  # type: ignore[union-attr]
-    )
+    anchors = _chunks(registry.anchors_for_page(slug, pages[0].number))
     if not anchors:
         return []
     labels = [format_locator(anchor.locator) for anchor in anchors]
@@ -473,6 +636,11 @@ def render_page_read(
 
     Every anchor shown is recorded, including the cell anchors a sheet window
     exposes by their in-band references but does not print tokens for.
+
+    A read that shows the last chunk of its last page and stops there names the
+    next page's first chunk, under `next page begins`, and mints it: a paragraph
+    may cross that break, and nothing in the chunks can say whether it did
+    (`adjoining`). `ADJOINING_NOTE` closes the read when it does.
     """
     if offset < 0:
         raise GateError(f"offset must not be negative: {offset!r}")
@@ -491,6 +659,7 @@ def render_page_read(
     window = _Window(offset=offset, limit=DEFAULT_BUDGET[counted] if limit is None else limit)
     blocks: list[str] = []
     minted: list[int] = []
+    anchors: list[Anchor] = []
     for number in selection.numbers:
         page = by_number[number]
         anchors = registry.anchors_for_page(slug, number)
@@ -502,13 +671,41 @@ def render_page_read(
             blocks.append(block)
         minted.extend(shown)
 
+    # `anchors` is the selection's last page's, left by the loop.
+    next_page = _next_page(registry, _chunks(anchors), minted)
+    if next_page:
+        blocks.append("\n".join(next_page[1]))
+        minted.append(next_page[0])
+
     _mint(registry, session, minted)
 
     lines = "\n\n".join(blocks).split("\n") if blocks else ["(nothing to show at this offset)"]
     hint = window.hint(slug, selection.text, counted, limit=limit, session=session_flag)
     if hint is not None:
         lines += ["", hint]
+    if next_page:
+        lines += ["", ADJOINING_NOTE]
     return _block(lines)
+
+
+def _next_page(
+    registry: Registry, chunks: Sequence[Anchor], shown: Sequence[int]
+) -> tuple[int, list[str]] | None:
+    """What a read that ended on its page's last chunk names beyond it.
+
+    The page read's half of `adjoining`: every other chunk a read shows sits
+    beside the ones it adjoins, so the only neighbour a reader was not also shown
+    is across the break after the last page read — and only when the window
+    reached that chunk, since a read that stopped short already closes with the
+    command that goes on. Returns the neighbour's id, to mint, and its lines.
+    """
+    if not chunks or chunks[-1].id not in shown:
+        return None
+    last = chunks[-1]
+    after = adjoining(registry, [last]).get(last.token, Adjoining()).after
+    if after is None or after.id is None:
+        return None
+    return after.id, adjoining_lines(last, Adjoining(after=after))
 
 
 @dataclass(slots=True)
@@ -608,10 +805,7 @@ def _render_page(
 ) -> tuple[str, list[int]]:
     """A PDF/text page as its chunks, each under its own token."""
     header = f"# {document.slug} p{page.number}  (page {page.number} of {total_pages})"
-    chunks = sorted(
-        (a for a in anchors if isinstance(a.locator, ChunkLocator)),
-        key=lambda a: a.locator.ordinal,  # type: ignore[union-attr]
-    )
+    chunks = _chunks(anchors)
     parts: list[str] = []
     minted: list[int] = []
     for anchor in chunks:

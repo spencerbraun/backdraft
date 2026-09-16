@@ -6,6 +6,11 @@ attached forces a page read purely to obtain an anchor, a tax on every lookup.
 Here the result *is* the anchor, and the
 read hint below the results is an affordance, not a prerequisite.
 
+A hit whose text may run on past its own chunk — a paragraph the chunker split,
+or a page break — carries the chunk on the other side too, minted with it, so a
+claim that straddles the two is written with both tokens rather than the one the
+query happened to land in (`reader.adjoining`).
+
 Consumes the pinned registry surface (SPEC Addendum A) and nothing else.
 """
 
@@ -14,19 +19,22 @@ from __future__ import annotations
 import shlex
 from typing import TYPE_CHECKING
 
-from ..kernel.hashing import normalize
-
-from .reader import require_document, session_argument
+from .reader import (
+    ADJOINING_NOTE,
+    Adjoining,
+    adjoining,
+    adjoining_lines,
+    excerpt,
+    require_document,
+    session_argument,
+)
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Mapping
 
     from ..registry.store import Registry, SearchHit
 
-__all__ = ["EXCERPT_CHARS", "PHRASE_FALLBACK_NOTE", "search", "render_search"]
-
-EXCERPT_CHARS = 160
-"""How much of a snippet a result line shows before deferring to a page read."""
+__all__ = ["PHRASE_FALLBACK_NOTE", "search", "render_search"]
 
 PHRASE_FALLBACK_NOTE = "(query retried as a phrase)"
 """Shown when the registry could not parse the query as FTS5 syntax.
@@ -37,7 +45,6 @@ reader who is not told cannot distinguish "no such fact" from "not asked that
 way", so the gate says it — once, on its own line, rather than as an error.
 """
 
-_ELLIPSIS = "..."
 _DEFAULT_LIMIT = 20
 """Mirrors `Registry.search`'s own default, so the CLI and the store agree."""
 
@@ -55,9 +62,11 @@ def search(
 
     Each hit is one line carrying its token, its document and page, and an
     excerpt of its snippet; a read hint follows for every distinct page matched.
-    Every hit's anchor is recorded in `session` before the text is returned — a
-    result the writer saw is a result the writer may cite. Every hint carries
-    `session_flag`, the `--session` the caller typed (`reader.session_argument`).
+    Under a hit whose text may run on into the chunk beside it, that chunk is
+    named too (`reader.adjoining`). Every hit's anchor, and every adjoining one,
+    is recorded in `session` before the text is returned — a result the writer
+    saw is a result the writer may cite. Every hint carries `session_flag`, the
+    `--session` the caller typed (`reader.session_argument`).
 
     Raises a `GateError` if `slug` names no document the gate will serve — an
     unknown slug, or one `forget` withdrew. `require_document` owns both
@@ -67,8 +76,9 @@ def search(
     if slug is not None:
         require_document(registry, slug)
     hits = registry.search(query, slug=slug, limit=limit)
-    _mint(registry, session, hits)
-    return render_search(query, hits, slug=slug, session_flag=session_flag)
+    beside = adjoining(registry, (hit.anchor for hit in hits))
+    _mint(registry, session, hits, beside)
+    return render_search(query, hits, slug=slug, session_flag=session_flag, beside=beside)
 
 
 def render_search(
@@ -77,8 +87,12 @@ def render_search(
     *,
     slug: str | None = None,
     session_flag: str | None = None,
+    beside: Mapping[str, Adjoining] | None = None,
 ) -> str:
     """Render search results. Pure: minting happens in `search`.
+
+    `beside` is `reader.adjoining`'s answer for these hits, keyed by token;
+    a hit it names nothing for renders exactly as it did before there was one.
 
     NOTE: `phrase_fallback` and `total` are read *before* `hits` is copied into
     a plain list — they ride on the result object the registry returned.
@@ -106,9 +120,12 @@ def render_search(
     else:
         count = f"{len(hits)} result" if len(hits) == 1 else f"{len(hits)} results"
     lines = [f'{count} for "{query}"{scope}', *note, ""]
+    beside = beside or {}
     for hit in hits:
         lines.append(f"[{hit.anchor.token}]  {hit.slug} p{hit.page_number}")
-        lines.append(f"  {_excerpt(hit.anchor.receipt.snippet)}")
+        lines.append(f"  {excerpt(hit.anchor.receipt.snippet)}")
+        if hit.anchor.token in beside:
+            lines += adjoining_lines(hit.anchor, beside[hit.anchor.token], indent="  ")
         lines.append("")
 
     seen: list[tuple[str, int]] = []
@@ -118,6 +135,8 @@ def render_search(
     lines += [f"[Read the page: backdraft read {s} p{n}{carried}]" for s, n in seen]
     if total > len(hits):
         lines.append(_widen_hint(query, slug, total, carried))
+    if any(hit.anchor.token in beside for hit in hits):
+        lines += ["", ADJOINING_NOTE]
     return "\n".join(line.rstrip() for line in lines).rstrip("\n")
 
 
@@ -137,23 +156,18 @@ def _widen_hint(query: str, slug: str | None, total: int, carried: str = "") -> 
     )
 
 
-def _excerpt(snippet: str) -> str:
-    """A snippet collapsed onto one line and cut to `EXCERPT_CHARS`.
-
-    NOTE: the cut is from the start rather than centred on the match. FTS5
-    decides what matched (stemming, phrase queries), and the gate does not
-    re-derive anything the registry owns; the token on the line above is the
-    thing to cite, and the read hint is the way to see the rest.
-    """
-    text = normalize(snippet)
-    return text if len(text) <= EXCERPT_CHARS else text[:EXCERPT_CHARS] + _ELLIPSIS
-
-
-def _mint(registry: Registry, session: str | None, hits: Iterable[SearchHit]) -> None:
-    """Record every result's anchor under the session."""
+def _mint(
+    registry: Registry,
+    session: str | None,
+    hits: Iterable[SearchHit],
+    beside: Mapping[str, Adjoining],
+) -> None:
+    """Record every result's anchor, and every chunk named beside one, under the session."""
     if session is None:
         return
-    anchor_ids = sorted({hit.anchor.id for hit in hits if hit.anchor.id is not None})
+    shown = [hit.anchor for hit in hits]
+    shown += [a for pair in beside.values() for a in (pair.before, pair.after) if a is not None]
+    anchor_ids = sorted({anchor.id for anchor in shown if anchor.id is not None})
     if not anchor_ids:
         return
     session_id = registry.ensure_session(session)

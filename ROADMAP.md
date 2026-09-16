@@ -32,42 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. A claim that straddles a chunk boundary gets one token instead of two
-
-**Intent.** `skills/backdraft/SKILL.md` tells the writing agent that "a claim
-that spans two chunks needs both tokens, not the nearest one" — a correct
-instruction with no support behind it. The gate hands back chunks; whether the
-sentence the agent is about to cite ends inside one is something the agent must
-notice by eye, in the middle of drafting, against text it is reading for
-meaning. When it misses, nothing downstream complains: one token resolves, the
-receipt is real, the artifact renders clean, and the half of the claim living in
-the next chunk is uncited while looking cited. That is the one failure mode this
-product cannot detect and cannot afford — a claim whose evidence covers part of
-it is worse than an unresolved one, because an unresolved one says so.
-
-**Shape.** The gate's, and display-only: no token, anchor or receipt moves. A
-search hit whose snippet begins or ends mid-sentence is at a boundary, and the
-neighbour is `ordinal ± 1` on the same page, which `Registry.anchors_for_page`
-already returns — so the hit can carry the neighbour's token and be rendered
-with it, in `gate/searcher.py`'s existing line shape. Decide "mid-sentence" by
-the chunk's own edges rather than by parsing prose: the chunker (spec/chunking.md)
-splits on paragraph boundaries, so a chunk that does not end at one is the
-signal, and the rule must be stated in the DESIGN row because a heuristic that
-guesses at sentences would be the kind this repo refuses. Emitting the neighbour
-is minting it, per the gate's own rule, so the ledger records it and the run says
-so — that is a cost to name, not to hide. The same treatment belongs on a page
-read's last chunk, where the next page's first chunk is the neighbour.
-
-**Acceptance.** Ingest a source whose paragraph runs across a page break, search
-for a phrase landing in the tail chunk, and the hit names the adjoining token on
-its own line; the ledger shows both minted. A hit sitting wholly inside a
-paragraph gains nothing and its output is byte-identical to today, pinned by a
-test. `skills/backdraft/SKILL.md` replaces "needs both tokens, not the nearest
-one" with the surface that now says which both are.
-
-**Size.** Two to three days.
-
-### 2. A re-ingested source strands citations one at a time
+### 1. A re-ingested source strands citations one at a time
 
 **Intent.** This is DESIGN.md's oldest Open line — "re-bind/orphan pass on
 re-ingest of changed docs (chunk ordinal drift)" — and the week that taught
@@ -109,7 +74,7 @@ extraction and ledger counts are identical before and after.
 
 **Size.** Three days.
 
-### 3. What this install can do, said before a verb needs it
+### 2. What this install can do, said before a verb needs it
 
 **Intent.** backdraft degrades rather than fails, which is right, and the price
 is that its capabilities are discovered one at a time at the moment each is
@@ -146,7 +111,7 @@ run in an unfamiliar environment.
 
 **Size.** Two days.
 
-### 4. `bind` never says which ledger it judged `not_shown` against
+### 3. `bind` never says which ledger it judged `not_shown` against
 
 **Intent.** `bind`'s report names the mode, the claim and citation counts, every
 status, every check that ran and every failure — everything except the one input
@@ -192,7 +157,7 @@ DESIGN row.
 
 **Size.** Two days.
 
-### 5. A withdrawn source is invisible, including to the person looking for it
+### 4. A withdrawn source is invisible, including to the person looking for it
 
 **Intent.** `forget` withdraws a source from every surface that offers one, which
 is right, and the result is that nothing lists what was withdrawn. `ls` says `no
@@ -229,7 +194,7 @@ and `skills/backdraft/SKILL.md` say where to look. DESIGN row.
 
 **Size.** One day.
 
-### 6. `--slug` is dropped without a word when the document is already there
+### 5. `--slug` is dropped without a word when the document is already there
 
 **Intent.** `Registry.ingest`'s docstring says "`slug` is honoured only when the
 document is new — a slug is stable once assigned", which is the right rule and is
@@ -267,7 +232,7 @@ pass `--slug`. DESIGN row.
 
 **Size.** One day.
 
-### 7. `verify` cannot re-check the one status only the ledger can settle
+### 6. `verify` cannot re-check the one status only the ledger can settle
 
 **Intent.** `verify`'s source tier re-resolves every token and reports the
 statuses "as `bind` would", with one gap the code names out loud: `not_shown`
@@ -309,7 +274,7 @@ DESIGN row.
 
 **Size.** Two to three days.
 
-### 8. `bind` and `verify` name the failure and not the move
+### 7. `bind` and `verify` name the failure and not the move
 
 **Intent.** 2026-09-01 made `ingest`'s failures say what to do as well as what
 went wrong, on the argument that a calling agent reads the reason and acts on it.
@@ -349,7 +314,7 @@ verify blocks show the real output. DESIGN row.
 
 **Size.** Two days.
 
-### 9. A chunk the table of contents lists is a chunk no read can ask for
+### 8. A chunk the table of contents lists is a chunk no read can ask for
 
 **Intent.** Since 2026-09-07 `backdraft read <slug>` on a one-page source lists
 that page's chunks — `p1.c9  From Wikipedia, the free encyclopedia...` — and the
@@ -396,10 +361,10 @@ form.
 
 **Size.** Two days.
 
-### 10. A search hit's excerpt can leave out the words that matched
+### 9. A search hit's excerpt can leave out the words that matched
 
 **Intent.** `search` prints each hit's first 160 characters, and
-`searcher._excerpt`'s NOTE says so on purpose: the cut is from the start rather
+`gate.reader.excerpt`'s NOTE says so on purpose: the cut is from the start rather
 than centred on the match, because FTS5 decides what matched and the gate
 re-derives nothing the registry owns. The walkthrough's own step 11 shows the
 cost. `backdraft search "replacement reserve"` returns
@@ -437,7 +402,7 @@ matched, asserted by test. No `registry-v1` export field changes. SPEC § Gate's
 
 **Size.** Two days.
 
-### 11. A small table is marked a shell, and the skill says not to cite it
+### 10. A small table is marked a shell, and the skill says not to cite it
 
 **Intent.** The thin-source mark (2026-08-20, carried onto every list
 2026-09-09) is a character count under `THIN_SOURCE_CHARS`, and for prose that
@@ -478,7 +443,7 @@ mark means for a table. DESIGN row.
 
 **Size.** One day.
 
-### 12. `ingest --dry-run` names the source and not the run
+### 11. `ingest --dry-run` names the source and not the run
 
 **Intent.** The dry run (2026-09-10) answers what a source would be called, and
 `tests/test_dry_run.py` pins that the prediction equals the outcome — for the
@@ -527,7 +492,7 @@ row.
 
 **Size.** Two days.
 
-### 13. `session show` counts what was read and cannot say what was not
+### 12. `session show` counts what was read and cannot say what was not
 
 **Intent.** `session show` (2026-08-31) answers "have I read enough to write
 this yet?" with a count per document. Since the page-read budget (2026-09-08) a
@@ -562,11 +527,12 @@ read with its `--offset` — carrying a typed `--session` through
 `backdraft read franklin-county p1` then `backdraft session show --in
 franklin-county` reports `c1-c25` shown and `c26-c57` not shown, and its hint,
 run, shows `c26` first. After `backdraft read t12-summary p1`, `--in
-t12-summary` reports `p1` wholly shown and `p2` and `p3` not shown. The ledger's
-row count is identical before and after the command. `session show` with no
-`--in` prints exactly what `demo/walkthrough.md` shows. `README.md`,
-`site/llms.txt` and `skills/backdraft/SKILL.md` tell the agent to ask it after a
-context loss rather than re-reading from the top. DESIGN row.
+t12-summary` reports `p1` wholly shown, `p2` shown `c1` — the chunk that read
+names across the page break (2026-09-16) — and not shown `c2-c7`, and `p3` not
+shown. The ledger's row count is identical before and after the command.
+`session show` with no `--in` prints exactly what `demo/walkthrough.md` shows.
+`README.md`, `site/llms.txt` and `skills/backdraft/SKILL.md` tell the agent to
+ask it after a context loss rather than re-reading from the top. DESIGN row.
 
 **Size.** Two days.
 

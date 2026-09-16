@@ -399,3 +399,113 @@ def test_an_untitled_web_source_keeps_the_naming_it_had(
     doc.write_text(f"[The county is populous.]({token})\n", encoding="utf-8")
     report = bind(doc, registry, write=False)
     assert set(report.evidence["documents"][slug]) == {"filename", "media_type"}
+
+
+# ---- a claim across a boundary the chunker made --------------------------------
+#
+# The two ways one sentence's evidence ends up under two tokens, each built the
+# way it really arises: a PDF whose paragraph the typesetter carried onto the next
+# page, and a paragraph long enough that the chunker cut it. Real ingest, real
+# offsets, real ledger — the whitespace test in `reader.adjoining` reads the
+# stored page text, which only the real store has.
+
+_CLAUSES = " ".join(
+    f"Clause {n:02d} of the covenant package holds as written." for n in range(1, 41)
+)
+
+
+def _paragraph_across_a_page_break(path: Path) -> Path:
+    """A text-layer PDF whose last paragraph starts on page 1 and ends on page 2."""
+    from reportlab.lib.pagesizes import LETTER
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate
+
+    style = ParagraphStyle(
+        "Body", parent=getSampleStyleSheet()["BodyText"], fontSize=10, leading=14, spaceAfter=10
+    )
+    filler = [
+        Paragraph(f"Schedule {n}. " + "The rent roll was reviewed line by line. " * 6, style)
+        for n in range(1, 11)
+    ]
+    straddle = Paragraph(f"{_CLAUSES} The waiver expires in March 2027.", style)
+    SimpleDocTemplate(str(path), pagesize=LETTER).build([*filler, straddle])
+    return path
+
+
+def _edge_chunks(registry: Registry, slug: str) -> tuple[str, str]:
+    """The last chunk token on page 1 and the first on page 2."""
+    def chunks(number: int) -> list[str]:
+        return [
+            anchor.token
+            for anchor in registry.anchors_for_page(slug, number)
+            if anchor.locator.kind == "chunk"
+        ]
+
+    return chunks(1)[-1], chunks(2)[0]
+
+
+def test_a_paragraph_across_a_page_break_is_cited_by_both_halves(
+    registry: Registry, tmp_path: Path
+) -> None:
+    """The acceptance test: search a phrase landing in the paragraph's tail, and
+    the hit names the chunk its head is in, on its own line; the ledger holds both."""
+    pdf = _paragraph_across_a_page_break(tmp_path / "covenants.pdf")
+    slug = registry.ingest(pdf, extractor="pdf-text").slug
+    pages = registry.pages(slug)
+    # The layout is the precondition, so say so if a reportlab change moves it.
+    assert len(pages) == 2, "the fixture should lay out on exactly two pages"
+    assert "Clause 01" in pages[0].text and "March 2027" in pages[1].text
+    assert not pages[1].text.startswith("Clause 01"), "the paragraph should cross the break"
+    head, tail = _edge_chunks(registry, slug)
+
+    lines = search(registry, '"waiver expires"', session="s-deal").splitlines()
+    assert f"[{tail}]  {slug} p2" in lines
+    assert f"  previous page ends: [{head}]" in lines
+    assert registry.was_shown("s-deal", tail)
+    assert registry.was_shown("s-deal", head)
+
+
+def test_reading_the_page_a_paragraph_leaves_names_where_it_goes(
+    registry: Registry, tmp_path: Path
+) -> None:
+    """The page read's half: page 1 ends mid-paragraph, and says which token continues it."""
+    pdf = _paragraph_across_a_page_break(tmp_path / "covenants.pdf")
+    slug = registry.ingest(pdf, extractor="pdf-text").slug
+    _, tail = _edge_chunks(registry, slug)
+    output = read(registry, slug, "p1", session="s-deal")
+    assert f"next page begins: [{tail}]" in output.splitlines()
+    assert registry.was_shown("s-deal", tail)
+
+
+def test_a_paragraph_the_chunker_cut_names_its_other_piece(
+    registry: Registry, tmp_path: Path
+) -> None:
+    """Rule 3 splits a paragraph over 2400 characters at a sentence boundary, and
+    leaves no blank line between the pieces — which is the whole of the signal."""
+    source = tmp_path / "covenants.md"
+    source.write_text(f"{_CLAUSES} {_CLAUSES}\n", encoding="utf-8")
+    slug = registry.ingest(source).slug
+    chunks = [a for a in registry.anchors_for_page(slug, 1) if a.locator.kind == "chunk"]
+    assert len(chunks) > 1, "the paragraph should have been cut for length"
+
+    lines = search(registry, '"Clause 01"', limit=1, session="s").splitlines()
+    assert lines[2] == f"[{chunks[0].token}]  {slug} p1"
+    assert f"  same paragraph, after: [{chunks[1].token}]" in lines
+
+
+def test_paragraphs_a_blank_line_separates_name_nothing(
+    registry: Registry, note: Path
+) -> None:
+    """The negative branch, over the real store: `note` is three paragraphs on
+    one page, and no hit into it gains a line or mints a second token."""
+    registry.ingest(note)
+    output = search(registry, "Acme", session="s")
+    assert "same paragraph" not in output
+    assert "page begins" not in output and "page ends" not in output
+    printed = {line.split("]")[0].strip("[ ") for line in output.splitlines() if line.startswith("[bd:")}
+    assert {
+        anchor.token
+        for page in registry.pages("quarterly-notes")
+        for anchor in registry.anchors_for_page("quarterly-notes", page.number)
+        if registry.was_shown("s", anchor.token)
+    } == printed

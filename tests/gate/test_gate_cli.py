@@ -72,6 +72,8 @@ def test_read_mints_into_the_named_session(runner: CliRunner, wired: FakeDocumen
     assert wired.shown_tokens("run-a") == {
         "bd:t12-audit:p2.c1:50bd",
         "bd:t12-audit:p2.c2:1e7a",
+        # The read ends on p2's last chunk, so the next page's first is named too.
+        "bd:t12-audit:p3.c1:028c",
     }
 
 
@@ -266,8 +268,9 @@ def test_session_show_reports_what_the_ledger_holds(
 
     result = runner.invoke(cli.app, ["session", "show", "--session", "s-deal"])
     assert result.exit_code == 0
-    assert "4 anchors shown across 2 documents" in result.output
-    assert "t12-audit   2" in result.output
+    # p2's two chunks and p3's first, which the read names across the page break.
+    assert "5 anchors shown across 2 documents" in result.output
+    assert "t12-audit   3" in result.output
     assert "rent-model  2" in result.output
 
 
@@ -326,7 +329,10 @@ def test_reads_without_a_session_flag_use_the_default(
     runner: CliRunner, wired: FakeDocumentRegistry
 ) -> None:
     runner.invoke(cli.app, ["read", "t12-audit", "p1"])
-    assert wired.shown_tokens(top_cli.DEFAULT_SESSION) == {"bd:t12-audit:p1.c1:5ff8"}
+    assert wired.shown_tokens(top_cli.DEFAULT_SESSION) == {
+        "bd:t12-audit:p1.c1:5ff8",
+        "bd:t12-audit:p2.c1:50bd",
+    }
 
 
 # ---------------------------------------------------------------------------

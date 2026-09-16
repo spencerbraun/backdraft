@@ -146,6 +146,10 @@ backdraft read <slug> p3                    # page/range/sheet; chunks arrive
                                             # whole page. The cut never lands
                                             # inside a chunk, so a token always
                                             # names text you were shown whole.
+                                            # A read that reaches the end of its
+                                            # page closes with "next page
+                                            # begins: [token]" and an excerpt:
+                                            # the paragraph may cross the break.
 backdraft search "24850000"                 # hits are citable directly.
                                             # A count line reading "2 of 56
                                             # results" means --limit cut the
@@ -154,7 +158,13 @@ backdraft search "24850000"                 # hits are citable directly.
                                             # command the last line names rather
                                             # than settling for what you were
                                             # shown. A bare "N results" is all
-                                            # of them.
+                                            # of them. A hit may carry a second
+                                            # token indented under it — "same
+                                            # paragraph, after:", "previous page
+                                            # ends:" — the chunk its text runs
+                                            # on into. If your sentence
+                                            # continues there, cite both tokens.
+                                            # Both are minted.
 backdraft cell <slug> "sheet!D24"           # mint a specific cell's token
 backdraft show bd:slug:p3.c2:7f11 ...       # the inverse: what a token says.
                                             # Status + locator + verbatim

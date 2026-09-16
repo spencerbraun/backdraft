@@ -37,6 +37,7 @@ from .model import Chunk
 __all__ = [
     "MIN_CHARS",
     "MAX_CHARS",
+    "PARAGRAPH_BREAK",
     "TARGET_CHARS",
     "chunk",
 ]
@@ -50,7 +51,14 @@ MAX_CHARS = 2400
 TARGET_CHARS = 1200
 """Long segments split near each multiple of this."""
 
-_BLANK_LINE = re.compile(r"\n\s*\n")
+PARAGRAPH_BREAK = re.compile(r"\n\s*\n")
+"""Rule 1's separator: a blank line, which is what a paragraph boundary is here.
+
+Public because the gate asks the question the other way round — whether the
+whitespace between two chunks holds one, which is whether the chunker split a
+paragraph there — and one pattern is the only way the two answers agree.
+"""
+
 # NOTE: the spec says "terminal .!? + space"; we accept a run of whitespace so a
 # double space or a wrapped line still reads as a boundary.
 _SENTENCE_BOUNDARY = re.compile(r"[.!?]\s+(?=[A-Z0-9])")
@@ -73,7 +81,7 @@ def _split_paragraphs(text: str) -> list[_Span]:
     """Blank-line separated regions, edge-trimmed, empties dropped."""
     spans: list[_Span] = []
     cursor = 0
-    for separator in _BLANK_LINE.finditer(text):
+    for separator in PARAGRAPH_BREAK.finditer(text):
         spans.append((cursor, separator.start()))
         cursor = separator.end()
     spans.append((cursor, len(text)))

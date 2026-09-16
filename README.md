@@ -101,12 +101,21 @@ $2,972,160. The resulting economic occupancy of 90.3% reflects an average physic
 by concessions, bad debt, and vacancy loss. Physical occupancy was 96.4% in the most recent month and has not
 fallen below 92.0% in any month of the period.
 
-… five more chunks, c3 through c7.
+… five more chunks, c3 through c7, and then:
+
+next page begins: [bd:t12-summary:p2.c1:7bd3]
+  Revenue Detail Rental income of $2,548,900 accounts for 94.9% of effective gross income. Other income of $135,500 comprises pet rent, parking, utility reimburse...
+
+note: text can run on across a paragraph split in two or a page break, so the chunk on the other side is named and recorded as shown. A claim whose words come from both sides cites both tokens.
 ```
 
 Chunks fall on the document's own paragraphs. A PDF stores glyphs at
 coordinates, not paragraphs, so the extractor rebuilds the breaks from the line
-geometry before the chunker sees the page.
+geometry before the chunker sees the page. Where a claim could still straddle
+two chunks — a paragraph the chunker cut for length, or a page break, which
+chunking never sees past — the gate names the chunk on the other side, minted
+like the rest, so the sentence that runs on is cited by both tokens rather than
+the one you happened to be reading.
 
 `backdraft read <slug>` on its own is the table of contents: one line per page
 for a source that paginates, and — for a web page, which has none — one line per
@@ -187,9 +196,9 @@ enough to write this yet?", asked before the draft exists rather than after
 $ backdraft session show
 session s-bridgeview  (from BACKDRAFT_SESSION)
 
-77 anchors shown across 3 documents
+78 anchors shown across 3 documents
 
-  t12-summary          7
+  t12-summary          8
   underwriting-model  68
   franklin-county      2
 

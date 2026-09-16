@@ -88,6 +88,12 @@ Query notes that matter in practice:
   is exactly the case where that matters — the sentence supporting the claim may
   be below the cut — so run the widening command the last line names, or narrow
   the query, rather than concluding the claim is unsupported.
+- A hit can carry a second token indented under its excerpt — `same paragraph,
+  after:`, `next page begins:` and the like — naming the chunk its text runs on
+  into, where a paragraph was cut in two or a page break falls. When the evidence
+  for the claim continues into that excerpt, attach both tokens, `;`-separated in
+  one href: either one alone is a receipt for half the claim. When it does not,
+  ignore the line.
 
 Then read the surrounding page when you need context to judge the hit:
 

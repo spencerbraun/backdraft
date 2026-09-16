@@ -14,6 +14,7 @@ from fake_registry import FakeDocumentRegistry, pdf_document, sheet_document
 
 from backdraft.cli_context import SESSION_ENV
 from backdraft.gate.reader import (
+    ADJOINING_NOTE,
     DEFAULT_BUDGET,
     DEFAULT_SESSION_NOTE,
     THIN_SOURCE_CHARS,
@@ -82,16 +83,26 @@ B | |---|---|---| | 1 | [A1] Vacancy | [B1] 6.6% |
 [Read one: backdraft read rent-model p1]
 [Read by name: backdraft read rent-model "Rent Roll"]"""
 
-PAGE = """\
+# A read that ends on a page's last chunk names the next page's first: a page
+# break is a boundary chunking never sees past (`reader.adjoining`).
+NEXT_PAGE = f"""\
+next page begins: [bd:t12-audit:p3.c1:028c]
+  Occupancy averaged 93.4% over the period.
+
+{ADJOINING_NOTE}"""
+
+PAGE = f"""\
 # t12-audit p2  (page 2 of 3)
 
 [bd:t12-audit:p2.c1:50bd]
 The portfolio comprises 14 assets across three markets.
 
 [bd:t12-audit:p2.c2:1e7a]
-Trailing twelve month net operating income was $4,102,880."""
+Trailing twelve month net operating income was $4,102,880.
 
-RANGE = """\
+{NEXT_PAGE}"""
+
+RANGE = f"""\
 # t12-audit p1  (page 1 of 3)
 
 [bd:t12-audit:p1.c1:5ff8]
@@ -103,7 +114,9 @@ Cover. T12 Audit prepared for Acme Capital, March 2026.
 The portfolio comprises 14 assets across three markets.
 
 [bd:t12-audit:p2.c2:1e7a]
-Trailing twelve month net operating income was $4,102,880."""
+Trailing twelve month net operating income was $4,102,880.
+
+{NEXT_PAGE}"""
 
 SHEET = """\
 # rent-model p1  (sheet 1 of 2: Rent Roll)  [bd:rent-model:p1:feef]
@@ -147,13 +160,18 @@ The portfolio comprises 14 assets across three markets.
 
 [Showing 0-55 of 113 chars. Continue with: backdraft read t12-audit p2 --offset 55 --limit 60]"""
 
-PAGE_LAST_WINDOW = """\
+PAGE_LAST_WINDOW = f"""\
 # t12-audit p2  (page 2 of 3)
 
 [bd:t12-audit:p2.c2:1e7a]
 Trailing twelve month net operating income was $4,102,880.
 
-[Showing 55-113 of 113 chars.]"""
+next page begins: [bd:t12-audit:p3.c1:028c]
+  Occupancy averaged 93.4% over the period.
+
+[Showing 55-113 of 113 chars.]
+
+{ADJOINING_NOTE}"""
 
 
 # ---------------------------------------------------------------------------
@@ -904,7 +922,8 @@ def test_a_document_nothing_was_shown_from_is_absent_rather_than_zero(
     rendered = render_session(fake_gate_registry, "s-one", source="--session")
     assert "t12-audit" in rendered
     assert "rent-model" not in rendered
-    assert "1 anchor shown across 1 document" in rendered
+    # p1's chunk, and p2's first, named across the page break.
+    assert "2 anchors shown across 1 document" in rendered
 
 
 def test_the_note_closes_the_block_when_it_is_handed_one(

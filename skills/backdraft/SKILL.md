@@ -199,7 +199,23 @@ Net operating income for the trailing twelve months was $1,429,600.
 ```
 
 Chunks follow the source's paragraphs, so a claim usually sits inside one of
-them. A claim that spans two chunks needs both tokens, not the nearest one.
+them. Where it may not, the gate says which chunk the text runs on into. A
+paragraph too long for one chunk is cut in two, and every page break is a
+boundary too, so a search hit can carry a second token indented under it, and a
+page read that reaches the end of its page closes with one:
+
+```
+[bd:t12-summary:p1.c7:5b2e]  t12-summary p1
+  Two items in this summary are estimates rather than recorded amounts. …
+  next page begins: [bd:t12-summary:p2.c1:7bd3]
+    Revenue Detail Rental income of $2,548,900 accounts for 94.9% of effective …
+```
+
+`same paragraph, before` / `after` means the chunker cut one paragraph there;
+`previous page ends` / `next page begins` means a page break, which may or may
+not fall mid-paragraph — the excerpt shows you which. If the sentence you are
+citing continues into that excerpt, cite both tokens, `;`-separated in one href.
+If it does not, ignore the line. Both tokens are already recorded as shown.
 
 A sheet read puts cell references in-band (`[B10] 24850000`) and mints the sheet
 token in its header. To cite an individual cell you can see, mint its token

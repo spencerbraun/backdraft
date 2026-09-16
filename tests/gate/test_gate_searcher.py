@@ -5,16 +5,22 @@ from __future__ import annotations
 import pytest
 from fake_registry import FakeDocumentRegistry, pdf_document
 
-from backdraft.gate.reader import GateError
-from backdraft.gate.searcher import EXCERPT_CHARS, PHRASE_FALLBACK_NOTE, search
+from backdraft.gate.reader import ADJOINING_NOTE, EXCERPT_CHARS, GateError
+from backdraft.gate.searcher import PHRASE_FALLBACK_NOTE, search
 
-RESULT = """\
+# The hit is p2's last chunk, so the first chunk of p3 is named under it: a page
+# break is a boundary chunking never sees past (`reader.adjoining`).
+RESULT = f"""\
 1 result for "net operating income"
 
 [bd:t12-audit:p2.c2:1e7a]  t12-audit p2
   Trailing twelve month net operating income was $4,102,880.
+  next page begins: [bd:t12-audit:p3.c1:028c]
+    Occupancy averaged 93.4% over the period.
 
-[Read the page: backdraft read t12-audit p2]"""
+[Read the page: backdraft read t12-audit p2]
+
+{ADJOINING_NOTE}"""
 
 SCOPED = """\
 2 results for "NOI" in rent-model
@@ -97,18 +103,26 @@ def test_limit_is_passed_through() -> None:
 # `--limit` truncates; the count line used to report the size of the page, so a
 # reader could not tell twenty results from the first twenty of two hundred.
 
-CAPPED = """\
+CAPPED = f"""\
 2 of 3 results for "alpha"
 
 [bd:doc:p1.c1:447d]  doc p1
   alpha one
+  next page begins: [bd:doc:p2.c1:e902]
+    alpha two
 
 [bd:doc:p2.c1:e902]  doc p2
   alpha two
+  previous page ends: [bd:doc:p1.c1:447d]
+    alpha one
+  next page begins: [bd:doc:p3.c1:9025]
+    alpha three
 
 [Read the page: backdraft read doc p1]
 [Read the page: backdraft read doc p2]
-[See all 3: backdraft search alpha --limit 3]"""
+[See all 3: backdraft search alpha --limit 3]
+
+{ADJOINING_NOTE}"""
 
 
 def _three_alphas() -> FakeDocumentRegistry:
@@ -123,21 +137,31 @@ def test_a_capped_search_names_the_total_and_how_to_widen() -> None:
 
 def test_an_uncapped_search_is_unchanged() -> None:
     """Most runs are uncapped and their output is a contract — pin it byte for byte."""
-    assert search(_three_alphas(), "alpha", limit=20, session="s") == """\
+    assert search(_three_alphas(), "alpha", limit=20, session="s") == f"""\
 3 results for "alpha"
 
 [bd:doc:p1.c1:447d]  doc p1
   alpha one
+  next page begins: [bd:doc:p2.c1:e902]
+    alpha two
 
 [bd:doc:p2.c1:e902]  doc p2
   alpha two
+  previous page ends: [bd:doc:p1.c1:447d]
+    alpha one
+  next page begins: [bd:doc:p3.c1:9025]
+    alpha three
 
 [bd:doc:p3.c1:9025]  doc p3
   alpha three
+  previous page ends: [bd:doc:p2.c1:e902]
+    alpha two
 
 [Read the page: backdraft read doc p1]
 [Read the page: backdraft read doc p2]
-[Read the page: backdraft read doc p3]"""
+[Read the page: backdraft read doc p3]
+
+{ADJOINING_NOTE}"""
 
 
 def test_a_search_cut_to_exactly_its_matches_says_nothing_new() -> None:
@@ -150,7 +174,7 @@ def test_a_search_cut_to_exactly_its_matches_says_nothing_new() -> None:
 def test_the_widen_hint_scopes_itself() -> None:
     output = search(_three_alphas(), "alpha", slug="doc", limit=1, session="s")
     assert output.startswith('1 of 3 results for "alpha" in doc')
-    assert output.endswith("[See all 3: backdraft search alpha --in doc --limit 3]")
+    assert "[See all 3: backdraft search alpha --in doc --limit 3]" in output.splitlines()
 
 
 def test_the_widen_hint_is_a_command_a_shell_can_run() -> None:
@@ -158,7 +182,8 @@ def test_the_widen_hint_is_a_command_a_shell_can_run() -> None:
     registry = FakeDocumentRegistry().add(
         pdf_document("doc", "doc.pdf", [["net $4,102,880 here"], ["net $4,102,880 twice"]])
     )
-    hint = search(registry, "net $4,102,880", limit=1, session="s").splitlines()[-1]
+    output = search(registry, "net $4,102,880", limit=1, session="s")
+    hint = next(line for line in output.splitlines() if line.startswith("[See all"))
     assert hint == "[See all 2: backdraft search 'net $4,102,880' --limit 2]"
 
 
@@ -177,14 +202,18 @@ No results for "anything".
 # A query FTS5 cannot parse is retried as a quoted phrase. That asks a different
 # question from the one the caller wrote, so the results say so.
 
-FALLBACK = """\
+FALLBACK = f"""\
 1 result for "$4,102,880"
 (query retried as a phrase)
 
 [bd:t12-audit:p2.c2:1e7a]  t12-audit p2
   Trailing twelve month net operating income was $4,102,880.
+  next page begins: [bd:t12-audit:p3.c1:028c]
+    Occupancy averaged 93.4% over the period.
 
-[Read the page: backdraft read t12-audit p2]"""
+[Read the page: backdraft read t12-audit p2]
+
+{ADJOINING_NOTE}"""
 
 
 def test_a_retried_query_is_noted_once(fake_gate_registry: FakeDocumentRegistry) -> None:

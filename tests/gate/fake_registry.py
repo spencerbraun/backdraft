@@ -235,8 +235,15 @@ def pdf_document(
     ids: Ids | None = None,
     media_type: str = "pdf",
     url: str | None = None,
+    splits: Sequence[Sequence[int]] = (),
 ) -> _Loaded:
     """A `page`-kind document from explicit per-page chunk texts.
+
+    Each page's text is its chunks joined by a blank line, and every chunk anchor
+    carries its offsets into that text, as the real store's do. `splits` names,
+    per page, the chunk ordinals whose join to the *next* chunk is a single space
+    instead — one paragraph the chunker cut for length, which is the case
+    `reader.adjoining` tells apart by the whitespace between two chunks.
 
     `url` makes it a fetched source: `meta` carries the origin and the fetch
     time exactly as `Registry.ingest` stores them for a URL, which is what the
@@ -261,19 +268,26 @@ def pdf_document(
     for index, chunks in enumerate(pages, start=1):
         summary = summaries[index - 1] if index - 1 < len(summaries) else None
         name = names[index - 1] if index - 1 < len(names) else None
-        built.append(
-            Page(
-                number=index,
-                kind="page",
-                text="\n\n".join(chunks),
-                name=name,
-                summary=summary,
+        split = splits[index - 1] if index - 1 < len(splits) else ()
+        text = ""
+        page_anchors: list[Anchor] = []
+        for ordinal, chunk in enumerate(chunks, start=1):
+            if ordinal > 1:
+                text += " " if ordinal - 1 in split else "\n\n"
+            start = len(text)
+            text += chunk
+            page_anchors.append(
+                _anchor(
+                    slug,
+                    ChunkLocator(page=index, ordinal=ordinal),
+                    chunk,
+                    index,
+                    ids,
+                    offsets=(start, len(text)),
+                )
             )
-        )
-        anchors[index] = [
-            _anchor(slug, ChunkLocator(page=index, ordinal=ordinal), text, index, ids)
-            for ordinal, text in enumerate(chunks, start=1)
-        ]
+        built.append(Page(number=index, kind="page", text=text, name=name, summary=summary))
+        anchors[index] = page_anchors
     return _Loaded(document=document, pages=built, anchors=anchors)
 
 
@@ -344,12 +358,23 @@ def sheet_document(
     return _Loaded(document=document, pages=built, anchors=anchors)
 
 
-def _anchor(slug: str, locator: object, snippet: str, page_number: int, ids: Ids) -> Anchor:
+def _anchor(
+    slug: str,
+    locator: object,
+    snippet: str,
+    page_number: int,
+    ids: Ids,
+    *,
+    offsets: tuple[int, int] | None = None,
+) -> Anchor:
+    start, end = offsets if offsets is not None else (None, None)
     return Anchor(
         slug=slug,
         locator=locator,  # type: ignore[arg-type]
         receipt=Receipt(snippet=snippet, snippet_sha256=snippet_hash(snippet)),
         token=format_token(slug, locator, token_hash(snippet)),  # type: ignore[arg-type]
         page_number=page_number,
+        start=start,
+        end=end,
         id=ids.take(),
     )

@@ -42,7 +42,11 @@ def test_a_searched_snippet_is_citable_without_a_page_read(
     fake_gate_registry: FakeDocumentRegistry,
 ) -> None:
     search(fake_gate_registry, "net operating income", session=SESSION)
-    assert fake_gate_registry.shown_tokens(SESSION) == {"bd:t12-audit:p2.c2:1e7a"}
+    # The hit is p2's last chunk, so p3's first is named beside it and minted too.
+    assert fake_gate_registry.shown_tokens(SESSION) == {
+        "bd:t12-audit:p2.c2:1e7a",
+        "bd:t12-audit:p3.c1:028c",
+    }
 
 
 def test_sheet_read_records_the_cells_its_window_exposed(fake_gate_registry: FakeDocumentRegistry) -> None:
@@ -78,6 +82,8 @@ def test_windows_accumulate_in_one_session(fake_gate_registry: FakeDocumentRegis
     assert fake_gate_registry.shown_tokens(SESSION) == {
         "bd:t12-audit:p2.c1:50bd",
         "bd:t12-audit:p2.c2:1e7a",
+        # The second window reaches p2's last chunk and names the page after it.
+        "bd:t12-audit:p3.c1:028c",
     }
 
 
@@ -102,6 +108,9 @@ def test_the_session_is_created_on_first_mint(fake_gate_registry: FakeDocumentRe
 def test_sessions_do_not_leak_into_each_other(fake_gate_registry: FakeDocumentRegistry) -> None:
     read(fake_gate_registry, "t12-audit", "p1", session="run-a")
     read(fake_gate_registry, "t12-audit", "p3", session="run-b")
-    assert fake_gate_registry.shown_tokens("run-a") == {"bd:t12-audit:p1.c1:5ff8"}
+    assert fake_gate_registry.shown_tokens("run-a") == {
+        "bd:t12-audit:p1.c1:5ff8",
+        "bd:t12-audit:p2.c1:50bd",
+    }
     assert not fake_gate_registry.was_shown("run-a", "bd:t12-audit:p3.c1:c9c9")
     assert fake_gate_registry.shown_tokens("run-b") != fake_gate_registry.shown_tokens("run-a")

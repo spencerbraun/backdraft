@@ -242,11 +242,27 @@ maintenance salary is made on a unit-count basis across three properties under t
 and the split of utility expense between the reimbursed and unreimbursed portions is derived from the ratio utility
 billing vendor's monthly file rather than from separate meters. Neither estimate is material to net operating
 income at the level of precision used here, but both should be confirmed in diligence.
+
+next page begins: [bd:t12-summary:p2.c1:7bd3]
+  Revenue Detail Rental income of $2,548,900 accounts for 94.9% of effective gross income. Other income of $135,500 comprises pet rent, parking, utility reimburse...
+
+note: text can run on across a paragraph split in two or a page break, so the chunk on the other side is named and recorded as shown. A claim whose words come from both sides cites both tokens.
 ```
 
 That is the substitution the whole system rests on. The page arrives with
 `[bd:…]` markers over each chunk, so a writer who reads this way has a citable
 name for every sentence it just saw. Read `p2` and `p3` the same way.
+
+The read also names one chunk it did not print whole: the first on page 2. The
+chunker works one page at a time, so nothing in the chunks can say whether a
+paragraph runs across a page break, and a sentence cut by one would otherwise be
+cited by the half the writer happened to be reading. Here the page ends on a
+full stop and page 2 opens with a heading, which the excerpt makes plain, so the
+line is safe to pass over; on a page that stops mid-sentence it is the second
+token the claim needs. It is minted, like everything else the gate prints. A
+paragraph the chunker itself cut for length gets the same treatment within a
+page, under `same paragraph`, and a search hit carries either kind indented
+under its excerpt.
 
 Note where the chunk boundaries fall: on the document's own paragraphs. A PDF
 does not store paragraphs — pdfplumber's text layer joins every line with a
@@ -460,9 +476,9 @@ backdraft session show
 ```
 session s-bridgeview  (from BACKDRAFT_SESSION)
 
-77 anchors shown across 3 documents
+78 anchors shown across 3 documents
 
-  t12-summary          7
+  t12-summary          8
   underwriting-model  68
   franklin-county      2
 
