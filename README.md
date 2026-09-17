@@ -70,7 +70,8 @@ when the name it wants is taken.
 Every ingest line ends with how much text came out, and says which of three
 things happened: a document created, a **new generation** of one whose bytes
 moved — which is when citations into the previous snapshot start reporting
-`drifted` — or `unchanged`, a no-op because re-running would reproduce what is
+`drifted`, and [`backdraft locate`](#when-a-source-changes) says where their
+text went — or `unchanged`, a no-op because re-running would reproduce what is
 already there. When almost no text came out, a note names the likely cause (a
 scan with no text layer, a page behind a login) and what to do; it is a note at
 exit 0, because a thin snapshot is still a real one. That source keeps the mark
@@ -392,6 +393,42 @@ are out of reach, and the extractor is a parse rather than a readability guess
 — navigation and footers are part of the page, because a heuristic that changes
 its mind between two versions of a site would move anchors. Responses are
 capped at 32 MiB.
+
+## When a source changes
+
+A re-ingested source re-chunks, so an edit near the top of a page moves every
+citation below it: a paragraph inserted above the one you cited shifts its chunk
+ordinal, and a citation whose words never changed comes back `drifted` because
+its address did. `bind` can say that much and no more. `locate` finds where the
+text went:
+
+```console
+$ backdraft locate memo.md
+3 citation(s) in memo.md, 3 drifted
+  gone: 1
+  moved: 2
+  ! moved: bd:q3-letter:p1.c1:afd2 — now at bd:q3-letter:p1.c2:afd2 — closed Q3 at 92.0% @24
+  ! moved: bd:q3-letter:p1.c2:d140 — now at bd:q3-letter:p1.c3:d140 — 1.42x @84
+  ! gone: bd:q3-letter:p1.c3:00ce — taxes of $412,300 @122
+[Nothing was rewritten. Put each moved token in place of the old one in memo.md, then show the new ones, which this session has not seen, and re-bind: backdraft show bd:q3-letter:p1.c2:afd2 bd:q3-letter:p1.c3:d140]
+[A gone citation's text was edited or removed, so nothing is proposed. Read what it cited, then search for the new wording: backdraft show bd:q3-letter:p1.c3:00ce]
+```
+
+For each citation `bind` would call `drifted`, it looks for the exact text the
+citation quotes — the normalized snippet hash — in the source's current
+snapshot. `moved` is one place holding it, and names the token there.
+`ambiguous` names the places when there are several, or when the citation is a
+cell: an equal value at another address is as often a second figure that
+happens to agree as the same cell after a row was inserted. `gone` is the text
+edited or removed, here a tax figure revised from $412,300, and nothing is
+proposed for it — matching is exact on purpose, because a near match offered as
+a move would rewrite provenance.
+
+It proposes and never rewrites, and it is read-only: the document, the registry
+and the ledger are untouched. That includes minting — a token printed here was
+never shown to your session, so swap the moved tokens in, run the `show` the
+closing line names (and read that the text is what you cited), then re-bind.
+Exit 0 whatever it finds: `bind` is the check.
 
 ## Forgetting a source
 

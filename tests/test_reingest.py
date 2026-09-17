@@ -15,7 +15,7 @@ import pytest
 from conftest_registry import PAGE_BREAK
 
 from backdraft.extract.base import ExtractedPage
-from backdraft.registry import CREATED, GENERATION, Registry, UNCHANGED, current_at
+from backdraft.registry import CREATED, GENERATION, Registry, UNCHANGED, current_at, current_with
 
 
 def _tokens(registry: Registry, slug: str) -> dict[str, str]:
@@ -220,6 +220,99 @@ def test_current_at_is_none_when_the_locator_is_gone(registry: Registry, book: P
 
     cited = registry.resolve(token).anchor
     assert current_at(registry, cited) is None
+
+
+# ---- where the cited text went -----------------------------------------------
+#
+# `current_at` keeps the locator and asks what text stands there now;
+# `current_with` keeps the text and asks which locators hold it. `backdraft
+# locate` is its caller, and the lookup is pinned here beside its other half.
+
+
+def test_current_with_follows_a_page_that_a_new_page_pushed_down(
+    registry: Registry, book: Path
+) -> None:
+    registry.ingest(book, extractor="paged")
+    token = _tokens(registry, "quarterly-notes")["p2.c1"]
+
+    _write(book, [PAGE_ONE, PAGE_THREE, PAGE_TWO])
+    registry.ingest(book, extractor="paged")
+
+    cited = registry.resolve(token).anchor
+    assert registry.resolve(token).current is False
+    found = current_with(registry, cited)
+    assert [anchor.locator.format() for anchor in found] == ["p3.c1"]
+    assert found[0].receipt.snippet_sha256 == cited.receipt.snippet_sha256
+    assert found[0].token == token.replace(":p2.c1:", ":p3.c1:")
+
+
+def test_current_with_matches_a_chunk_to_a_chunk_and_never_to_its_page(
+    registry: Registry, book: Path
+) -> None:
+    """A one-chunk page carries one hash on two anchors; each kind finds its own."""
+    registry.ingest(book, extractor="paged")
+    tokens = _tokens(registry, "quarterly-notes")
+
+    _write(book, [PAGE_THREE, PAGE_ONE, PAGE_TWO])
+    registry.ingest(book, extractor="paged")
+
+    chunk = registry.resolve(tokens["p1.c1"]).anchor
+    page = registry.resolve(tokens["p1"]).anchor
+    assert chunk.receipt.snippet_sha256 == page.receipt.snippet_sha256
+    assert [anchor.locator.format() for anchor in current_with(registry, chunk)] == ["p2.c1"]
+    assert [anchor.locator.format() for anchor in current_with(registry, page)] == ["p2"]
+
+
+def test_current_with_is_empty_when_the_text_changed_at_all(
+    registry: Registry, book: Path
+) -> None:
+    """Exact only: one figure edited is not the text that was cited."""
+    registry.ingest(book, extractor="paged")
+    token = _tokens(registry, "quarterly-notes")["p2.c1"]
+
+    _write(book, [PAGE_ONE, PAGE_TWO.replace("1.42x", "1.43x"), PAGE_THREE])
+    registry.ingest(book, extractor="paged")
+
+    assert current_with(registry, registry.resolve(token).anchor) == []
+
+
+def test_current_with_names_every_place_in_document_order(
+    registry: Registry, book: Path
+) -> None:
+    registry.ingest(book, extractor="paged")
+    token = _tokens(registry, "quarterly-notes")["p2.c1"]
+
+    _write(book, [PAGE_TWO, PAGE_ONE, PAGE_THREE, PAGE_TWO])
+    registry.ingest(book, extractor="paged")
+
+    found = current_with(registry, registry.resolve(token).anchor)
+    assert [anchor.locator.format() for anchor in found] == ["p1.c1", "p4.c1"]
+
+
+def test_the_snippet_lookup_reads_the_current_generation_only(
+    registry: Registry, book: Path
+) -> None:
+    registry.ingest(book, extractor="paged")
+    cited = next(
+        anchor
+        for anchor in registry.anchors_for_page("quarterly-notes", 2)
+        if anchor.kind == "chunk"
+    )
+
+    _write(book, [PAGE_ONE, PAGE_TWO_EDITED, PAGE_THREE])
+    registry.ingest(book, extractor="paged")
+
+    assert registry.anchors_with_snippet("quarterly-notes", cited.receipt.snippet_sha256) == []
+    assert registry.anchors_with_snippet("elsewhere", cited.receipt.snippet_sha256) == []
+
+
+def test_the_snippet_lookup_is_indexed(registry: Registry) -> None:
+    """One indexed query per cited snippet, on a registry opened before it existed too:
+    the DDL runs on every open, so an older registry gains the index the first time."""
+    names = {
+        row[1] for row in registry._connection.execute("PRAGMA index_list(anchors)")
+    }
+    assert "idx_anchors_snippet" in names
 
 
 def test_search_follows_the_current_generation(registry: Registry, book: Path) -> None:

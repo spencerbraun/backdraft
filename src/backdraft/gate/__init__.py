@@ -26,6 +26,7 @@ from .reader import (
     render_page_read,
     render_toc,
     select_pages,
+    session_argument,
     thin_mark,
     unit,
 )
@@ -42,6 +43,7 @@ __all__ = [
     "render_toc",
     "render_page_read",
     "select_pages",
+    "session_argument",
     "thin_mark",
     "unit",
     "search",

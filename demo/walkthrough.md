@@ -891,10 +891,25 @@ becomes a *new generation* of the same document, and ingest says that too:
 t12-summary  t12-summary.pdf  pdf  3 pages  8865 chars  new generation
 underwriting-model  underwriting-model.xlsx  xlsx  2 sheets  2357 chars  new generation
 note: extracted with pdf-text (the embedded text layer). Glossy or scanned PDFs extract better through a vision model: set BACKDRAFT_VLM_API_KEY in .backdraft/env.
-note: new generation of t12-summary, underwriting-model — citations into the previous snapshot may now report `drifted`. A token whose locator and snippet both survived the change carries over untouched, so `backdraft bind` on a document citing it is what says which; `backdraft show <token>` then prints the cited snippet beside what stands there now.
+note: new generation of t12-summary, underwriting-model — citations into the previous snapshot may now report `drifted`. A token whose locator and snippet both survived the change carries over untouched, so `backdraft bind` on a document citing it is what says which; `backdraft locate <document>` then finds where each drifted citation's text stands now, and names the new token wherever the text only moved.
 ```
 
 Here the answer is none of them: the generators change the bytes and not the
 extracted text, so every token carries over and a re-bind still says
 `resolved`. The note says *may* for exactly that reason — `ingest` knows the
 snapshot moved, and only `bind` knows whether any citation noticed.
+
+Had a paragraph been added near the top of the T12, the citations below it
+would have come back `drifted` with their words untouched, because a chunk's
+ordinal is its address. `locate` is the command the note names for that: it
+looks for the exact text each drifted citation quotes in the new snapshot and
+names the token that holds it now, or says the text stands in several places
+or nowhere. It rewrites nothing either way, and here there is nothing to find:
+
+```bash
+backdraft locate memo.md
+```
+
+```
+18 citation(s) in memo.md, 0 drifted
+```

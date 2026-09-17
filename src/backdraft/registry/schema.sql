@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS anchors (
   UNIQUE (extraction_id, locator)
 );
 CREATE INDEX IF NOT EXISTS idx_anchors_token ON anchors(token);   -- token repeats across generations when content unchanged
+CREATE INDEX IF NOT EXISTS idx_anchors_snippet ON anchors(snippet_sha256);   -- where a cited snippet stands now (`backdraft locate`)
 
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,           -- caller-supplied or generated

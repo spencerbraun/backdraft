@@ -66,6 +66,7 @@ __all__ = [
     "SearchResults",
     "citation_for",
     "current_at",
+    "current_with",
     "media_type_for",
     "sanitize_sheet_name",
     "slug_for",
@@ -301,6 +302,35 @@ def current_at(registry: "Registry", anchor: Anchor) -> Anchor | None:
         if candidate.locator == anchor.locator:
             return candidate
     return None
+
+
+def current_with(registry: "Registry", anchor: Anchor) -> list[Anchor]:
+    """Where `anchor`'s exact text stands in its document's current generation.
+
+    `current_at`'s other half. That one keeps the locator and asks what text
+    stands there now; this keeps the text and asks which locators hold it — the
+    question a re-ingest raises when a paragraph inserted near the top of a page
+    shifts every chunk ordinal below it, so a citation whose words are untouched
+    comes back `drifted` because its address moved. The match is the normalized
+    snippet hash (`kernel.hashing`), which is exact: text that changed by one
+    character is not here, and that is deliberate, because a near match proposed
+    as a move would rewrite provenance.
+
+    Same kind only. A page whose only chunk is its whole text carries one hash
+    on two anchors, and a citation of a chunk has moved to a chunk, never to the
+    page around it. Every match is returned, in page and mint order — whether
+    one of several is the right one, and whether a cell's value is evidence of
+    anything, are the caller's to judge, since this answers the lookup and stops
+    there.
+
+    A module function beside `current_at` for the same reason, over the one
+    method it needs (`anchors_with_snippet`).
+    """
+    return [
+        candidate
+        for candidate in registry.anchors_with_snippet(anchor.slug, anchor.receipt.snippet_sha256)
+        if candidate.kind == anchor.kind
+    ]
 
 
 def withdrawn_reason(document: Document) -> str:
@@ -735,6 +765,28 @@ class Registry:
             for row in self._connection.execute(
                 "SELECT * FROM anchors WHERE extraction_id = ? AND page_number = ? ORDER BY id",
                 (extraction_id, number),
+            )
+        ]
+
+    def anchors_with_snippet(self, slug: str, snippet_sha256: str) -> list[Anchor]:
+        """Every anchor in the current extraction whose snippet hashes to this.
+
+        The reverse of `resolve`: by content rather than by name, and within one
+        document's current generation only, since the question it answers is
+        where a cited snippet stands *now*. Ordered by page, then mint order, so
+        several matches read down the document. One indexed query
+        (`idx_anchors_snippet`); `current_with` is the caller.
+        """
+        return [
+            _anchor(row, slug)
+            for row in self._connection.execute(
+                "SELECT anchors.* FROM anchors "
+                "JOIN extractions ON extractions.id = anchors.extraction_id "
+                "AND extractions.is_current = 1 "
+                "JOIN documents ON documents.id = extractions.document_id "
+                "WHERE anchors.snippet_sha256 = ? AND documents.slug = ? "
+                "ORDER BY anchors.page_number, anchors.id",
+                (snippet_sha256, slug),
             )
         ]
 

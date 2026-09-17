@@ -79,7 +79,13 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # nothing extra for a new document, `unchanged` for a no-op, `new generation`
 # when the bytes moved — the last one means citations into the previous
 # snapshot may now be drifted, so re-bind and read the report rather than
-# assuming. A source that came back thin (a scan with no text layer, a login
+# assuming. Then `backdraft locate <doc.md>`: a paragraph inserted above a
+# cited one moves its text without changing it, and locate finds the exact
+# cited text in the new snapshot — `moved` names the token that now holds it,
+# `ambiguous` names several places (or a cell, whose value alone proves no
+# move), `gone` proposes nothing. It rewrites nothing and mints nothing: swap
+# the moved tokens in, run the `backdraft show` its closing line names, re-bind.
+# A source that came back thin (a scan with no text layer, a login
 # wall, a deck whose slides are all images) gets a `note: little text
 # extracted` line naming the cause at exit 0; that note is the signal a source
 # is a shell — surface it, do not cite around it. You do not have to have run
@@ -187,6 +193,12 @@ Write claims as links; multiple tokens are ;-separated in one href:
 An italic line directly under the # title becomes the artifact subtitle.
 
 backdraft bind memo.md --check value-trace,overlap
+backdraft locate memo.md                    # after a re-ingest, where each
+                                            # drifted citation's exact text
+                                            # stands now: moved (new token),
+                                            # ambiguous (several places, or a
+                                            # cell), gone. Read-only, mints
+                                            # nothing; exit 0 whatever it finds.
 backdraft render memo.md --to html          # -> memo.backdraft.html
 backdraft verify memo.backdraft.html        # check a record you were handed:
                                             # snippets rehashed, tokens checked
@@ -215,8 +227,9 @@ by the ingested sources" — but if the reason says the source was *withdrawn*,
 it was taken out of the registry on purpose: do not re-ingest it to make the
 error go away, ask the user, and until then treat the claim as uncited),
 not_shown (real anchor you were never shown: read
-it, re-bind), drifted (source changed: re-read, confirm), malformed (fix the
-href). `backdraft show <token>` is the first move on any of them: it says which
+it, re-bind), drifted (source changed: `backdraft locate <doc.md>` first,
+since a moved paragraph is not a changed one; otherwise re-read, confirm),
+malformed (fix the href). `backdraft show <token>` is the first move on any of them: it says which
 half of an unresolved token is wrong, prints both snippets for a drifted one,
 and mints a not_shown one so the next bind resolves. NEVER fix exit 2 by
 deleting the token; a kept failure is the honest outcome. Show the user the bind

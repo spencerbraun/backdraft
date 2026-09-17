@@ -52,10 +52,11 @@ Read each source's line: it ends with how much text came out, and with what
 `ingest` did. `unchanged` is a no-op — the snapshot was already there and every
 token into it still stands. `new generation` means the bytes moved since the
 last ingest, so citations written against the previous snapshot may now be
-`drifted`; re-bind and act on what it says, do not assume. A bare line is a
-document that did not exist before. When almost no text came out, ingest prints
-a `note: little text extracted` line naming the likely cause — that note, not
-your own judgement, is the signal that a source came back as a shell.
+`drifted`; re-bind and act on what it says, do not assume — and where it says
+`drifted`, `backdraft locate <doc.md>` is the next command (below). A bare line
+is a document that did not exist before. When almost no text came out, ingest
+prints a `note: little text extracted` line naming the likely cause — that note,
+not your own judgement, is the signal that a source came back as a shell.
 
 You will often be writing against a registry you did not ingest — it travels
 with the project folder, and the ingest may have happened in another session —
@@ -363,10 +364,20 @@ printed, with the reason attached.
   withdrawn.
 - `not_shown` — a real anchor you were never shown. `show` it (or read or search
   it) and re-bind: showing is minting, so that alone clears the status.
-- `drifted` — the source changed after you wrote. `show` prints both snippets,
-  the one you cited and the one standing at that locator now, plus the token for
-  the new one. Confirm the claim still holds against the new text, and cite the
-  new token if it does.
+- `drifted` — the source changed after you wrote. Run `backdraft locate
+  <doc.md>` first. A paragraph inserted above the one you cited leaves your
+  words untouched and moves their address, and `locate` finds the exact text you
+  cited in the new snapshot: a `moved` line names the token that holds it now.
+  Put that token in place of the old one, run the `backdraft show` its closing
+  line names — printing a token is not showing it, so skipping this re-binds as
+  `not_shown` — and re-bind. `ambiguous` means the text stands in several places,
+  or the citation is a cell, whose value alone does not prove it moved: read the
+  places the line names and cite the one the claim is about. `gone` means the
+  text was edited or removed. For those, `show` the old token: it prints the
+  snippet you cited and what stands at that locator now, plus its token — but
+  after an insertion that is a different paragraph, not your edited one, so
+  search for the new wording rather than citing whatever sits at the old address,
+  and confirm the claim still holds before citing anything.
 - `malformed` — the href is not a token. `show` names the segment that broke and
   the grammar. Fix the syntax.
 

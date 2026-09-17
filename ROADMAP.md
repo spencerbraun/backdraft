@@ -32,49 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. A re-ingested source strands citations one at a time
-
-**Intent.** This is DESIGN.md's oldest Open line — "re-bind/orphan pass on
-re-ingest of changed docs (chunk ordinal drift)" — and the week that taught
-`ingest` to announce a `new generation` (2026-08-20) made it sharper rather than
-smaller: the agent is now told the moment its citations may have moved, and
-still has nothing to do about it but re-bind and read a list of failures. A
-changed source re-chunks, so an edit near the top of a page shifts every ordinal
-below it; citations that pointed at unchanged text come back `drifted` or
-`unresolved` en masse, each one a separate manual hunt for where that sentence
-went. The system knows both sides — the cited snippet and the current
-extraction — and makes the human do the matching.
-
-**Shape.** Read-only and advisory; it proposes, it never rewrites. A command
-over one document that, for every citation in its bindings that no longer
-resolves against the current generation, looks for the cited snippet in the
-current extraction and reports what it found: the old token, the new token if
-the text is there under a new locator, and plainly nothing when it is not.
-Matching is on the normalized snippet hash first (`kernel.hashing`), which is
-exact and is the only claim worth making automatically; a near match is a
-different and harder question and must be left out, said out loud in the DESIGN
-row, because a wrong proposal here rewrites provenance. The registry already
-holds every generation and `registry.current_at` is the existing half of this —
-so the new part is the reverse lookup by snippet hash within a document, which
-is one indexed query, and the walk over `bindings` the registry already stores.
-Output is the same line shape `bind` and `verify` use.
-
-Not Later's "living documents", and the boundary is worth holding: that item is
-a *presentation* — cited-then vs. now, diff-shaped, with a demo — and answers
-"what changed". This one answers "where did it go", is the Open list's line
-rather than Later's, and is the primitive the presentation would rest on.
-
-**Acceptance.** Ingest a document, bind a memo citing three chunks, edit the
-source so a paragraph is inserted above them, re-ingest, and the command reports
-all three as moved with their new tokens; applying those tokens by hand and
-re-binding gives a clean run. A citation whose text was deleted outright is
-reported as gone, with no token proposed. A document with no new generation
-reports nothing and exits 0. Nothing is written: the registry's document,
-extraction and ledger counts are identical before and after.
-
-**Size.** Three days.
-
-### 2. What this install can do, said before a verb needs it
+### 1. What this install can do, said before a verb needs it
 
 **Intent.** backdraft degrades rather than fails, which is right, and the price
 is that its capabilities are discovered one at a time at the moment each is
@@ -111,7 +69,7 @@ run in an unfamiliar environment.
 
 **Size.** Two days.
 
-### 3. `bind` never says which ledger it judged `not_shown` against
+### 2. `bind` never says which ledger it judged `not_shown` against
 
 **Intent.** `bind`'s report names the mode, the claim and citation counts, every
 status, every check that ran and every failure — everything except the one input
@@ -157,7 +115,7 @@ DESIGN row.
 
 **Size.** Two days.
 
-### 4. A withdrawn source is invisible, including to the person looking for it
+### 3. A withdrawn source is invisible, including to the person looking for it
 
 **Intent.** `forget` withdraws a source from every surface that offers one, which
 is right, and the result is that nothing lists what was withdrawn. `ls` says `no
@@ -194,7 +152,7 @@ and `skills/backdraft/SKILL.md` say where to look. DESIGN row.
 
 **Size.** One day.
 
-### 5. `--slug` is dropped without a word when the document is already there
+### 4. `--slug` is dropped without a word when the document is already there
 
 **Intent.** `Registry.ingest`'s docstring says "`slug` is honoured only when the
 document is new — a slug is stable once assigned", which is the right rule and is
@@ -232,7 +190,7 @@ pass `--slug`. DESIGN row.
 
 **Size.** One day.
 
-### 6. `verify` cannot re-check the one status only the ledger can settle
+### 5. `verify` cannot re-check the one status only the ledger can settle
 
 **Intent.** `verify`'s source tier re-resolves every token and reports the
 statuses "as `bind` would", with one gap the code names out loud: `not_shown`
@@ -274,7 +232,7 @@ DESIGN row.
 
 **Size.** Two to three days.
 
-### 7. `bind` and `verify` name the failure and not the move
+### 6. `bind` and `verify` name the failure and not the move
 
 **Intent.** 2026-09-01 made `ingest`'s failures say what to do as well as what
 went wrong, on the argument that a calling agent reads the reason and acts on it.
@@ -282,9 +240,10 @@ went wrong, on the argument that a calling agent reads the reason and acts on it
 neither says a next step anywhere: `! not_shown: <token> — <claim> @<offset>` is
 a complete diagnosis and a blank instruction. The move differs sharply per status
 and is not guessable — `not_shown` clears by showing the token, `unresolved`
-needs a search and a new token or an uncited claim, `drifted` needs both snippets
-read and a judgement, `malformed` is an href to fix, and a `receipt:` finding
-means the artifact was edited rather than the sources moved. Today that mapping
+needs a search and a new token or an uncited claim, `drifted` needs `locate`
+and, where the text did not simply move, both snippets read and a judgement,
+`malformed` is an href to fix, and a `receipt:` finding means the artifact was
+edited rather than the sources moved. Today that mapping
 lives only in `skills/backdraft/SKILL.md`, which means it works for an agent
 running the skill and for nobody else — a hook, a CI job, a person, or any agent
 that reached the command another way.
@@ -314,7 +273,7 @@ verify blocks show the real output. DESIGN row.
 
 **Size.** Two days.
 
-### 8. A chunk the table of contents lists is a chunk no read can ask for
+### 7. A chunk the table of contents lists is a chunk no read can ask for
 
 **Intent.** Since 2026-09-07 `backdraft read <slug>` on a one-page source lists
 that page's chunks — `p1.c9  From Wikipedia, the free encyclopedia...` — and the
@@ -361,7 +320,7 @@ form.
 
 **Size.** Two days.
 
-### 9. A search hit's excerpt can leave out the words that matched
+### 8. A search hit's excerpt can leave out the words that matched
 
 **Intent.** `search` prints each hit's first 160 characters, and
 `gate.reader.excerpt`'s NOTE says so on purpose: the cut is from the start rather
@@ -402,7 +361,7 @@ matched, asserted by test. No `registry-v1` export field changes. SPEC § Gate's
 
 **Size.** Two days.
 
-### 10. A small table is marked a shell, and the skill says not to cite it
+### 9. A small table is marked a shell, and the skill says not to cite it
 
 **Intent.** The thin-source mark (2026-08-20, carried onto every list
 2026-09-09) is a character count under `THIN_SOURCE_CHARS`, and for prose that
@@ -443,7 +402,7 @@ mark means for a table. DESIGN row.
 
 **Size.** One day.
 
-### 11. `ingest --dry-run` names the source and not the run
+### 10. `ingest --dry-run` names the source and not the run
 
 **Intent.** The dry run (2026-09-10) answers what a source would be called, and
 `tests/test_dry_run.py` pins that the prediction equals the outcome — for the
@@ -492,7 +451,7 @@ row.
 
 **Size.** Two days.
 
-### 12. `session show` counts what was read and cannot say what was not
+### 11. `session show` counts what was read and cannot say what was not
 
 **Intent.** `session show` (2026-08-31) answers "have I read enough to write
 this yet?" with a count per document. Since the page-read budget (2026-09-08) a
@@ -561,8 +520,9 @@ the objection rather than rediscovering it.
 
 - **Living documents** — re-ingest, re-bind, and a drift-first report: "these
   claims cite figures that changed; cited-then vs. now." The primitives
-  (generations, `drifted`, the word-diff) all exist; the missing piece is a
-  diff-shaped report and a demo.
+  (generations, `drifted`, the word-diff, and `locate` for where a cited
+  passage went) all exist; the missing piece is a diff-shaped report and a
+  demo.
 - **Substrates beyond the CLI** — SDK middleware for pipelines (the exit-code
   and `--to json` contracts are already shaped for it), and a client-side
   drag-drop viewer page (no upload — the file never leaves the reader's

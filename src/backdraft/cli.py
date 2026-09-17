@@ -18,8 +18,10 @@ non-resolved citations (so a hook can gate on it).
 from __future__ import annotations
 
 import json
+import shlex
 import sys
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Annotated, Iterable, Iterator
@@ -34,6 +36,7 @@ from .cli_context import (
     HOME_ENV,
     SESSION_ENV,
     UsageError,
+    claim_words,
     fail,
     find_root,
     guard,
@@ -51,9 +54,10 @@ from .extract import snapshots, vlm_ready
 # needed it. All are downward imports, which SPEC § Dependency rule spells "`cli`
 # imports everything"; the mount guard below is about sub-*apps*, and `gate`
 # itself does not need typer.
-from .gate import WITHDRAWN_HINT, extracted_chars, thin_mark, unit
+from .gate import WITHDRAWN_HINT, extracted_chars, session_argument, thin_mark, unit
+from .kernel.claims import parse_claims
 from .kernel.errors import BackdraftError
-from .kernel.model import Document, Page, source_name
+from .kernel.model import Anchor, CitationStatus, Claim, Document, Page, source_name
 from .registry import (
     DIRECTORY,
     GENERATION,
@@ -61,6 +65,8 @@ from .registry import (
     Ingested,
     Naming,
     Registry,
+    citation_for,
+    current_with,
     withdrawn_reason,
 )
 
@@ -374,8 +380,9 @@ def ingest(
             f"{', '.join(regenerated)} — citations into the previous snapshot may "
             "now report `drifted`. A token whose locator and snippet both survived "
             "the change carries over untouched, so `backdraft bind` on a document "
-            "citing it is what says which; `backdraft show <token>` then prints "
-            "the cited snippet beside what stands there now."
+            "citing it is what says which; `backdraft locate <document>` then finds "
+            "where each drifted citation's text stands now, and names the new token "
+            "wherever the text only moved."
         )
     if unread:
         # Last, and it carries the exit code: everything above is what landed.
@@ -503,6 +510,211 @@ def _naming_notes(named: list[tuple[str, Naming]], requested: str | None) -> lis
             "re-ingesting and rewriting the draft."
         )
     return notes
+
+
+MOVED = "moved"
+"""`locate` outcome: the cited text stands, exactly, at one new place — a token proposed."""
+
+AMBIGUOUS = "ambiguous"
+"""`locate` outcome: the cited text stands somewhere, and that is not evidence enough to
+propose one token — several places hold it, or it is a cell's value."""
+
+GONE = "gone"
+"""`locate` outcome: the cited text stands nowhere in the current generation."""
+
+PLACES_NAMED = 3
+"""How many places an `ambiguous` line names. A value like `0` can stand in hundreds
+of cells, and a line naming every one stops being a line."""
+
+_PROSE = frozenset({"page", "chunk"})
+"""Anchor kinds whose snippet is words, which identify a passage. A cell's is a value."""
+
+
+@dataclass(frozen=True, slots=True)
+class _Located:
+    """One drifted citation: its claim, the anchor it cited, and where that text is now."""
+
+    claim: Claim
+    cited: Anchor
+    """The anchor the token names — in the superseded generation, since it drifted."""
+    found: tuple[Anchor, ...]
+    """Every current anchor of the same kind whose snippet hashes the same, in order."""
+
+    @property
+    def outcome(self) -> str:
+        """Moved only on one exact match of words; the rest is not a proposal.
+
+        Several matches are a choice this command has no way to make, and a cell
+        is a value — an equal value at another address is as often a second fact
+        that happens to agree (two rates of 6.25%) as the same cell after a row
+        was inserted, and proposing it would rewrite provenance.
+        """
+        if not self.found:
+            return GONE
+        if len(self.found) == 1 and self.cited.kind in _PROSE:
+            return MOVED
+        return AMBIGUOUS
+
+
+@app.command()
+def locate(
+    doc: Annotated[Path, typer.Argument(help="The authored markdown document.")],
+    session: Annotated[
+        str | None,
+        typer.Option(
+            "--session",
+            help=(
+                "The session you bind under. Read, never written: the closing line names "
+                "the moved tokens it has not been shown."
+            ),
+        ),
+    ] = None,
+) -> None:
+    """Find where a re-ingest moved the text a document's citations quote.
+
+    A re-ingested source re-chunks, so a paragraph inserted near the top of a
+    page shifts every chunk below it: citations whose words did not change come
+    back `drifted` from `bind`, because their address did. For each drifted
+    citation this looks for the exact text it cited in the source's current
+    generation and says what it found — `moved`, with the token that now names
+    that text; `ambiguous`, naming the places it stands when there are several
+    or when the citation is a cell, whose value alone does not say it moved; or
+    `gone`, when the text was edited or removed and nothing stands in for it.
+
+    It proposes and never rewrites: nothing in the document, the registry or the
+    ledger changes, and a new token is not minted by being printed here. Put
+    each moved token in place of the old one, then `backdraft show` it so the
+    session you bind under has seen it — the closing line names the command —
+    and re-bind. Exact text only: a sentence edited by one word is `gone`, and
+    `show` on its old token prints what was cited, which is what to search for.
+
+    Exit 0 whatever it finds; `bind` is the check, and this is the advice. Exit 1
+    when the document or the registry is missing.
+    """
+    with guard():
+        if not doc.is_file():
+            raise UsageError(f"no such document: {doc}")
+        source = doc.read_text(encoding="utf-8")
+    session_id = resolve_session(session)
+    with opened_registry(doc.resolve().parent) as registry:
+        claims = parse_claims(source)
+        located = _drifted(registry, claims)
+        unseen = [
+            token
+            for token in dict.fromkeys(
+                item.found[0].token for item in located if item.outcome == MOVED
+            )
+            if not registry.was_shown(session_id, token)
+        ]
+    citations = sum(len(claim.citations) for claim in claims)
+    typer.echo(f"{citations} citation(s) in {doc}, {len(located)} drifted")
+    outcomes = [item.outcome for item in located]
+    for outcome in sorted(set(outcomes)):
+        typer.echo(f"  {outcome}: {outcomes.count(outcome)}")
+    for item in located:
+        typer.echo(_located_line(item))
+    for line in _locate_hints(doc, located, unseen, session_argument(session)):
+        typer.echo(line)
+
+
+def _drifted(registry: Registry, claims: list[Claim]) -> list[_Located]:
+    """Every drifted citation in document order, with where its cited text stands now.
+
+    Once per (claim, token), the way `bind` lists its line items, so the two
+    reports on one document count alike. The status is `citation_for`'s — the
+    walk `bind` and `verify` take — so a citation is looked for here exactly
+    when `bind` calls it `drifted`, and a withdrawn source's, which is
+    `unresolved`, is not.
+    """
+    located: list[_Located] = []
+    seen: set[tuple[int, str]] = set()
+    for index, claim in enumerate(claims):
+        for citation in claim.citations:
+            if (index, citation.token) in seen:
+                continue
+            seen.add((index, citation.token))
+            if citation.status is CitationStatus.MALFORMED:
+                continue
+            if citation_for(registry, citation.token).status is not CitationStatus.DRIFTED:
+                continue
+            resolution = registry.resolve(citation.token)
+            if resolution is None:  # pragma: no cover - drifted means it resolved
+                continue
+            cited = resolution.anchor
+            located.append(_Located(claim, cited, tuple(current_with(registry, cited))))
+    return located
+
+
+def _located_line(item: _Located) -> str:
+    """A line item, `bind`'s shape: `! <outcome>: <token> — <detail> — <claim> @<offset>`."""
+    outcome = item.outcome
+    detail = ""
+    if outcome == MOVED:
+        detail = f" — now at {item.found[0].token}"
+    elif outcome == AMBIGUOUS:
+        what = "text" if item.cited.kind in _PROSE else "value"
+        named = ", ".join(anchor.token for anchor in item.found[:PLACES_NAMED])
+        if len(item.found) == 1:
+            detail = (
+                f" — the cited value stands at {named}, and a value alone does not say "
+                "the cell moved"
+            )
+        elif len(item.found) <= PLACES_NAMED:
+            detail = f" — the cited {what} stands at {len(item.found)} places: {named}"
+        else:
+            detail = (
+                f" — the cited {what} stands at {len(item.found)} places, among them {named}"
+            )
+    return (
+        f"  ! {outcome}: {item.cited.token}{detail} — "
+        f"{claim_words(item.claim.text)} @{item.claim.start}"
+    )
+
+
+def _locate_hints(
+    doc: Path, located: list[_Located], unseen: list[str], session_flag: str
+) -> list[str]:
+    """What to do about each outcome present, as a closing line apiece.
+
+    One line per outcome rather than per citation: the move is the same for
+    every citation sharing an outcome, and the tokens are already on their own
+    line items. A clean document prints none, which is how "nothing moved" stays
+    one line.
+    """
+    outcomes = {item.outcome for item in located}
+    typed = shlex.quote(str(doc))
+    hints: list[str] = []
+    if MOVED in outcomes:
+        if unseen:
+            # Printing a token is not showing it: the ledger is the gate's, and a
+            # moved token the session never saw binds `not_shown` until it is.
+            hints.append(
+                f"[Nothing was rewritten. Put each moved token in place of the old one in "
+                f"{doc}, then show the new ones, which this session has not seen, and "
+                f"re-bind: backdraft show {' '.join(unseen)}{session_flag}]"
+            )
+        else:
+            hints.append(
+                f"[Nothing was rewritten. Put each moved token in place of the old one in "
+                f"{doc}, then re-bind: backdraft bind {typed}{session_flag}]"
+            )
+    if AMBIGUOUS in outcomes:
+        hints.append(
+            "[Nothing is proposed for an ambiguous citation: show the places its line "
+            "names and cite the one the claim is about, or re-read the source.]"
+        )
+    if GONE in outcomes:
+        gone = " ".join(
+            dict.fromkeys(item.cited.token for item in located if item.outcome == GONE)
+        )
+        # Not "what stands at its locator now": after an insertion that is some
+        # other paragraph, and reading it as the edit would be the mistake this
+        # command exists to prevent. The cited text is what to search for.
+        hints.append(
+            "[A gone citation's text was edited or removed, so nothing is proposed. Read "
+            f"what it cited, then search for the new wording: backdraft show {gone}{session_flag}]"
+        )
+    return hints
 
 
 SKILLS = ("backdraft", "backdraft-backfill", "backdraft-artifact")
