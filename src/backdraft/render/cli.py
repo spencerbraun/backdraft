@@ -32,6 +32,7 @@ before `verify` and the `theme` group joined `render` here.
 from __future__ import annotations
 
 import json
+import shlex
 import sys
 from dataclasses import dataclass
 from enum import StrEnum
@@ -43,6 +44,8 @@ import typer
 from ..cli_context import (
     EXIT_UNRESOLVED,
     UsageError,
+    as_typed,
+    authored_text,
     claim_words,
     find_root,
     guard,
@@ -106,25 +109,26 @@ def render(
         ),
     ] = None,
 ) -> None:
-    """Render `doc` and its sidecar.
+    """Render the artifact from `doc` and the record `bind` wrote for it.
 
-    The sidecar is found beside the document as `<doc>.backdraft.json` (see
-    spec/artifact.md). Exit codes: 0 on success, 1 when the document or its
-    sidecar is missing or unreadable, or the theme cannot be used.
+    Reads two files and never the registry: the authored document, and its
+    record — under `.backdraft/records/` in a project, which is where `bind`
+    writes it, or beside the document as `<doc>.backdraft.json`, the form a
+    reader is handed (see spec/artifact.md). So an artifact renders on a
+    machine that has never seen the sources. The output lands beside the
+    document — `<doc>.backdraft.html` for the artifact — unless `-o` names
+    another path; `--to json` goes to stdout.
 
-    NOTE: the spec's exit code 2 belongs to `bind` — render reports unresolved
-    citations in the artifact, which is the whole point, and does not fail on
-    them.
+    Exit codes: 0 on success, 1 when the document or its record is missing or
+    unreadable, or the theme cannot be used. An unresolved citation is not a
+    failure here: the artifact reports it, which is the point, and exit 2
+    belongs to `bind` and `verify`.
     """
     with guard():
-        if not doc.is_file():
-            raise UsageError(f"no such document: {doc}")
+        source = authored_text(doc)
         found = sidecar.find_sidecar(doc)
         if found is None:
-            raise UsageError(
-                f"no sidecar beside {doc.name}: expected {sidecar.sidecar_path(doc).name}. "
-                "Run `backdraft bind` first."
-            )
+            raise UsageError(_no_record(doc))
         try:
             report = sidecar.read(found)
         except (ValueError, KeyError, OSError) as error:
@@ -142,7 +146,6 @@ def render(
             else None
         )
 
-    source = doc.read_text(encoding="utf-8")
     if to is Target.HTML:
         text = html.render(source, report, theme=chosen)
     elif to is Target.FOOTNOTES:
@@ -200,6 +203,22 @@ def _unrendered_math_note(source: str) -> str | None:
     found: list[math_module.Math] = []
     math_module.protect(source, found)
     return VERBATIM_MATH_NOTE.format(count=len(found)) if found else None
+
+
+def _no_record(doc: Path) -> str:
+    """Why `render` has nothing to render, naming every place it looked.
+
+    Naming only the beside-the-document form sent a caller in a project to look
+    for a file `bind` never writes there: a rooted bind writes under
+    `.backdraft/records/`, so that is named first when there is a project.
+    """
+    beside, _, *records = sidecar.sidecar_candidates(doc)
+    places = [f"{as_typed(path)}, where bind writes in this project" for path in records]
+    places.append(f"{beside.name} beside it")
+    return (
+        f"no record for {doc.name}: looked for {', or '.join(places)}. "
+        f"Run `backdraft bind {shlex.quote(str(doc))}` first."
+    )
 
 
 # ---- verify -----------------------------------------------------------------

@@ -62,6 +62,7 @@ __all__ = [
     "island",
     "to_report",
     "sidecar_path",
+    "sidecar_candidates",
     "find_sidecar",
 ]
 
@@ -157,24 +158,28 @@ def to_report(payload: dict[str, Any]) -> BindReport:
     )
 
 
-def find_sidecar(doc_path: Path) -> Path | None:
-    """The document's record, or None.
+def sidecar_candidates(doc_path: Path) -> list[Path]:
+    """Every place the document's record may be, in the order they are tried.
 
-    Looked for in order: beside the document (`<stem>.backdraft.json` — the
-    portable form a reader is handed), the whole-filename variant a person
-    types (`memo.md.backdraft.json`), then the project's records store —
-    `.backdraft/records/` under the nearest ancestor holding a `.backdraft`
-    directory, which is where a rooted bind writes.
+    Beside the document (`<stem>.backdraft.json` — the portable form a reader is
+    handed), the whole-filename variant a person types (`memo.md.backdraft.json`),
+    then the project's records store — `.backdraft/records/` under the nearest
+    ancestor holding a `.backdraft` directory, which is where a rooted bind
+    writes. Public so that a caller who found none of them can say where it
+    looked, rather than naming only the first.
     """
-    for candidate in (sidecar_path(doc_path), doc_path.with_name(doc_path.name + SIDECAR_SUFFIX)):
-        if candidate.is_file():
-            return candidate
+    candidates = [sidecar_path(doc_path), doc_path.with_name(doc_path.name + SIDECAR_SUFFIX)]
     resolved = doc_path.resolve()
     for ancestor in resolved.parents:
         if (ancestor / ".backdraft").is_dir():
-            candidate = record_path(ancestor, resolved)
-            return candidate if candidate.is_file() else None
-    return None
+            candidates.append(record_path(ancestor, resolved))
+            break
+    return candidates
+
+
+def find_sidecar(doc_path: Path) -> Path | None:
+    """The document's record: the first of `sidecar_candidates` that exists, or None."""
+    return next((path for path in sidecar_candidates(doc_path) if path.is_file()), None)
 
 
 def _claim(entry: dict[str, Any]) -> Claim:

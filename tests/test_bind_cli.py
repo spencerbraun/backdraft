@@ -127,6 +127,20 @@ def test_a_missing_document_is_a_usage_error(tmp_path, fake_bind_registry) -> No
     assert "no such document" in result.output
 
 
+def test_a_document_that_is_not_utf8_is_a_usage_error_naming_it(
+    tmp_path, fake_bind_registry
+) -> None:
+    """Refused before binding, in its own words — not the codec's sentence, which
+    reached the guard only because the `--check` handler catches `ValueError`."""
+    doc = tmp_path / "memo.md"
+    doc.write_bytes(b"caf\xe9\n")
+    result = run(str(doc))
+    assert result.exit_code == bind_cli.EXIT_USAGE
+    assert "memo.md is not UTF-8 text" in result.stderr
+    assert "codec" not in result.stderr
+    assert not (tmp_path / "memo.backdraft.json").exists()
+
+
 def test_an_unknown_mode_is_a_usage_error(tmp_path, fake_bind_registry) -> None:
     doc = write(tmp_path, "prose\n")
     result = run(str(doc), "--mode", "sideways")

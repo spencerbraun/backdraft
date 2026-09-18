@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -100,6 +101,42 @@ def test_a_named_directory_with_no_registry_is_refused_not_discovered_past(
     with pytest.raises(UsageError, match="no registry at .*expected a project root"):
         named_root(empty)
     assert not (empty / DIRECTORY).exists()
+
+
+# ---- the authored document --------------------------------------------------
+
+
+def test_an_authored_document_that_is_not_utf8_is_a_usage_error_naming_it(
+    tmp_path: Path,
+) -> None:
+    from backdraft.cli_context import UsageError, authored_text
+
+    doc = tmp_path / "memo.md"
+    doc.write_bytes(b"caf\xe9 [x](bd:a:p1:ab12)\n")
+
+    with pytest.raises(UsageError, match=r"memo\.md is not UTF-8 text \(byte 3 .*re-save it"):
+        authored_text(doc)
+
+
+def test_a_directory_is_no_such_document(tmp_path: Path) -> None:
+    from backdraft.cli_context import UsageError, authored_text
+
+    with pytest.raises(UsageError, match="no such document"):
+        authored_text(tmp_path)
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads through any permission")
+def test_an_unreadable_document_says_to_change_its_permissions(tmp_path: Path) -> None:
+    from backdraft.cli_context import UsageError, authored_text
+
+    doc = tmp_path / "memo.md"
+    doc.write_text("# Memo\n", encoding="utf-8")
+    doc.chmod(0)
+    try:
+        with pytest.raises(UsageError, match="cannot read .*change its permissions"):
+            authored_text(doc)
+    finally:
+        doc.chmod(0o644)
 
 
 # ---- sessions ---------------------------------------------------------------

@@ -116,6 +116,40 @@ def test_a_missing_sidecar_is_a_usage_error(tmp_path: pathlib.Path) -> None:
     assert "bind" in result.output
 
 
+def test_a_missing_record_in_a_project_names_where_bind_writes_it(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A rooted bind writes under `.backdraft/records/`, so that is where to look;
+    naming only the beside-the-document form sent a caller after a file bind
+    never writes in a project."""
+    (tmp_path / ".backdraft").mkdir()
+    (tmp_path / "drafts").mkdir()
+    doc = tmp_path / "drafts" / "memo.md"
+    doc.write_text(DEMO_DOC, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(app, ["render", "drafts/memo.md"])
+
+    assert result.exit_code == 1
+    assert result.stderr == (
+        "backdraft: no record for memo.md: looked for "
+        ".backdraft/records/drafts/memo.backdraft.json, where bind writes in this project, "
+        "or memo.backdraft.json beside it. Run `backdraft bind drafts/memo.md` first.\n"
+    )
+
+
+def test_a_document_that_is_not_utf8_is_a_usage_error_not_a_traceback(
+    bound: pathlib.Path,
+) -> None:
+    """The record is there and readable; the document is what cannot be read."""
+    bound.write_bytes(b"caf\xe9\n")
+    result = runner.invoke(app, ["render", str(bound)])
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+    assert "memo.md is not UTF-8 text" in result.stderr
+    assert not bound.with_name("memo.backdraft.html").exists()
+
+
 def test_an_unknown_format_is_a_usage_error(bound: pathlib.Path) -> None:
     path = sidecar.sidecar_path(bound)
     payload = json.loads(path.read_text(encoding="utf-8"))

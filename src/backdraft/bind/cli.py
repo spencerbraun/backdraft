@@ -7,8 +7,9 @@ backdraft bind <doc.md> [--session S] [--check m1,m2] [--mode frontwalk|backfill
 Exit codes, per SPEC:
 
 * **0** — clean: every citation resolved and nothing was left unmatched.
-* **1** — usage or environment error: no registry, no such document, an unknown
-  `--mode` or `--check` name.
+* **1** — usage or environment error: no registry, a document that is missing
+  or cannot be read as UTF-8 (`cli_context.authored_text`), an unknown `--mode`
+  or `--check` name.
 * **2** — bind completed and something did not resolve. This is the code hooks
   gate on, so it is about *resolution* only: a `fail` verdict never produces it,
   because verification is evidence, not a gate.
@@ -74,6 +75,8 @@ from ..cli_context import (
     EXIT_UNRESOLVED,
     EXIT_USAGE,
     UsageError,
+    as_typed,
+    authored_text,
     claim_words,
     guard,
     open_registry,
@@ -131,12 +134,35 @@ def bind(
         ),
     ] = False,
 ) -> None:
-    """Resolve every citation, run enabled checks, rewrite, report."""
+    """Resolve every citation, run enabled checks, write the record, report.
+
+    Every citation — a markdown link whose href is a `bd:` token — is resolved
+    against the registry found from the document's directory. A real token
+    the session was never shown binds `not_shown`: the session is
+    `--session`, else `BACKDRAFT_SESSION`, else the default one every run in
+    the registry shares. The record — every claim, citation and status, with
+    the evidence embedded — is written under `.backdraft/records/`, and
+    `backdraft render` turns it into the artifact. The document itself is
+    never changed.
+
+    The report counts the statuses and prints each failure as `! <status>:
+    <token> — <claim> @<offset>`. `backdraft show <token>` says what any of
+    them names; after a re-ingest, `backdraft locate <doc.md>` finds where a
+    `drifted` citation's text went. `--json` prints the record instead of the
+    report, for a caller that parses.
+
+    Exit codes: 0 every citation resolved · 1 no registry, a document that is
+    missing or not UTF-8 text, or an unknown `--mode` or `--check` · 2 the run
+    completed and a citation did not resolve, or a backfill claim was left
+    unmatched — the code a hook gates on. A `--check` verdict never changes it.
+    """
     with guard():
         if mode not in ("frontwalk", "backfill"):
             raise UsageError(f"unknown mode {mode!r}; expected frontwalk or backfill")
-        if not doc.is_file():
-            raise UsageError(f"no such document: {doc}")
+        # Read here only to be refused here: the binder reads the file itself,
+        # and a document that cannot be read is a usage error before anything
+        # opens, not a decode error the `--check` handler below happens to catch.
+        authored_text(doc)
         checks = [name.strip() for name in (check or "").split(",") if name.strip()]
         registry = open_registry(doc.resolve().parent)
         session_id = resolve_session(session, registry)
@@ -184,7 +210,7 @@ def _print_report(report, doc: Path, *, bound: bool = False, record: Path | None
             typer.echo(f"  ! unmatched: {claim_words(claim.text)}")
     if bound:
         typer.echo(f"wrote {bound_path(doc)}")
-    typer.echo(f"wrote {_as_typed(record or sidecar_path(doc))}")
+    typer.echo(f"wrote {as_typed(record or sidecar_path(doc))}")
 
 
 NO_REASON = "no reason recorded"
@@ -257,21 +283,6 @@ def _line_items(report) -> Iterator[tuple[Claim, Citation]]:  # noqa: ANN001 - B
                 continue
             seen.add(key)
             yield claim, citation
-
-
-def _as_typed(path: Path) -> Path:
-    """A written path as the user would type it: relative to cwd where it sits
-    under cwd, absolute otherwise.
-
-    `render` prints the path it was handed and so is relative for free; the
-    record path is computed from the project root, so it arrives absolute and
-    has to be brought back. Same line, same shape, and no home directory in
-    output anyone pastes.
-    """
-    try:
-        return path.relative_to(Path.cwd().resolve())
-    except ValueError:
-        return path
 
 
 def _close(registry) -> None:  # noqa: ANN001

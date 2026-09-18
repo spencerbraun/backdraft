@@ -36,6 +36,7 @@ from .cli_context import (
     HOME_ENV,
     SESSION_ENV,
     UsageError,
+    authored_text,
     claim_words,
     fail,
     find_root,
@@ -589,12 +590,10 @@ def locate(
     `show` on its old token prints what was cited, which is what to search for.
 
     Exit 0 whatever it finds; `bind` is the check, and this is the advice. Exit 1
-    when the document or the registry is missing.
+    when the document is missing or unreadable, or there is no registry.
     """
     with guard():
-        if not doc.is_file():
-            raise UsageError(f"no such document: {doc}")
-        source = doc.read_text(encoding="utf-8")
+        source = authored_text(doc)
     session_id = resolve_session(session)
     with opened_registry(doc.resolve().parent) as registry:
         claims = parse_claims(source)

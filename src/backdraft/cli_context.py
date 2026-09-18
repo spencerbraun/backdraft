@@ -40,6 +40,8 @@ __all__ = [
     "HOME_ENV",
     "SESSION_ENV",
     "UsageError",
+    "as_typed",
+    "authored_text",
     "claim_words",
     "fail",
     "find_root",
@@ -163,6 +165,37 @@ def resolve_session(session: str | None = None, registry: Registry | None = None
     return chosen
 
 
+# ---- the authored document --------------------------------------------------
+
+
+def authored_text(doc: Path) -> str:
+    """The authored markdown document's text, or `UsageError` saying why not.
+
+    One owner for the three commands that take a `<doc.md>` — `bind`, `locate`
+    and `render` — which had each written their own `is_file` check and then
+    read the file wherever it fell. A decode error is not a `BackdraftError`, so
+    `guard` let it through: `locate` and `render` ended in a traceback on a
+    document that was not UTF-8, and `bind` printed the codec's own sentence only
+    because a decode error happens to be a `ValueError`, which its handler for an
+    unknown `--check` was catching. Each failure here says what to do next, the
+    rule `ingest`'s reasons follow.
+    """
+    if not doc.is_file():
+        raise UsageError(f"no such document: {doc}")
+    try:
+        return doc.read_text(encoding="utf-8")
+    except UnicodeDecodeError as error:
+        raise UsageError(
+            f"{doc} is not UTF-8 text (byte {error.start} does not decode); an authored "
+            "document is read as UTF-8 markdown, so re-save it in that encoding"
+        ) from error
+    except OSError as error:
+        raise UsageError(
+            f"cannot read {doc}: {error.strerror or error}; change its permissions, or "
+            "work on a readable copy"
+        ) from error
+
+
 # ---- the error path ---------------------------------------------------------
 
 
@@ -203,6 +236,22 @@ def opened_registry(start: Path | None = None) -> Iterator[Registry]:
 
 
 # ---- report lines -----------------------------------------------------------
+
+
+def as_typed(path: Path) -> Path:
+    """A path as the user would type it: relative to cwd where it sits under cwd,
+    absolute otherwise.
+
+    For a path the tool computed rather than was handed — a record path is
+    derived from the project root, so it arrives absolute and has to be brought
+    back. `bind` prints the record it wrote this way and `render` the record it
+    looked for, so the same file reads the same on both lines, with no home
+    directory in output anyone pastes.
+    """
+    try:
+        return path.relative_to(Path.cwd().resolve())
+    except ValueError:
+        return path
 
 
 CLAIM_WIDTH = 80

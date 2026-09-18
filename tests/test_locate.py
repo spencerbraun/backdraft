@@ -429,6 +429,16 @@ def test_a_missing_document_is_a_usage_error(project: Path) -> None:
     assert "no such document: absent.md" in result.stderr
 
 
+def test_a_document_that_is_not_utf8_is_a_usage_error_not_a_traceback(
+    project: Path,
+) -> None:
+    (project / "memo.md").write_bytes(b"caf\xe9 [x](bd:notes:p1.c1:abcd)\n")
+    result = invoke("locate", "memo.md")
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+    assert "memo.md is not UTF-8 text" in result.stderr
+
+
 def test_no_registry_is_a_usage_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     (tmp_path / "memo.md").write_text("[x](bd:notes:p1.c1:abcd)\n", encoding="utf-8")
