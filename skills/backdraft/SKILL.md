@@ -347,9 +347,10 @@ the file bind writes under `.backdraft/records/`, so a run you already made can
 be parsed from there instead of binding twice. **Relay the plain report to the
 user, never the JSON.**
 
-On exit 2, `backdraft show <token>` is the first move on any line item: it runs
-the token back to what it names, and its answer is the same status bind just
-printed, with the reason attached.
+On exit 2, `backdraft show <token>` is the first move on any line item but a
+`drifted` one, which starts with `locate` (below): it runs the token back to
+what it names, and its answer is the same status bind just printed, with the
+reason attached.
 
 - `unresolved` — the token names nothing. `show` says which half is wrong: an
   unknown slug or a locator/hash that names no anchor. Then `search` for the

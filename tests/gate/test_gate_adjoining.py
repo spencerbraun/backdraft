@@ -191,6 +191,17 @@ def test_unknown_offsets_claim_no_paragraph() -> None:
     assert adjoining(registry, loaded.anchors[1]) == {}
 
 
+def test_overlapping_offsets_claim_no_paragraph() -> None:
+    """Chunks never overlap, so offsets that say they do are not read as a join."""
+    registry = _one_page(splits=(1,))
+    loaded = registry._docs["memo"]
+    first, second = [a for a in loaded.anchors[1] if a.kind == "chunk"][:2]
+    assert adjoining(registry, [first])[first.token].after == second
+    overlapping = dataclasses.replace(second, start=first.end - 1)
+    loaded.anchors[1] = [overlapping if a is second else a for a in loaded.anchors[1]]
+    assert adjoining(registry, [first]) == {}
+
+
 def test_a_chunk_off_its_pages_current_anchors_names_nothing() -> None:
     """A superseded generation's chunk is not on the page it names any more."""
     registry = _one_page(splits=(1,))

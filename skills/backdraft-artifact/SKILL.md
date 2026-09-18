@@ -131,7 +131,7 @@ set; lead your report with everything that is not `resolved`:
 | Status | What it tells you |
 |---|---|
 | `resolved` | the anchor is in the source's current extraction |
-| `drifted` | the source changed after the claim was written — compare `drifted_from` (what the author saw) against `anchor.snippet` (what stands there now) and say whether the claim survives |
+| `drifted` | the source changed after the claim was written — compare `drifted_from` (what the author saw) against `anchor.snippet` (what stands at that same locator now) and say whether the claim survives. The locator is an address, so an edit *above* the cited passage leaves a different passage standing there: when `anchor.snippet` reads as unrelated text rather than an edited version of `drifted_from`, report that the citation's address moved, not that the claim failed. Whoever holds the registry and the authored document finds where the text went with `backdraft locate` |
 | `not_shown` | a real anchor the writer was never shown; the claim cites something its author did not read |
 | `unresolved` | a well-formed token the sources do not stand behind; treat the claim as uncited. `error`, when present, says the source was withdrawn from the producing registry — the citation then still carries its `anchor` and receipt, so you can read the evidence, and the claim is still uncited |
 | `malformed` | not a token at all; `error` says why |

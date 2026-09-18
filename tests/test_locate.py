@@ -272,6 +272,30 @@ def test_text_standing_in_several_places_is_ambiguous_and_names_them(
     )
 
 
+def test_a_chunk_is_looked_for_among_chunks_and_never_the_page_around_it(
+    project: Path,
+) -> None:
+    """A page whose one chunk is its whole text carries one hash on two anchors,
+    and a citation of a chunk has moved to a chunk: the same-kind rule is what
+    keeps that a `moved` rather than an `ambiguous` naming the page too."""
+    memo, cited = bound_under_s1(project, OCCUPANCY, COVERAGE)
+    ingest(write_source(project, COVERAGE))
+    with Registry.open(project) as registry:
+        hashes = {
+            anchor.kind: anchor.receipt.snippet_sha256
+            for anchor in registry.anchors_for_page("notes", 1)
+        }
+    assert hashes["page"] == hashes["chunk"], "the case this test exists for"
+
+    lines = invoke("locate", "memo.md").stdout.splitlines()
+
+    assert lines[:2] == ["2 citation(s) in memo.md, 2 drifted", "  gone: 1"]
+    assert (
+        f"  ! moved: {cited[1]} — now at {chunk_tokens(project)[0]} — {CLAIMS[1]} "
+        f"@{offsets(memo)[1]}"
+    ) in lines
+
+
 def test_an_ambiguous_line_names_three_places_and_counts_the_rest(project: Path) -> None:
     _, cited = bound_under_s1(project, OCCUPANCY, COVERAGE)
     ingest(write_source(project, COVERAGE, OCCUPANCY, COVERAGE, COVERAGE, COVERAGE))

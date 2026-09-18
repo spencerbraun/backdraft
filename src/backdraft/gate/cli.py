@@ -159,8 +159,11 @@ def show(
 
     The inverse of minting — for a token out of an artifact, a draft, or someone
     else's message, when the question is what it actually cites. Statuses are
-    bind's: `resolved`, `drifted` (both snippets print), `unresolved`,
-    `malformed`. Showing is minting, so a snippet shown here is citable.
+    bind's: `resolved`, `drifted` (both snippets print: what was cited, and what
+    stands at that locator now — after an edit above it, a different passage,
+    so `backdraft locate <doc.md>` is what finds where the cited text went),
+    `unresolved`, `malformed`. Showing is minting, so a snippet shown here is
+    citable.
 
     Exit 1 if any token was unresolved or malformed; the reasons print like every
     other result.

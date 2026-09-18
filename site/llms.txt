@@ -229,9 +229,11 @@ error go away, ask the user, and until then treat the claim as uncited),
 not_shown (real anchor you were never shown: read
 it, re-bind), drifted (source changed: `backdraft locate <doc.md>` first,
 since a moved paragraph is not a changed one; otherwise re-read, confirm),
-malformed (fix the href). `backdraft show <token>` is the first move on any of them: it says which
-half of an unresolved token is wrong, prints both snippets for a drifted one,
-and mints a not_shown one so the next bind resolves. NEVER fix exit 2 by
+malformed (fix the href). `backdraft show <token>` is the first move on every
+other status: it says which half of an unresolved token is wrong and mints a
+not_shown one so the next bind resolves. On a drifted one it prints what you
+cited and what stands at that locator now — after an edit above, a different
+passage, which is why locate comes first there. NEVER fix exit 2 by
 deleting the token; a kept failure is the honest outcome. Show the user the bind
 report verbatim.
 

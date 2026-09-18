@@ -48,6 +48,7 @@ __all__ = [
     "cells",
     "DEFAULT_BUDGET",
     "DEFAULT_SESSION_NOTE",
+    "DRIFT_HINT",
     "EXCERPT_CHARS",
     "GRAMMAR_HINT",
     "LIST_HINT",
@@ -91,6 +92,22 @@ GRAMMAR_HINT = (
 A malformed token is the one failure where the reason alone does not say what to
 do — the kernel names the segment that broke, and this names the shape it broke
 from."""
+
+DRIFT_HINT = (
+    "[`now` is what stands at the cited locator today, which after an edit above it "
+    "can be a different passage. To find where the cited text itself went: "
+    "backdraft locate <doc.md>{session}]"
+)
+"""Closes a `show` that printed a `drifted` token's two sides.
+
+The block labels its second snippet `now` and mints its token, which reads as
+"cite this instead" — right when the cited sentence was edited in place, and
+exactly wrong when a paragraph inserted above moved the cited words down a
+chunk, since what stands at the old address is then someone else's paragraph.
+`locate` answers the second case (2026-09-17), and this is where a caller who
+reached `show` from `bind`'s line item learns that it exists. `{session}` is
+`session_argument`'s, because `locate` reads the ledger it is given.
+"""
 
 WITHDRAWN_HINT = "Re-ingest it to bring it back: backdraft ingest {path}"
 """The way back from a withdrawal, wherever one is reported.
@@ -1016,7 +1033,9 @@ def show(
     Blocks print in argument order, one per token, in `read`'s shape: the token
     on its own line, the snippet verbatim underneath. A drifted token prints
     both sides of the diff and mints the anchor standing at the locator now,
-    since that token is the one worth citing.
+    because its token was printed — and the run closes with `DRIFT_HINT`, since
+    after an insertion above, that anchor is a different passage and the cited
+    words are somewhere `backdraft locate` can find.
 
     A token whose document was *withdrawn* is the reason this command outlives
     `forget`: the anchor is found and the receipt prints, under the `unresolved`
@@ -1030,6 +1049,7 @@ def show(
     toc_hints: list[str] = []
     back_hints: list[str] = []
     malformed = False
+    drifted = False
     complete = True
 
     for text in tokens:
@@ -1078,6 +1098,7 @@ def show(
             current = current_at(registry, anchor)
             blocks.append(_drift_block(anchor, current))
             shown = (anchor, current)
+            drifted = True
         # Emitting is minting: every anchor whose token reached the output.
         minted += [a.id for a in shown if a is not None and a.id is not None]
         if anchor.page_number is not None:
@@ -1091,6 +1112,8 @@ def show(
 
     lines = "\n\n".join(blocks).split("\n") if blocks else ["(no tokens)"]
     hints = [*read_hints, *toc_hints, *(f"[{hint}]" for hint in back_hints)]
+    if drifted:
+        hints.append(DRIFT_HINT.format(session=session_argument(session_flag)))
     if malformed:
         hints.append(GRAMMAR_HINT)
     return Shown(text=_block([*lines, "", *hints]), complete=complete)

@@ -26,7 +26,7 @@ from conftest_registry import PAGE_BREAK
 from continuation_util import continuation
 
 from backdraft.bind.binder import bind
-from backdraft.gate.reader import read, render_session, show
+from backdraft.gate.reader import DRIFT_HINT, read, render_session, show
 from backdraft.gate.searcher import search
 from backdraft.kernel.model import CitationStatus
 from backdraft.registry import Registry
@@ -196,8 +196,33 @@ def test_show_reports_drift_with_both_snippets_and_mints_the_current_one(
     ]
     assert f"now [{current}]:" in shown.text
     assert PAGE_TWO_EDITED in shown.text
-    # The anchor standing there now is the one worth citing, so it is minted.
+    # Its token was printed, so the anchor standing there now is minted.
     assert registry.was_shown("s", current) is True
+
+
+def test_a_drifted_show_closes_by_naming_locate(registry: Registry, book: Path) -> None:
+    """`now` is the same address, which after an insertion above is somebody
+    else's paragraph; the closing line says so and names what finds the cited
+    words — once, however many drifted tokens, carrying a typed session."""
+    registry.ingest(book, extractor="paged")
+    cited = _token(registry, "quarterly-notes", "p2.c1")
+    _write(book, [PAGE_ONE, PAGE_TWO_EDITED])
+    registry.ingest(book, extractor="paged")
+
+    shown = show(registry, [cited, cited], session="s1", session_flag="s1")
+
+    assert shown.text.splitlines()[-1] == DRIFT_HINT.format(session=" --session s1")
+    assert shown.text.count("backdraft locate") == 1
+    assert show(registry, [cited]).text.endswith("backdraft locate <doc.md>]")
+
+
+def test_a_show_with_nothing_drifted_never_mentions_locate(
+    registry: Registry, book: Path
+) -> None:
+    registry.ingest(book, extractor="paged")
+    resolved = _token(registry, "quarterly-notes", "p2.c1")
+
+    assert "locate" not in show(registry, [resolved, "bd:nope"]).text
 
 
 def test_show_says_so_when_the_locator_itself_is_gone(
