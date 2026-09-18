@@ -1108,7 +1108,33 @@ def test_xls_media_type_and_auto_selection(legacy_book: Path) -> None:
     from backdraft.registry.store import media_type_for
 
     assert media_type_for(Path("legacy.xls")) == "xls"
-    assert base.select(legacy_book, "xls").name == "xls"
+    assert _xls_extractor() is base.select(legacy_book, "xls")
+
+
+def test_auto_without_the_xls_extra_names_the_install(
+    legacy_book: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`auto` skips an extractor whose extra is missing, and must still say so
+    for the file that extractor exists for — not that the format is unhandled."""
+    real_get = base.get
+
+    def without_xls(name: str):  # noqa: ANN202
+        if name == "xls":
+            raise ExtractionError(
+                "extractor 'xls' is unavailable: legacy .xls needs: install 'backdraft[xls]'"
+            )
+        return real_get(name)
+
+    monkeypatch.setattr(base, "get", without_xls)
+
+    with pytest.raises(ExtractionError) as refused:
+        base.select(legacy_book, "xls")
+    assert str(refused.value) == (
+        "this install reads no 'xls' files: extractor 'xls' is unavailable: "
+        "legacy .xls needs: install 'backdraft[xls]'"
+    )
+    # Every other file still selects as it did: the skip is only named for its own.
+    assert base.select(Path("notes.md"), "text").name == "text"
 
 
 def test_xls_is_sheet_typed(legacy_book: Path) -> None:

@@ -220,12 +220,15 @@ def select(path: Path, media_type: str, config: dict | None = None) -> Extractor
         extractor = get("vlm")
         if extractor.can_handle(path, media_type):
             return extractor
+    unavailable: dict[str, str] = {}
     for name in AUTO_ORDER:
         try:
             extractor = get(name)
-        except ExtractionError:
+        except ExtractionError as error:
             # An optional extractor whose extra is not installed (the xls
-            # extractor without `[xls]`) must not break auto for other files.
+            # extractor without `[xls]`) must not break auto for other files —
+            # but it is the answer for its own, so its reason is kept.
+            unavailable[name] = str(error)
             continue
         if extractor.can_handle(path, media_type):
             return extractor
@@ -233,6 +236,15 @@ def select(path: Path, media_type: str, config: dict | None = None) -> Extractor
         raise ExtractionError(
             f"images need the vision extractor: set BACKDRAFT_VLM_API_KEY "
             f"(env or .backdraft/env) to ingest {path.name!r}"
+        )
+    if media_type in unavailable:
+        # The extractor named for this media type is the one that would have
+        # taken the file, and its reason carries the install line. Without it
+        # an `.xls` read "no extractor handles 'xls'", which says the format is
+        # unsupported when it is one extra away. No file name: `ingest`'s `!`
+        # line already leads with it (SPEC Addendum B).
+        raise ExtractionError(
+            f"this install reads no {media_type!r} files: {unavailable[media_type]}"
         )
     raise ExtractionError(f"no extractor handles {media_type!r} file {path.name!r}")
 
