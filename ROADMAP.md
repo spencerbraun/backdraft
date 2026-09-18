@@ -495,6 +495,231 @@ ask it after a context loss rather than re-reading from the top. DESIGN row.
 
 **Size.** Two days.
 
+### 12. An artifact word-diffs a drifted citation against whatever now stands at its old address
+
+**Intent.** The artifact's drift block (`render/html/text.py`'s `_drift_block`)
+shows `as cited` and `now`, word-diffed with `<del>` and `<ins>`, where `now` is
+`anchor.snippet`: what stands at the cited locator in the current generation.
+The 2026-09-17 row established that after a paragraph is inserted above, that is
+a *different* paragraph, and the cited words stand unchanged one chunk down. So
+the person the artifact is for sees every word of the cited sentence struck
+through and an unrelated paragraph marked as inserted, which reads as "the source
+rewrote this passage" and is false. `locate` knows better, but only a writer
+holding the draft and the registry ever runs it; the artifact goes out with the
+misleading diff, and since this Friday the artifact skill has had to tell a
+recipient to spot "unrelated text" by eye. The footnotes projection quotes the
+same two snippets side by side and has the same blind spot.
+
+**Shape.** Bind already has what it needs: it resolves every token against the
+registry at bind time, and `registry.current_with` answers where the cited text
+stands now. Move `locate`'s outcome rule (`cli._Located.outcome`, `_PROSE`,
+`MOVED`/`AMBIGUOUS`/`GONE`) down beside `current_with` in `registry/store.py` so
+bind and `locate` share one owner, since bind may not import `cli`. When a
+citation comes back `drifted` and the rule says `moved`, the record carries an
+optional citation key (`moved_to`, say) naming the token that now holds the
+text. `Citation.to_dict` writes it only when present, so every record without
+drift is byte-identical. The status stays `drifted`: the set is closed, and a
+moved citation still names a superseded snippet, which is what drift means.
+`spec/artifact.md`'s citation table gains the key and the legend's `drifted`
+sentence says what it means; the format string stays `artifact-v1`, which
+§ Versioning's unknown-key rule and the 2026-09-07 `title` precedent both allow,
+and the DESIGN row says so rather than leaving it implied. When `moved_to` is
+present, the drift block says the cited words stand unchanged at that token and
+shows them once, instead of diffing them against the paragraph now at the old
+address; without it, today's diff. The footnotes projection says the same.
+`verify`'s receipt checks are untouched, since the token still hashes against
+`drifted_from`. A legend change regenerates the goldens, and
+`demo/memo.backdraft.html` and `site/demo.html` together; the demo has no
+drifted citation, so only the legend string and `bound_at` should move, checked
+structurally. If "`locate` calls intact words `gone` when an insertion merged or
+split their chunk" has landed, bind reads the rule it widened.
+
+**Acceptance.** In a scratch project modelled on `tests/test_locate.py`'s
+fixtures, bind a memo citing three paragraphs, insert one above them, re-ingest
+and re-bind: all three citations are `drifted` and carry a `moved_to` equal to
+the token `backdraft locate` prints for each, and the rendered cards say the text
+stands unchanged at those tokens and contain no `<del>`. A sentence edited in
+place still renders today's word diff. A citation whose text stands in two places
+carries no `moved_to`, and a cell citation never does. `backdraft verify` on the
+new artifact exits as before, every receipt holding. A record with no drifted
+citation is byte-identical to today apart from the legend, pinned by the golden.
+DESIGN row.
+
+**Size.** Three days.
+
+### 13. `locate` leaves the fix to hand edits of tokens, which the skill forbids
+
+**Intent.** `locate` prints `moved: <old> — now at <new>` and closes by telling
+the writer to put each moved token in place of the old one, while the writing
+skill's first rule for tokens is "Never construct, guess, or edit a token by
+hand. Copy it from the output that produced it." Three citations is a careful
+paste. A thirty-citation memo, after a source gained a paragraph on page 1, is
+thirty find-and-replace edits made with an agent's own text tools, and one wrong
+paste — the new token dropped into the wrong claim, a hash truncated — is a
+citation that binds `resolved` to the wrong text or `unresolved` for no reason.
+`locate` already knows every replacement exactly, by claim and by offset.
+
+**Shape.** `locate --apply` rewrites hrefs for `moved` lines only: each old token
+replaced by its new one inside the claims `locate` reported, located by
+`kernel.claims.parse_claims`' spans rather than by string search, so a token that
+also appears outside a link is left alone and every byte outside those hrefs is
+unchanged. `ambiguous` and `gone` lines are never touched. The 2026-09-17 row
+made `locate` read-only, and the objection must be answered rather than
+overridden: its reason was the ledger — "a command that proposes should not write
+the ledger it proposes against" — and `--apply` still writes no ledger row, no
+session and no record. The tokens it writes are still unshown, so its closing
+line is the same `backdraft show … --session` the plain run names, and `bind`
+still judges them. What it writes is the author's document, which is why it is a
+flag and never the default, why it refuses a document whose bytes changed
+between the parse and the write, and why it writes through a temporary file and
+a rename so an interrupted run leaves the old document whole. It reports in
+`locate`'s line shape (`applied: <old> → <new> — <claim> @<offset>`) so the
+report stays one list. The skill's `drifted` bullet and `site/llms.txt` change
+the next step from "put each moved token in place" to `--apply` and then the
+named `show`.
+
+**Acceptance.** In `tests/test_locate.py`'s scenario of three citations pushed
+down by a new paragraph, `locate --apply --session s1` rewrites exactly the three
+hrefs, a diff of the document before and after touches nothing else, and
+following the closing line's `show` and re-binding exits 0. A copy of an old
+token written in the document's prose outside any link is unchanged, as are the
+tokens on `ambiguous` and `gone` lines. Without `--apply`, output and document
+are byte-identical to today. A document edited between the parse and the write
+(simulate it by patching the write step) is refused at exit 1 and left
+unchanged. Ledger, session and bindings counts are identical before and after,
+as `test_nothing_is_written_to_the_registry_the_ledger_or_the_record` already
+pins for the plain run. DESIGN row.
+
+**Size.** Two days.
+
+### 14. `locate` calls intact words `gone` when an insertion merged or split their chunk
+
+**Intent.** `locate` matches the cited snippet's hash exactly, and the 2026-09-17
+row named the price: "a chunk that an insertion under 200 characters merged into"
+comes back `gone`. Chunking rule 2 merges a segment under `MIN_CHARS` forward
+into the one after it, so a short heading or one-line note inserted directly
+above a cited paragraph becomes part of that paragraph's chunk and changes its
+hash. Rule 3 does the reverse: a cited paragraph that grows past `MAX_CHARS` is
+cut near a 1,200-character multiple, and the cited words can end up straddling
+the cut. Either way the cited words are intact, character for character, and the
+command that exists to find them says they were edited or removed, so the writer
+goes searching again for text that never changed. A heading added above a
+paragraph is the commonest edit a revised PDF gets, and a short heading is
+exactly what rule 2 merges.
+
+**Shape.** Still exact, never resemblance; the objection 2026-09-17 raised against
+near matches stands. When the hash lookup finds nothing, look for the cited
+snippet's normalized text (`kernel.hashing.normalize`) as a contiguous substring
+of one current chunk of the same document, and then of two adjoining chunks
+joined the way normalization joins them — adjoining by the rule
+`gate.reader.adjoining` already uses (same page with no blank line between, or
+across a page break), since that is where a rule 3 cut lands. Read the chunks off
+the current generation one document at a time, with no new index. Containment in
+one chunk proposes that chunk's token; containment across two proposes both,
+`;`-separated, the form the skill already teaches for a claim that spans two
+chunks. The line says which case it is — the words stand whole inside a chunk
+that now holds more, or across two — rather than calling it `moved` silently,
+and the DESIGN row decides whether that is `moved` with a qualifier or a fourth
+outcome; the outcome set is `locate`'s own and not the artifact's, so either is
+a display change. Several containing places stay `ambiguous`. Cells never match
+this way: a value found inside a longer string proves nothing. If "An artifact
+word-diffs a drifted citation against whatever now stands at its old address"
+has landed, the rule lives in `registry`, bind reads the widened rule too, and
+the row says whether a contained match records `moved_to`.
+
+**Acceptance.** In a scratch project, cite three paragraphs of over 200
+characters each, insert a 60-character heading line directly above the second,
+and re-ingest: the first and third citations are not drifted at all, and where
+today the second is `gone`, `locate` now proposes the chunk holding the heading
+and the paragraph together; applying it and following the closing `show` binds
+clean. Cite a 2,000-character paragraph, append enough to take it past 2,400 and
+re-ingest: it is cut near 1,200, and the citation proposes the two adjoining
+tokens. A sentence edited by one figure is still `gone`, pinned as today, and
+every existing `tests/test_locate.py` expectation is unchanged. SPEC Addendum B's
+`locate` paragraph and README's "When a source changes" follow. DESIGN row.
+
+**Size.** Two days.
+
+### 15. A draft outside its project is told there is no registry, about the wrong directory
+
+**Intent.** `bind` and `locate` find the registry from the document's directory
+(SPEC § CLI), and when that walk finds nothing `cli_context.open_registry`
+refuses with `no .backdraft/ found in this directory or any parent; run backdraft
+init` — where "this directory" reads as cwd. Checked on 2026-09-18: from inside
+the demo project, `backdraft bind ../elsewhere/memo.md`, a draft kept beside the
+project in a common layout, says there is no registry in the one directory that
+visibly has one. The advice is wrong twice over. `init` in cwd reports the
+registry that already exists, and `init` beside the draft makes an empty one,
+after which every citation binds `unresolved` and the agent concludes its tokens
+are bad.
+
+**Shape.** `open_registry(start)` owns the wording. When the walk started
+somewhere other than cwd, the refusal names that directory and the document it
+came from. When the walk from cwd would have found a registry, it says so and
+names the two ways to connect them — move the draft under that project, or run
+with `BACKDRAFT_HOME=<root>` — and drops `backdraft init`, which is the wrong fix
+there. It never falls back to cwd's registry: discovery infers nothing
+(2026-09-15), and a registry the draft is not under is exactly the case to
+refuse. `backdraft init` stays where no walk found anything, the fresh-project
+case it was written for, and every refusal whose walk started at cwd — every gate
+command — prints what it prints today, pinned. Not a `bind --against`: whether
+`bind` should take a named registry the way `verify` does is a separate decision,
+and the DESIGN row says why the environment variable is enough for now or queues
+the flag.
+
+**Acceptance.** From inside `demo/`, `backdraft bind ../elsewhere/memo.md` and
+`backdraft locate ../elsewhere/memo.md` exit 1 naming the directory they searched
+from, naming the demo project's root as a registry that does not cover the draft,
+and naming `BACKDRAFT_HOME`, without mentioning `backdraft init`; with
+`BACKDRAFT_HOME` set to the demo, the same bind runs. From a directory with no
+registry anywhere above it, `backdraft read` and `backdraft bind memo.md` print
+today's message byte for byte. None of these runs creates a `.backdraft/`
+anywhere, asserted. `skills/backdraft/SKILL.md` and `site/llms.txt` say a draft
+must live under its project or name it with `BACKDRAFT_HOME`. DESIGN row.
+
+**Size.** One day.
+
+### 16. After a re-ingest, nothing says which drafts cite the source that moved
+
+**Intent.** `ingest`'s new-generation note says citations "may now report
+`drifted`", that `bind` on a document citing the source says which, and names
+`backdraft locate <document>` — without ever saying which documents. The project
+holds the answer: every rooted bind writes its record under `.backdraft/records/`,
+mirroring the draft's path relative to the project root
+(`kernel.artifact.record_path`), and each record lists every token it cited. An
+agent that ingests the revised T12 a user just dropped into a project with six
+memos is told drift may have happened somewhere, and is left to re-bind all six
+or guess. `show`'s `DRIFT_HINT` (2026-09-18) has the same gap from the other side:
+it names `backdraft locate <doc.md>` with a placeholder, because `show` is handed
+a token and never a document.
+
+**Shape.** One reader in `registry/`, over `record_path`'s layout, since the
+kernel is pure and `gate` may not import `cli`. It walks `.backdraft/records/`,
+reads the slug of every token under each record's `claims[].citations[]` (parsing
+only what it needs), maps each record back to its draft — directory and stem from
+the record's location, suffix from its `doc_path` — keeps only drafts that still
+exist, and skips and counts a malformed record rather than failing on it, since
+failures are data. The registry's `bindings` rows are the alternative, and the
+2026-09-17 row already rejected them for `locate` because they key on the path as
+typed. `ingest`'s note then names each draft citing a regenerated source with the
+exact `backdraft locate <draft>` to run, a count past a handful, and nothing new
+when no draft cites it; `show`'s `DRIFT_HINT` names the drafts citing the drifted
+token's slug and keeps the placeholder when none do. Display only: the exit codes
+do not move and nothing is written.
+
+**Acceptance.** In a scratch project with two memos, one citing `notes` and one
+citing only another source, re-ingesting a changed `notes.md` names the first
+memo and its `locate` command and not the second. Re-ingesting an unchanged
+source prints exactly today's output, as does a registry with no records. A
+record file holding invalid JSON does not break the ingest. `show` on a drifted
+token names the citing memo's `locate` command. The walkthrough's
+regenerated-corpus `ingest` block is re-captured from a scratch copy with no key
+present, since the demo memo cites both regenerated sources and the note now
+names it. README's "When a source changes" and `skills/backdraft/SKILL.md` say
+the note names the drafts. DESIGN row.
+
+**Size.** Two days.
+
 ## Parked
 
 Deliberately not queued, each with the reason, so picking one up starts from
