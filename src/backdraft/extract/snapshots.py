@@ -35,6 +35,7 @@ identity, which is what makes it safe for them to be best-effort.
 from __future__ import annotations
 
 import io
+import os
 from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Iterable, Iterator, Mapping
@@ -58,12 +59,15 @@ __all__ = [
     "DEFAULT_DPI",
     "ENCODE_KEYS",
     "PAGE_RENDER_KEYS",
+    "MISSING_EFFECT",
+    "POPPLER_HINT",
     "SnapshotError",
     "capture",
     "dpi_for",
     "encode",
     "fit",
     "render",
+    "unavailable",
 ]
 
 DEFAULT_DPI = 200
@@ -94,6 +98,13 @@ POPPLER_HINT = (
     "poppler is not installed, so PDF pages cannot be rendered here "
     "(macOS: `brew install poppler`; Debian/Ubuntu: `apt install poppler-utils`)"
 )
+
+
+MISSING_EFFECT = (
+    "Citations and quotes are unaffected; artifacts just carry no cited-page image."
+)
+"""What a missing page image costs, said wherever one is missed: `ingest`'s note
+and `doctor`'s line read alike because both read this."""
 
 
 class SnapshotError(BackdraftError):
@@ -153,10 +164,7 @@ def render(
         from pdf2image import convert_from_path
         from pdf2image.exceptions import PopplerNotInstalledError
     except ImportError as error:
-        raise SnapshotError(
-            "the PDF rendering dependencies are missing — "
-            f"reinstall backdraft to restore them ({error})"
-        ) from error
+        raise SnapshotError(_deps_missing(error)) from error
 
     resolution = dpi if dpi is not None else dpi_for(config)
     max_height = snapshot_max_height(config)
@@ -176,6 +184,37 @@ def render(
         if not images:
             raise SnapshotError(f"{source} has no page {number} to render")
         yield number, encode(fit(images[0], max_height), quality)
+
+
+def _deps_missing(error: ImportError) -> str:
+    return (
+        "the PDF rendering dependencies are missing — "
+        f"reinstall backdraft to restore them ({error})"
+    )
+
+
+def unavailable() -> str | None:
+    """Why this machine cannot render PDF pages, in `render`'s own words, or None.
+
+    Asked the way the real path asks: `convert_from_path` opens with
+    `pdfinfo_from_path`, which is where a missing poppler surfaces, so this calls
+    that same function on a path that is not a PDF. A machine with poppler
+    answers that the page count could not be read — which is "installed" — and
+    one without answers `PopplerNotInstalledError`, which `render` turns into
+    `POPPLER_HINT`. No file is opened, nothing is rendered, nothing is stored.
+    """
+    try:
+        import pdf2image
+        from pdf2image.exceptions import PopplerNotInstalledError
+    except ImportError as error:
+        return _deps_missing(error)
+    try:
+        pdf2image.pdfinfo_from_path(os.devnull)
+    except PopplerNotInstalledError:
+        return POPPLER_HINT
+    except Exception:  # noqa: BLE001 - poppler ran and refused a non-PDF: present
+        return None
+    return None
 
 
 def capture(

@@ -32,44 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. What this install can do, said before a verb needs it
-
-**Intent.** backdraft degrades rather than fails, which is right, and the price
-is that its capabilities are discovered one at a time at the moment each is
-missed: poppler tells you at ingest, the vision model tells you at ingest, a
-thin extraction tells you after the fact, `[xls]` tells you when a workbook
-arrives, and `[math]` now tells you at render — each a different note at a
-different moment, none of them askable in advance. An agent planning a job
-cannot say "this machine can ingest scanned PDFs" without attempting one, so it
-either promises the user something it cannot deliver or hedges everything. The
-notes are good; there is no way to read them before the work.
-
-**Shape.** One read-only command reporting each optional capability, what it
-affects in terms of the four verbs, and the exact command that installs it —
-reusing the message each site already owns rather than writing a second copy of
-any of them, which is the whole risk here. The sites are known:
-`extract.snapshots`'s poppler check, `extract.vlm_settings.vlm_ready`, the
-`[xls]`, `[entail]` and `[math]` imports, and the registry's own presence. Each
-must be asked the way the real path asks it, so the report cannot say yes where
-the verb would say no. Credentials are named as present or absent and **never
-printed, echoed or logged**, per the credentials rule. Exit 0 always: a missing
-optional capability is not an error, and gating on it would make the report a
-second, worse failure surface.
-
-**Acceptance.** On a machine without poppler, the command names it, says page
-images will be missing and citations unaffected, and gives the install line —
-matching what `ingest` prints when it actually happens, asserted against the
-same constant. With `[math]` uninstalled it says formulas render verbatim; with
-it installed it says nothing is missing. It exits 0 in both cases, and in a
-directory with no registry it still runs and says the registry is the one thing
-absent. No key value appears in the output under any state, pinned by a test
-that sets a fake key and greps the output for it. `README.md`, `site/docs.html`,
-`site/llms.txt` and `skills/backdraft/SKILL.md` name it as the first thing to
-run in an unfamiliar environment.
-
-**Size.** Two days.
-
-### 2. `bind` never says which ledger it judged `not_shown` against
+### 1. `bind` never says which ledger it judged `not_shown` against
 
 **Intent.** `bind`'s report names the mode, the claim and citation counts, every
 status, every check that ran and every failure — everything except the one input
@@ -115,7 +78,7 @@ DESIGN row.
 
 **Size.** Two days.
 
-### 3. A withdrawn source is invisible, including to the person looking for it
+### 2. A withdrawn source is invisible, including to the person looking for it
 
 **Intent.** `forget` withdraws a source from every surface that offers one, which
 is right, and the result is that nothing lists what was withdrawn. `ls` says `no
@@ -152,7 +115,7 @@ and `skills/backdraft/SKILL.md` say where to look. DESIGN row.
 
 **Size.** One day.
 
-### 4. `--slug` is dropped without a word when the document is already there
+### 3. `--slug` is dropped without a word when the document is already there
 
 **Intent.** `Registry.ingest`'s docstring says "`slug` is honoured only when the
 document is new — a slug is stable once assigned", which is the right rule and is
@@ -190,7 +153,7 @@ pass `--slug`. DESIGN row.
 
 **Size.** One day.
 
-### 5. `verify` cannot re-check the one status only the ledger can settle
+### 4. `verify` cannot re-check the one status only the ledger can settle
 
 **Intent.** `verify`'s source tier re-resolves every token and reports the
 statuses "as `bind` would", with one gap the code names out loud: `not_shown`
@@ -232,7 +195,7 @@ DESIGN row.
 
 **Size.** Two to three days.
 
-### 6. `bind` and `verify` name the failure and not the move
+### 5. `bind` and `verify` name the failure and not the move
 
 **Intent.** 2026-09-01 made `ingest`'s failures say what to do as well as what
 went wrong, on the argument that a calling agent reads the reason and acts on it.
@@ -273,7 +236,7 @@ verify blocks show the real output. DESIGN row.
 
 **Size.** Two days.
 
-### 7. A chunk the table of contents lists is a chunk no read can ask for
+### 6. A chunk the table of contents lists is a chunk no read can ask for
 
 **Intent.** Since 2026-09-07 `backdraft read <slug>` on a one-page source lists
 that page's chunks — `p1.c9  From Wikipedia, the free encyclopedia...` — and the
@@ -320,7 +283,7 @@ form.
 
 **Size.** Two days.
 
-### 8. A search hit's excerpt can leave out the words that matched
+### 7. A search hit's excerpt can leave out the words that matched
 
 **Intent.** `search` prints each hit's first 160 characters, and
 `gate.reader.excerpt`'s NOTE says so on purpose: the cut is from the start rather
@@ -361,7 +324,7 @@ matched, asserted by test. No `registry-v1` export field changes. SPEC § Gate's
 
 **Size.** Two days.
 
-### 9. A small table is marked a shell, and the skill says not to cite it
+### 8. A small table is marked a shell, and the skill says not to cite it
 
 **Intent.** The thin-source mark (2026-08-20, carried onto every list
 2026-09-09) is a character count under `THIN_SOURCE_CHARS`, and for prose that
@@ -402,7 +365,7 @@ mark means for a table. DESIGN row.
 
 **Size.** One day.
 
-### 10. `ingest --dry-run` names the source and not the run
+### 9. `ingest --dry-run` names the source and not the run
 
 **Intent.** The dry run (2026-09-10) answers what a source would be called, and
 `tests/test_dry_run.py` pins that the prediction equals the outcome — for the
@@ -431,9 +394,8 @@ which would move every documented ingest block. For a URL the media type is
 provisional, so the extractor is too, and the existing note says both rather
 than adding a note. A source already ingested reports its current generation's
 extractor. `vlm_ready` answers presence and nothing else; no key value reaches
-output. Not the ground of "What this install can do, said before a verb needs
-it", which reports the machine; this reports what one command will do to one
-source. `demo/walkthrough.md`'s dry-run block moves and is regenerated, not
+output. Not the ground of `backdraft doctor`, which reports the machine; this
+reports what one command will do to one source. `demo/walkthrough.md`'s dry-run block moves and is regenerated, not
 hand-edited.
 
 **Acceptance.** `backdraft ingest demo/sources/t12-summary.pdf --dry-run` names
@@ -451,7 +413,7 @@ row.
 
 **Size.** Two days.
 
-### 11. `session show` counts what was read and cannot say what was not
+### 10. `session show` counts what was read and cannot say what was not
 
 **Intent.** `session show` (2026-08-31) answers "have I read enough to write
 this yet?" with a count per document. Since the page-read budget (2026-09-08) a
@@ -495,7 +457,7 @@ ask it after a context loss rather than re-reading from the top. DESIGN row.
 
 **Size.** Two days.
 
-### 12. An artifact word-diffs a drifted citation against whatever now stands at its old address
+### 11. An artifact word-diffs a drifted citation against whatever now stands at its old address
 
 **Intent.** The artifact's drift block (`render/html/text.py`'s `_drift_block`)
 shows `as cited` and `now`, word-diffed with `<del>` and `<ins>`, where `now` is
@@ -547,7 +509,7 @@ DESIGN row.
 
 **Size.** Three days.
 
-### 13. `locate` leaves the fix to hand edits of tokens, which the skill forbids
+### 12. `locate` leaves the fix to hand edits of tokens, which the skill forbids
 
 **Intent.** `locate` prints `moved: <old> — now at <new>` and closes by telling
 the writer to put each moved token in place of the old one, while the writing
@@ -592,7 +554,7 @@ pins for the plain run. DESIGN row.
 
 **Size.** Two days.
 
-### 14. `locate` calls intact words `gone` when an insertion merged or split their chunk
+### 13. `locate` calls intact words `gone` when an insertion merged or split their chunk
 
 **Intent.** `locate` matches the cited snippet's hash exactly, and the 2026-09-17
 row named the price: "a chunk that an insertion under 200 characters merged into"
@@ -640,7 +602,7 @@ every existing `tests/test_locate.py` expectation is unchanged. SPEC Addendum B'
 
 **Size.** Two days.
 
-### 15. A draft outside its project is told there is no registry, about the wrong directory
+### 14. A draft outside its project is told there is no registry, about the wrong directory
 
 **Intent.** `bind` and `locate` find the registry from the document's directory
 (SPEC § CLI), and when that walk finds nothing `cli_context.open_registry`
@@ -679,7 +641,7 @@ must live under its project or name it with `BACKDRAFT_HOME`. DESIGN row.
 
 **Size.** One day.
 
-### 16. After a re-ingest, nothing says which drafts cite the source that moved
+### 15. After a re-ingest, nothing says which drafts cite the source that moved
 
 **Intent.** `ingest`'s new-generation note says citations "may now report
 `drifted`", that `bind` on a document citing the source says which, and names

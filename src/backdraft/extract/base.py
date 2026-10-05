@@ -40,6 +40,7 @@ from ..kernel.model import CellValue, PageKind
 
 __all__ = [
     "AUTO_ORDER",
+    "vlm_gap",
     "vlm_ready",
     "EXTRACTORS",
     "ExtractedPage",
@@ -265,3 +266,26 @@ def vlm_ready(config: dict | None = None) -> bool:
     except ExtractionError:
         return False
     return True
+
+
+def vlm_gap(config: dict | None = None) -> str | None:
+    """Why `auto` will not choose the vision model, with the fix, or None when it will.
+
+    `vlm_ready`'s question with the reason kept: the deps ship by default, so
+    the usual gap is the backdraft-scoped key, but a broken or partial install
+    (no importable vlm extractor) is still named honestly — and named first,
+    since setting a key would not fix it. `ingest`'s pdf-text note and
+    `doctor`'s vision line both say this, so they cannot disagree.
+    """
+    from ..credentials import setting  # noqa: PLC0415 - keep base import-light
+
+    try:
+        get("vlm")
+    except ExtractionError:
+        return "The vision extractor could not be imported — reinstall backdraft to restore it."
+    if not setting("BACKDRAFT_VLM_API_KEY", config, config_key="api_key"):
+        return (
+            "Glossy or scanned PDFs extract better through a vision model: "
+            "set BACKDRAFT_VLM_API_KEY in .backdraft/env."
+        )
+    return None

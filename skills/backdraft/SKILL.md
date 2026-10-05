@@ -20,6 +20,7 @@ on. Where uv is absent, `pip install backdraft` once per session, then use
 agent config directories; installs from PyPI need no special permissions.
 
 ```bash
+backdraft doctor                                  # first, on an unfamiliar machine
 backdraft init                                    # once per project
 backdraft ingest report.pdf model.xlsx notes.md   # every source, up front
 backdraft ingest <url> --dry-run                  # what would that be called?
@@ -27,6 +28,16 @@ backdraft ingest <url> --slug <name>              # a URL is a source too
 backdraft session start --id s-<short-name>       # do this; see below
 export BACKDRAFT_SESSION=s-<short-name>
 ```
+
+**Run `backdraft doctor` before you promise anything.** It lists each optional
+capability as `ready` or `missing` and always exits 0. Where a line says
+`missing`, its `costs` line is what you cannot deliver: no vision model means a
+scanned PDF comes back thin and an image cannot be ingested; no page images
+means the artifact shows no cited page; no `[math]` means formulas render as
+LaTeX. Tell the user that up front, with the fix the line names, rather than
+discovering it mid-job. Installing an extra or setting a key is the user's
+call — relay it, do not do it. A missing registry is the one gap every verb
+stops on, and `backdraft init` is its fix.
 
 **Start a session and export it.** It is skippable and skipping it costs the
 system's strongest check. Without one, every run in the project reads into a

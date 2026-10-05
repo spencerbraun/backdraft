@@ -32,7 +32,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Callable, Sequence
 
-__all__ = ["Math", "available", "protect", "restore"]
+__all__ = ["INSTALL", "Math", "available", "protect", "restore"]
 
 PLACEHOLDER = "\x02m{index}\x02"
 
@@ -65,6 +65,10 @@ class Math:
     @property
     def anchor(self) -> str:
         return f"bd-math-{self.index + 1}"
+
+
+INSTALL = "`pip install 'backdraft[math]'` (or `uv tool install 'backdraft[math]'`)"
+"""The one install line for the extra, said by `render`'s verbatim note and by `doctor`."""
 
 
 def available() -> bool:

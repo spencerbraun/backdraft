@@ -20,6 +20,7 @@ from .base import (
     names,
     register,
     select,
+    vlm_gap,
     vlm_ready,
 )
 
@@ -33,5 +34,6 @@ __all__ = [
     "names",
     "register",
     "select",
+    "vlm_gap",
     "vlm_ready",
 ]

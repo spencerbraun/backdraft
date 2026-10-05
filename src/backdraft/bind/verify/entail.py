@@ -36,7 +36,7 @@ try:  # pragma: no cover - exercised only by the extra's presence
 except ImportError:  # pragma: no cover - the guarded path
     anthropic = None  # type: ignore[assignment]
 
-__all__ = ["Entail", "entail", "MODEL", "BATCH_SIZE"]
+__all__ = ["Entail", "entail", "MODEL", "BATCH_SIZE", "unavailable"]
 
 MODEL = "claude-opus-5"
 """Judge model. Override with `BACKDRAFT_ENTAIL_MODEL`."""
@@ -46,6 +46,30 @@ BATCH_SIZE = 20
 
 MAX_SNIPPET = 2000
 """Snippet characters sent per pair. Longer receipts are truncated, marked."""
+
+EXTRA_MISSING = (
+    "the [entail] extra is not installed — `pip install 'backdraft[entail]'` "
+    "(or `uv tool install 'backdraft[entail]'`)"
+)
+KEY_MISSING = (
+    "BACKDRAFT_ENTAIL_API_KEY is not set (env or .backdraft/env); "
+    "ambient ANTHROPIC_API_KEY is deliberately not read"
+)
+
+
+def unavailable() -> str | None:
+    """Why the judge cannot run here, or None when it can. Never names the key's value.
+
+    The one place the two preconditions are checked: `_ask` records this as the
+    `skip` detail on every pair, and `doctor` prints it before any bind is run,
+    so the report read in advance and the one read after cannot disagree.
+    """
+    if anthropic is None:
+        return EXTRA_MISSING
+    if not setting("BACKDRAFT_ENTAIL_API_KEY"):
+        return KEY_MISSING
+    return None
+
 
 _SYSTEM = (
     "You judge whether a source snippet supports a claim. "
@@ -107,17 +131,10 @@ class Entail:
         """One request for one batch; record an answer for every pair in it."""
         if not batch:
             return
-        if anthropic is None:
-            self._record_all(batch, "the [entail] extra is not installed")
+        if (reason := unavailable()) is not None:
+            self._record_all(batch, reason)
             return
         api_key = setting("BACKDRAFT_ENTAIL_API_KEY")
-        if not api_key:
-            self._record_all(
-                batch,
-                "BACKDRAFT_ENTAIL_API_KEY is not set (env or .backdraft/env); "
-                "ambient ANTHROPIC_API_KEY is deliberately not read",
-            )
-            return
         prompt = "\n\n".join(
             f"{index}.\nCLAIM: {claim}\nSNIPPET: {snippet}"
             for index, (claim, snippet) in enumerate(batch, start=1)

@@ -51,7 +51,7 @@ def test_the_vlm_extractor_is_known_by_name() -> None:
 def test_asking_for_vlm_says_what_a_broken_install_is_missing() -> None:
     """The vision deps are core since 0.4.0, so this normally resolves. It can
     still fail on a partial install, and then the error has to name that rather
-    than the extractor — the same gap `_vlm_gap()` reports at ingest."""
+    than the extractor — the same gap `vlm_gap()` reports at ingest."""
     try:
         import openai  # noqa: F401
     except ImportError:  # pragma: no cover - a partial install, not the norm

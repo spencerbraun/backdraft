@@ -505,6 +505,25 @@ Three extras:
 `backdraft[vlm]` still installs: it is an empty compat alias from when the
 vision deps were an extra.
 
+**In an unfamiliar environment, run `backdraft doctor` first.** Everything
+above degrades rather than fails, so without it each gap is discovered at the
+moment it is missed. `doctor` reports all of them up front — the registry,
+poppler, the vision model, `[xls]`, `[entail]` and `[math]` — each as `ready`
+or `missing`, with what its absence costs the verbs and the command that fixes
+it, in the same words the verb itself would print. Keys are named `set` or
+`absent` and their values never printed. Read-only, and always exit 0: a
+missing optional capability is not an error.
+
+```console
+$ backdraft doctor
+registry      ready    /…/demo/.backdraft, 3 document(s)
+page images   ready    poppler renders PDF pages for the artifact's cited-page view
+vision model  missing  Glossy or scanned PDFs extract better through a vision model: set BACKDRAFT_VLM_API_KEY in .backdraft/env.
+              costs    ingest: `auto` reads a PDF's text layer, so a scan comes back thin, and an image cannot be ingested at all. A PDF with a text layer, and every other format, is unaffected.
+              key      BACKDRAFT_VLM_API_KEY absent
+…
+```
+
 From a checkout:
 
 ```bash

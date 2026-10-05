@@ -170,8 +170,7 @@ VERBATIM_MATH_NOTE = (
     "note: {count} formula(s) rendered verbatim rather than as math — the "
     "`[math]` extra is not installed. Nothing was corrupted and no citation is "
     "affected; the artifact just shows the LaTeX as written. Install it with "
-    "`pip install 'backdraft[math]'` (or `uv tool install 'backdraft[math]'`) "
-    "and render again."
+    f"{math_module.INSTALL} and render again."
 )
 """Said at exit 0, in the shape `ingest`'s poppler note uses: what happened,
 what it did not cost, and the one command that fixes it.

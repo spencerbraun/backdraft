@@ -45,7 +45,7 @@ from .cli_context import (
     opened_registry,
     resolve_session,
 )
-from .extract import snapshots, vlm_ready
+from .extract import snapshots, vlm_gap, vlm_ready
 # The words a document is described in have one owner each, and `ingest`/`ls`
 # describe the same documents the gate's list does: the noun for a collection of
 # pages is `gate.unit`; how much text came out of a source, and whether that is
@@ -183,6 +183,167 @@ def init(
         "next: ingest sources, then have an agent write against them — "
         "the backdraft skill (skills/backdraft) is the writing contract."
     )
+
+
+@dataclass(frozen=True, slots=True)
+class _Capability:
+    """One line of `doctor`: what it is, whether this install has it, and what that means."""
+
+    name: str
+    gap: str | None
+    """Why it is missing, in the words of the site that would say so mid-verb; None when present."""
+    effect: str
+    """What the gap costs, in terms of the verbs. Printed only under a gap."""
+    ready: str
+    """What is there, printed in place of the gap when there is none."""
+    key: str | None = None
+    """The backdraft-scoped key this capability spends, reported set or absent either way."""
+
+
+def _key_state(name: str) -> str:
+    """`NAME set` or `NAME absent` — the value is never read past truthiness, never printed."""
+    from .credentials import setting
+
+    return f"{name} {'set' if setting(name) else 'absent'}"
+
+
+def _registry_state() -> tuple[str | None, str]:
+    """`(gap, ready)` for the registry, found the way every verb finds it.
+
+    Never creates one: `Registry.open` makes what it does not find, so a
+    `BACKDRAFT_HOME` naming an empty directory is reported rather than opened,
+    and a registry that will not open is a gap with the registry's own reason
+    rather than an exit code — this command's answer is never a failure.
+    """
+    root = find_root()
+    if root is None:
+        return (
+            f"no {DIRECTORY}/ in {Path.cwd()} or any directory above it — "
+            "`backdraft init` makes one",
+            "",
+        )
+    if not (root / DIRECTORY).is_dir():
+        return (
+            f"{HOME_ENV} names {root}, which holds no {DIRECTORY}/ — "
+            f"`backdraft init {root}` makes one, or unset {HOME_ENV}",
+            "",
+        )
+    try:
+        registry = Registry.open(root)
+        try:
+            count = len(registry.documents())
+        finally:
+            registry.close()
+    except BackdraftError as error:
+        return f"{root / DIRECTORY} will not open: {error}", ""
+    return None, f"{root / DIRECTORY}, {count} document(s)"
+
+
+def _capabilities() -> list[_Capability]:
+    """Every optional capability, each asked the way the verb that needs it asks.
+
+    No message is written here twice: each gap is the string the real path
+    raises or prints — `snapshots.unavailable` is `POPPLER_HINT`, `vlm_gap` is
+    ingest's pdf-text note, `get("xls")`'s error is the one `ingest` puts on an
+    `.xls` file's `!` line, `entail.unavailable` is the `skip` detail `bind`
+    records, and `math.INSTALL` is render's verbatim note's fix. So the report
+    cannot say yes where the verb would say no.
+
+    Imported here rather than at the top: the entail module pulls in its SDK
+    when it is installed, which no other command needs to pay for.
+    """
+    from .bind.verify.entail import unavailable as entail_gap
+    from .extract import ExtractionError, get
+    from .render import math as render_math
+
+    registry_gap, registry_ready = _registry_state()
+    try:
+        get("xls")
+        xls_gap = None
+    except ExtractionError as error:
+        xls_gap = str(error)
+    return [
+        _Capability(
+            "registry",
+            registry_gap,
+            "every verb but `init`, `skill` and `doctor` needs one: ingest, read, "
+            "search, bind and render all stop here with exit 1.",
+            registry_ready,
+        ),
+        _Capability(
+            "page images",
+            snapshots.unavailable(),
+            f"ingest: PDFs land without page images. {snapshots.MISSING_EFFECT}",
+            "poppler renders PDF pages for the artifact's cited-page view",
+        ),
+        _Capability(
+            "vision model",
+            vlm_gap(),
+            "ingest: `auto` reads a PDF's text layer, so a scan comes back thin, "
+            "and an image cannot be ingested at all. A PDF with a text layer, and every "
+            "other format, is unaffected.",
+            "`auto` reads PDFs and images through the vision model, off this machine",
+            "BACKDRAFT_VLM_API_KEY",
+        ),
+        _Capability(
+            "legacy .xls",
+            xls_gap,
+            "ingest: an .xls workbook is refused; .xlsx and .csv are unaffected.",
+            "ingest reads .xls workbooks, values only",
+        ),
+        _Capability(
+            "entail check",
+            entail_gap(),
+            "bind: `--check entail` records every pair as `skip` with this reason; "
+            "the bind still completes and its exit code is unaffected.",
+            "`bind --check entail` asks a model judge whether each snippet supports its claim",
+            "BACKDRAFT_ENTAIL_API_KEY",
+        ),
+        _Capability(
+            "math",
+            None if render_math.available() else (
+                f"the `[math]` extra is not installed — {render_math.INSTALL}"
+            ),
+            "render: LaTeX in a draft renders verbatim, as written, rather than as "
+            "math. No citation is affected.",
+            "render turns LaTeX in a draft into MathML",
+        ),
+    ]
+
+
+@app.command()
+def doctor() -> None:
+    """Say what this install can do before a verb needs it. Read-only; always exit 0.
+
+    backdraft degrades rather than fails, so each optional capability is
+    otherwise discovered at the moment it is missed. This reports all of them
+    at once — the registry, page images (poppler), the vision model, legacy
+    `.xls`, the entail check and math rendering — each with what its absence
+    costs and the command that fixes it, in the same words the verb would print.
+    Keys are reported as set or absent and never printed. Run it first in an
+    unfamiliar environment.
+    """
+    capabilities = _capabilities()
+    width = max(len(capability.name) for capability in capabilities)
+    for capability in capabilities:
+        label = capability.name.ljust(width)
+        indent = " " * width
+        if capability.gap is None:
+            typer.echo(f"{label}  ready    {capability.ready}")
+        else:
+            typer.echo(f"{label}  missing  {capability.gap}")
+            typer.echo(f"{indent}  costs    {capability.effect}")
+        if capability.key is not None:
+            typer.echo(f"{indent}  key      {_key_state(capability.key)}")
+    missing = [capability.name for capability in capabilities if capability.gap is not None]
+    if missing:
+        typer.echo(
+            f"[{len(missing)} of {len(capabilities)} missing: {', '.join(missing)}. "
+            "Each `costs` line is what the verbs do without it; each verb still says "
+            "so itself at the moment it matters.]"
+        )
+    else:
+        typer.echo(f"[All {len(capabilities)} ready.]")
 
 
 @app.command()
@@ -337,14 +498,15 @@ def ingest(
     # without poppler is somehow also holding an unrenderable PDF.
     for reason, slugs in unsnapshot.items():
         typer.echo(
-            f"note: page images not captured — {reason}. Citations and quotes "
-            "are unaffected; artifacts just carry no cited-page image. Backfill "
-            f"later with `backdraft snapshot-pages <slug>` for: {', '.join(slugs)}."
+            f"note: page images not captured — {reason}. {snapshots.MISSING_EFFECT} "
+            f"Backfill later with `backdraft snapshot-pages <slug>` for: {', '.join(slugs)}."
         )
     if nudge_vlm:
         # One line, once per invocation: `auto` fell back to the text layer,
         # and the note names the condition that failed.
-        typer.echo(f"note: extracted with pdf-text (the embedded text layer). {_vlm_gap()}")
+        typer.echo(
+            f"note: extracted with pdf-text (the embedded text layer). {vlm_gap(settings)}"
+        )
     if note_pptx:
         # Same shape as the pdf-text note: the honest gap, and the path that
         # closes it — relayed by a calling agent when the deck is visual-heavy.
@@ -1105,32 +1267,6 @@ def _unread_report(
     lines += [f"  ! {source} — {reason}" for source, reason in unread]
     lines.append(closing)
     return "\n".join(lines)
-
-
-def _vlm_gap() -> str:
-    """Which condition keeps `auto` off the vision model. The deps ship by
-    default, so the usual gap is the backdraft-scoped key; a broken or partial
-    install (no importable vlm extractor) is still named honestly."""
-    from .credentials import setting
-    from .extract.base import ExtractionError, get
-
-    has_key = bool(setting("BACKDRAFT_VLM_API_KEY"))
-    try:
-        get("vlm")
-        importable = True
-    except ExtractionError:
-        importable = False
-    if not importable:
-        return (
-            "The vision extractor could not be imported — reinstall backdraft "
-            "to restore it."
-        )
-    if not has_key:
-        return (
-            "Glossy or scanned PDFs extract better through a vision model: "
-            "set BACKDRAFT_VLM_API_KEY in .backdraft/env."
-        )
-    return "set BACKDRAFT_VLM_API_KEY in .backdraft/env to use the vision model."
 
 
 def _parse_config(pairs: Iterable[str]) -> dict:
