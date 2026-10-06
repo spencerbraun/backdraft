@@ -32,53 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. `bind` never says which ledger it judged `not_shown` against
-
-**Intent.** `bind`'s report names the mode, the claim and citation counts, every
-status, every check that ran and every failure — everything except the one input
-that decides `not_shown`. The session is resolved silently by
-`cli_context.resolve_session` (flag, then `BACKDRAFT_SESSION`, then the default),
-so `backdraft bind memo.md` in `demo/` with nothing exported reports `not_shown:
-1` off the shared default ledger and says nothing about it. That is the weakest
-form the check has: the 2026-08-31 row established that the default session
-accumulates across every run in a registry, so a `resolved` there can mean "some
-earlier run read that page" rather than "this writer did". The row fixed it at
-`session show`, the command that reports the ledger, and left `bind`, the
-command that acts on it. The recipient inherits the gap: the record carries
-`session_id` and `spec/artifact.md` calls it "the ledger session, when the run
-had one", so a reader holding a record that says `"session_id": "default"` has
-the fact and no way to know it weakens every `not_shown` and every `resolved`
-beside it.
-
-**Shape.** `bind/cli.py`'s report header, and `spec/artifact.md`. Name the
-session on the summary line, and where it is the default one, close with
-`gate.reader.DEFAULT_SESSION_NOTE` — imported, not re-written, which is the
-whole point of the item: two wordings for one cost is how the `session show`
-note and this one drift apart. Keyed on the resolved id rather than on which
-rule supplied it, exactly as `session show` keys it, so an explicit
-`--session default` is named too. Then say it in the format: `spec/artifact.md`'s
-`session_id` row and the legend's `not_shown` line must tell a reader what a
-default session means for the status, since the record travels and the CLI does
-not. That is a legend change, so goldens and the demo regenerate — the
-2026-08-24 trade, taken twice before. Not what `bind --json` (2026-09-14)
-settled: the record it prints already carries `session_id`, and what neither it
-nor the report says is what a default session means for the statuses beside it.
-
-**Acceptance.** In `demo/`, `backdraft bind memo.md` with no session and no
-`BACKDRAFT_SESSION` names `default` and prints the note; `--session s-bridgeview`
-names that id and prints no note; `--session default` prints the note. Below the
-header the two runs are byte-identical. A test asserts the printed note is
-`gate.reader.DEFAULT_SESSION_NOTE` by constant rather than by substring, so a
-second copy cannot pass. `backdraft verify` on a record bound in the default
-session says so from the record alone, with no registry present. Golden sidecars
-and `demo/memo.backdraft.html`/`site/demo.html` regenerate together and stay
-byte-identical to each other. `README.md`, `site/llms.txt`,
-`skills/backdraft/SKILL.md` and `skills/backdraft-artifact/SKILL.md` follow.
-DESIGN row.
-
-**Size.** Two days.
-
-### 2. A withdrawn source is invisible, including to the person looking for it
+### 1. A withdrawn source is invisible, including to the person looking for it
 
 **Intent.** `forget` withdraws a source from every surface that offers one, which
 is right, and the result is that nothing lists what was withdrawn. `ls` says `no
@@ -115,7 +69,7 @@ and `skills/backdraft/SKILL.md` say where to look. DESIGN row.
 
 **Size.** One day.
 
-### 3. `--slug` is dropped without a word when the document is already there
+### 2. `--slug` is dropped without a word when the document is already there
 
 **Intent.** `Registry.ingest`'s docstring says "`slug` is honoured only when the
 document is new — a slug is stable once assigned", which is the right rule and is
@@ -153,7 +107,7 @@ pass `--slug`. DESIGN row.
 
 **Size.** One day.
 
-### 4. `verify` cannot re-check the one status only the ledger can settle
+### 3. `verify` cannot re-check the one status only the ledger can settle
 
 **Intent.** `verify`'s source tier re-resolves every token and reports the
 statuses "as `bind` would", with one gap the code names out loud: `not_shown`
@@ -195,7 +149,7 @@ DESIGN row.
 
 **Size.** Two to three days.
 
-### 5. `bind` and `verify` name the failure and not the move
+### 4. `bind` and `verify` name the failure and not the move
 
 **Intent.** 2026-09-01 made `ingest`'s failures say what to do as well as what
 went wrong, on the argument that a calling agent reads the reason and acts on it.
@@ -236,7 +190,7 @@ verify blocks show the real output. DESIGN row.
 
 **Size.** Two days.
 
-### 6. A chunk the table of contents lists is a chunk no read can ask for
+### 5. A chunk the table of contents lists is a chunk no read can ask for
 
 **Intent.** Since 2026-09-07 `backdraft read <slug>` on a one-page source lists
 that page's chunks — `p1.c9  From Wikipedia, the free encyclopedia...` — and the
@@ -283,7 +237,7 @@ form.
 
 **Size.** Two days.
 
-### 7. A search hit's excerpt can leave out the words that matched
+### 6. A search hit's excerpt can leave out the words that matched
 
 **Intent.** `search` prints each hit's first 160 characters, and
 `gate.reader.excerpt`'s NOTE says so on purpose: the cut is from the start rather
@@ -324,7 +278,7 @@ matched, asserted by test. No `registry-v1` export field changes. SPEC § Gate's
 
 **Size.** Two days.
 
-### 8. A small table is marked a shell, and the skill says not to cite it
+### 7. A small table is marked a shell, and the skill says not to cite it
 
 **Intent.** The thin-source mark (2026-08-20, carried onto every list
 2026-09-09) is a character count under `THIN_SOURCE_CHARS`, and for prose that
@@ -365,7 +319,7 @@ mark means for a table. DESIGN row.
 
 **Size.** One day.
 
-### 9. `ingest --dry-run` names the source and not the run
+### 8. `ingest --dry-run` names the source and not the run
 
 **Intent.** The dry run (2026-09-10) answers what a source would be called, and
 `tests/test_dry_run.py` pins that the prediction equals the outcome — for the
@@ -413,7 +367,7 @@ row.
 
 **Size.** Two days.
 
-### 10. `session show` counts what was read and cannot say what was not
+### 9. `session show` counts what was read and cannot say what was not
 
 **Intent.** `session show` (2026-08-31) answers "have I read enough to write
 this yet?" with a count per document. Since the page-read budget (2026-09-08) a
@@ -457,7 +411,7 @@ ask it after a context loss rather than re-reading from the top. DESIGN row.
 
 **Size.** Two days.
 
-### 11. An artifact word-diffs a drifted citation against whatever now stands at its old address
+### 10. An artifact word-diffs a drifted citation against whatever now stands at its old address
 
 **Intent.** The artifact's drift block (`render/html/text.py`'s `_drift_block`)
 shows `as cited` and `now`, word-diffed with `<del>` and `<ins>`, where `now` is
@@ -509,7 +463,7 @@ DESIGN row.
 
 **Size.** Three days.
 
-### 12. `locate` leaves the fix to hand edits of tokens, which the skill forbids
+### 11. `locate` leaves the fix to hand edits of tokens, which the skill forbids
 
 **Intent.** `locate` prints `moved: <old> — now at <new>` and closes by telling
 the writer to put each moved token in place of the old one, while the writing
@@ -554,7 +508,7 @@ pins for the plain run. DESIGN row.
 
 **Size.** Two days.
 
-### 13. `locate` calls intact words `gone` when an insertion merged or split their chunk
+### 12. `locate` calls intact words `gone` when an insertion merged or split their chunk
 
 **Intent.** `locate` matches the cited snippet's hash exactly, and the 2026-09-17
 row named the price: "a chunk that an insertion under 200 characters merged into"
@@ -602,7 +556,7 @@ every existing `tests/test_locate.py` expectation is unchanged. SPEC Addendum B'
 
 **Size.** Two days.
 
-### 14. A draft outside its project is told there is no registry, about the wrong directory
+### 13. A draft outside its project is told there is no registry, about the wrong directory
 
 **Intent.** `bind` and `locate` find the registry from the document's directory
 (SPEC § CLI), and when that walk finds nothing `cli_context.open_registry`
@@ -641,7 +595,7 @@ must live under its project or name it with `BACKDRAFT_HOME`. DESIGN row.
 
 **Size.** One day.
 
-### 15. After a re-ingest, nothing says which drafts cite the source that moved
+### 14. After a re-ingest, nothing says which drafts cite the source that moved
 
 **Intent.** `ingest`'s new-generation note says citations "may now report
 `drifted`", that `bind` on a document citing the source says which, and names

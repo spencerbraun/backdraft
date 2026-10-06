@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, NoReturn
 
 import typer
 
+from .kernel.artifact import DEFAULT_SESSION
 from .kernel.errors import BackdraftError
 from .registry import DIRECTORY, Registry
 
@@ -55,8 +56,9 @@ __all__ = [
 HOME_ENV = "BACKDRAFT_HOME"
 SESSION_ENV = "BACKDRAFT_SESSION"
 
-DEFAULT_SESSION = "default"
-"""The auto-created session. Stable across invocations, so reads accumulate."""
+# `DEFAULT_SESSION` — the auto-created session, stable across invocations so
+# reads accumulate — is the artifact format's since a record bound in it says
+# what that costs; it is imported above and exported from here unchanged.
 
 EXIT_USAGE = 1
 """Usage or environment error — and everything else that is not exit 2.

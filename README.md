@@ -210,8 +210,9 @@ Anything counted there binds `resolved`; anything else in the registry binds
 `not_shown`. Without an exported session, reads land in one default ledger every
 run in the project shares and nothing ever resets — so `not_shown` weakens from
 "this writer never saw it" to "nothing here ever has". `session show` says so at
-exit 0 when you are in it, and `backdraft session start --id s-<name>` is the
-one command that fixes it.
+exit 0 when you are in it, `bind` names the session on its first line and
+closes with the same note when it judged against the default, and `backdraft
+session start --id s-<name>` is the one command that fixes it.
 
 **Cite** by writing the token as the href of a markdown link on the claim span.
 Multiple citations are `;`-separated in one href.
@@ -225,7 +226,7 @@ Multiple citations are `;`-separated in one href.
 
 ```console
 $ backdraft bind memo.md --session s-bridgeview --check value-trace,overlap
-bound 17 claim(s), 18 citation(s) [frontwalk]
+bound 17 claim(s), 18 citation(s) [frontwalk] against session s-bridgeview
   resolved: 17
   unresolved: 1
   overlap: pass 13, skip 4

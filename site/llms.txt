@@ -200,6 +200,10 @@ Write claims as links; multiple tokens are ;-separated in one href:
 An italic line directly under the # title becomes the artifact subtitle.
 
 backdraft bind memo.md --check value-trace,overlap
+                                            # first line names the session
+                                            # not_shown was judged against;
+                                            # the shared default closes the
+                                            # report with session show's note.
 backdraft locate memo.md                    # after a re-ingest, where each
                                             # drifted citation's exact text
                                             # stands now: moved (new token),

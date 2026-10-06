@@ -72,8 +72,10 @@ from typing import Annotated
 import typer
 
 from ..cli_context import (
+    DEFAULT_SESSION,
     EXIT_UNRESOLVED,
     EXIT_USAGE,
+    SESSION_ENV,
     UsageError,
     as_typed,
     authored_text,
@@ -82,6 +84,7 @@ from ..cli_context import (
     open_registry,
     resolve_session,
 )
+from ..gate.reader import DEFAULT_SESSION_NOTE
 from ..kernel.artifact import bound_path, dumps, sidecar_path
 from ..kernel.model import Citation, CitationStatus, Claim, VerdictStatus
 from .binder import bind as run_bind, record_target
@@ -145,8 +148,10 @@ def bind(
     `backdraft render` turns it into the artifact. The document itself is
     never changed.
 
-    The report counts the statuses and prints each failure as `! <status>:
-    <token> — <claim> @<offset>`. `backdraft show <token>` says what any of
+    The report names on its first line the session `not_shown` was judged
+    against, and closes with a note when that is the shared default one. It
+    counts the statuses and prints each failure as `! <status>: <token> —
+    <claim> @<offset>`. `backdraft show <token>` says what any of
     them names; after a re-ingest, `backdraft locate <doc.md>` finds where a
     `drifted` citation's text went. `--json` prints the record instead of the
     report, for a caller that parses.
@@ -185,11 +190,22 @@ def bind(
 
 
 def _print_report(report, doc: Path, *, bound: bool = False, record: Path | None = None) -> None:  # noqa: ANN001 - BindReport, kernel-typed
-    """The human-readable report: counts, then every line item."""
+    """The human-readable report: counts, then every line item.
+
+    A front-walk header names the session `not_shown` was judged against, since
+    that one input decides the status and is otherwise resolved in silence; and
+    where it is the shared default, the report closes with the note `session
+    show` prints, imported rather than re-worded so the two cannot drift.
+    Keyed on the id, as `session show` keys it: an explicit `--session default`
+    lands in the same shared ledger. Backfill never consults the ledger, so its
+    header names none and it gets no note.
+    """
     summary = report.summary
+    judged = report.mode == "frontwalk" and report.session_id is not None
+    against = f" against session {report.session_id}" if judged else ""
     typer.echo(
         f"bound {summary['claims']} claim(s), {summary['citations']} citation(s) "
-        f"[{report.mode}]"
+        f"[{report.mode}]{against}"
     )
     for status, count in sorted(summary["by_status"].items()):
         typer.echo(f"  {status}: {count}")
@@ -211,6 +227,8 @@ def _print_report(report, doc: Path, *, bound: bool = False, record: Path | None
     if bound:
         typer.echo(f"wrote {bound_path(doc)}")
     typer.echo(f"wrote {as_typed(record or sidecar_path(doc))}")
+    if judged and report.session_id == DEFAULT_SESSION:
+        typer.echo(DEFAULT_SESSION_NOTE.format(env=SESSION_ENV))
 
 
 NO_REASON = "no reason recorded"

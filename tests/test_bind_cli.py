@@ -12,6 +12,7 @@ from backdraft import cli_context
 from backdraft.bind import cli as bind_cli
 from backdraft.bind.binder import bound_path, sidecar_path
 from backdraft.bind.verify import VERIFIERS
+from backdraft.gate.reader import DEFAULT_SESSION_NOTE
 from backdraft.kernel.model import Verdict, VerdictStatus
 from backdraft.registry import DIRECTORY
 
@@ -295,7 +296,7 @@ def test_a_run_with_no_skips_is_unchanged(tmp_path, fake_bind_registry) -> None:
     doc = write(tmp_path, f"[Net operating income was 4,120,000]({resolved}).\n")
     result = run(str(doc), "--session", "s1", "--check", "value-trace,overlap")
     assert result.output == (
-        "bound 1 claim(s), 1 citation(s) [frontwalk]\n"
+        "bound 1 claim(s), 1 citation(s) [frontwalk] against session s1\n"
         "  resolved: 1\n"
         "  overlap: pass 1\n"
         "  value-trace: pass 1\n"
@@ -352,6 +353,93 @@ def test_the_skip_reason_does_not_reach_the_record(
         }
     ]
     assert payload["summary"]["by_method"] == {"overlap": {"skip": 1}}
+
+
+# --- the session the report judged `not_shown` against ----------------------
+#
+# The one input that decides `not_shown` is resolved in silence — flag, then
+# `BACKDRAFT_SESSION`, then the shared default — so the header names it, and the
+# default closes the report with `session show`'s own note, by constant.
+
+NOTE = DEFAULT_SESSION_NOTE.format(env=cli_context.SESSION_ENV)
+
+
+@pytest.fixture
+def no_exported_session(monkeypatch) -> None:
+    monkeypatch.delenv(cli_context.SESSION_ENV, raising=False)
+
+
+def test_an_unnamed_session_is_the_default_and_says_what_that_costs(
+    tmp_path, fake_bind_registry, no_exported_session
+) -> None:
+    doc = write(tmp_path, f"[Net operating income was 4,120,000]({token(fake_bind_registry)}).\n")
+    result = run(str(doc))
+    lines = result.output.splitlines()
+    assert lines[0] == "bound 1 claim(s), 1 citation(s) [frontwalk] against session default"
+    # By constant, as a whole line: a second wording of the note cannot pass.
+    assert lines[-1] == NOTE
+    assert lines.count(NOTE) == 1
+
+
+def test_a_named_session_is_named_and_gets_no_note(
+    tmp_path, fake_bind_registry, no_exported_session
+) -> None:
+    doc = write(tmp_path, f"[Net operating income was 4,120,000]({token(fake_bind_registry)}).\n")
+    result = run(str(doc), "--session", "s-memo")
+    assert result.output.splitlines()[0].endswith("against session s-memo")
+    assert NOTE not in result.output
+
+
+def test_an_exported_session_is_named_and_gets_no_note(
+    tmp_path, fake_bind_registry, monkeypatch
+) -> None:
+    monkeypatch.setenv(cli_context.SESSION_ENV, "s-exported")
+    doc = write(tmp_path, f"[Net operating income was 4,120,000]({token(fake_bind_registry)}).\n")
+    result = run(str(doc))
+    assert result.output.splitlines()[0].endswith("against session s-exported")
+    assert NOTE not in result.output
+
+
+def test_typing_default_costs_what_reaching_it_costs(
+    tmp_path, fake_bind_registry, no_exported_session
+) -> None:
+    """Keyed on the id, not on the rule that supplied it — and the two runs are
+    the same run, byte for byte."""
+    doc = write(tmp_path, f"[Net operating income was 4,120,000]({token(fake_bind_registry)}).\n")
+    implicit = run(str(doc))
+    explicit = run(str(doc), "--session", "default")
+    assert explicit.output.splitlines()[-1] == NOTE
+    assert explicit.output == implicit.output
+    assert explicit.exit_code == implicit.exit_code
+
+
+def test_the_default_note_does_not_move_the_exit_code(
+    tmp_path, fake_bind_registry, no_exported_session
+) -> None:
+    """A note, never a failure: a citation the default ledger did show binds clean."""
+    resolved = token(fake_bind_registry)
+    fake_bind_registry.show("default", resolved)
+    doc = write(tmp_path, f"[Net operating income was 4,120,000]({resolved}).\n")
+    result = run(str(doc))
+    assert result.exit_code == 0, result.output
+    assert result.output.splitlines()[-1] == NOTE
+
+
+def test_backfill_judges_no_ledger_so_names_none(
+    tmp_path, fake_bind_registry, no_exported_session
+) -> None:
+    doc = write(tmp_path, "Net operating income was 4,120,000 last year.\n")
+    result = run(str(doc), "--mode", "backfill")
+    assert result.output.splitlines()[0] == "bound 1 claim(s), 0 citation(s) [backfill]"
+    assert NOTE not in result.output
+
+
+def test_json_prints_the_record_and_no_note(
+    tmp_path, fake_bind_registry, no_exported_session
+) -> None:
+    doc = write(tmp_path, f"[Net operating income was 4,120,000]({token(fake_bind_registry)}).\n")
+    result = run(str(doc), "--json")
+    assert json.loads(result.output)["session_id"] == "default"
 
 
 # --- --json: the record, for a caller that parses ---------------------------

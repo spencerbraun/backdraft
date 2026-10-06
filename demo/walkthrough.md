@@ -534,7 +534,7 @@ echo "exit: $?"
 ```
 
 ```
-bound 17 claim(s), 18 citation(s) [frontwalk]
+bound 17 claim(s), 18 citation(s) [frontwalk] against session s-bridgeview
   resolved: 17
   unresolved: 1
   overlap: pass 13, skip 4

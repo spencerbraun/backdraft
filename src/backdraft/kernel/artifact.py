@@ -27,6 +27,8 @@ __all__ = [
     "FORMAT",
     "VERIFY_FORMAT",
     "ISLAND_ID",
+    "DEFAULT_SESSION",
+    "DEFAULT_SESSION_MEANING",
     "LEGEND",
     "ARTIFACT_SUFFIX",
     "BOUND_SUFFIX",
@@ -62,6 +64,31 @@ artifact fixes it, and § Naming's argument applies unchanged). Kernel-owned for
 the same reason as the suffixes: the renderer writes it and the reader looks for
 it, and a constant kept on the writing side would be a reader importing a
 renderer to find out where to look.
+"""
+
+DEFAULT_SESSION = "default"
+"""The id of the session a run gets when it names none.
+
+Format rather than CLI vocabulary since the record started saying what it means:
+a `session_id` of `default` is a fact a recipient has to read differently, and a
+reader holding only the file has no other way to tell. `cli_context` resolves
+sessions to this id; `spec/registry.md` § sessions and `spec/artifact.md`'s
+`session_id` row name it.
+"""
+
+DEFAULT_SESSION_MEANING = (
+    "that session is the one every run in the producing registry shares unless "
+    "it names its own, so a `not_shown` means no run there had read the anchor, "
+    "and a `resolved` beside it may stand on any earlier run's reading rather "
+    "than this author's"
+)
+"""What a front-walk record bound in the default session means for its statuses.
+
+The reader's half of a cost the writer meets as `gate.reader.DEFAULT_SESSION_NOTE`:
+that note says what to do before binding, this says what to conclude from a record
+already bound. One wording, owned here because the legend carries it and the
+legend is this module's — `backdraft verify` prints the same string from the
+record alone, so the file and the check cannot describe the session differently.
 """
 
 # ---- the naming family ------------------------------------------------------
@@ -186,7 +213,9 @@ LEGEND: dict[str, Any] = {
         ),
         "not_shown": (
             "a real anchor, but it was never shown to the writer in the recorded "
-            "session: the claim cites something its author did not read"
+            "session: the claim cites something its author did not read. Judged only "
+            "in a front-walk run, and only as strong as `session_id`: where it is "
+            f"`{DEFAULT_SESSION}`, " + DEFAULT_SESSION_MEANING
         ),
         "unresolved": (
             "a well-formed token the sources do not stand behind. Either no anchor "

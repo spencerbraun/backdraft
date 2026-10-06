@@ -53,6 +53,8 @@ from ..cli_context import (
 )
 from ..kernel.artifact import (
     ARTIFACT_SUFFIX,
+    DEFAULT_SESSION,
+    DEFAULT_SESSION_MEANING,
     FOOTNOTES_SUFFIX,
     SIDECAR_SUFFIX,
     VERIFY_FORMAT,
@@ -390,6 +392,8 @@ def _print_verification(artifact: Path, checked: _Checked) -> None:
         f"{recount}"
     )
     typer.echo(f"  recorded: {_counts(summary['by_status'])}{_unmatched(checked.report)}")
+    if _in_default_session(checked.report):
+        typer.echo(f"  session: {DEFAULT_SESSION} — {DEFAULT_SESSION_MEANING}")
     if checked.root is None:
         typer.echo("  sources: no .backdraft/ found from here — not re-checked")
     else:
@@ -416,6 +420,18 @@ def _print_verification(artifact: Path, checked: _Checked) -> None:
         typer.echo(
             "[Re-check against the sources: run this inside the project it was bound in.]"
         )
+
+
+def _in_default_session(report: BindReport) -> bool:
+    """A front-walk record whose statuses were judged against the shared ledger.
+
+    Read off the record alone, so the first tier says it with no registry in
+    reach: the recipient holding only the file is exactly who cannot otherwise
+    learn that `default` weakens every `not_shown` and `resolved` in it. The
+    sentence is the legend's (`DEFAULT_SESSION_MEANING`), not a second wording.
+    Backfill judges nothing against a ledger, so it says nothing.
+    """
+    return report.mode == "frontwalk" and report.session_id == DEFAULT_SESSION
 
 
 def _verification(artifact: Path, checked: _Checked) -> dict[str, Any]:

@@ -98,7 +98,7 @@ snippets are the proof.
 | `$legend` | object | prose that teaches a reader to decode the payload. See *The legend* |
 | `doc_path` | string | the authored document this run bound, as bind was given it |
 | `mode` | `"frontwalk"` \| `"backfill"` | how the citations were produced |
-| `session_id` | string \| null | the ledger session, when the run had one |
+| `session_id` | string \| null | the ledger session, when the run had one. `default` names the session a run gets when it names none, which every such run in the producing registry shares: a front-walk `not_shown` judged against it means no run there had read the anchor, and a `resolved` may rest on any earlier run's reading rather than this author's |
 | `bound_at` | string | ISO-8601 UTC, as everywhere in backdraft |
 | `claims` | array | every claim, in document order |
 | `summary` | object | counts, derived from `claims` |
@@ -206,7 +206,7 @@ extensible into a protocol; it is documentation that travels with the data.
 | `how_to_read` | array of strings | how `claims`, `citations`, `anchor` and `summary` relate; that non-`resolved` statuses are kept failures; that `summary` is derived |
 | `token` | string | the token shape and the hash/normalization rule, so a reader can recompute it |
 | `locator_forms` | object | one example per locator form, each mapped to what it names |
-| `citation_status` | object | one entry per citation status, saying what the reader should conclude |
+| `citation_status` | object | one entry per citation status, saying what the reader should conclude; `not_shown`'s says what a `session_id` of `default` means for it |
 | `verdict_status` | object | one entry per verdict status |
 | `verdicts_are_evidence` | string | that methods are opt-in and absent means not-run, not pass |
 | `verify_this_record` | array of strings | the steps that check the record against itself, and the one check that needs the sources |
@@ -330,7 +330,10 @@ own location. It exits 0 when everything it checked passed, 1 when the file is
 not an artifact of this format or `--against` names no registry, and 2 when
 something did not verify. A record that carries a non-`resolved` citation still
 passes: what the producer found is data the record faithfully carries, not a
-defect in it.
+defect in it. A front-walk record whose `session_id` is `default` is said to be
+one, from the file alone and at any exit code, because that weakens every
+`not_shown` and `resolved` it carries and a reader holding only the file has no
+other way to learn it.
 
 ### The verify report
 

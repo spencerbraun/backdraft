@@ -45,7 +45,9 @@ single shared ledger that is never reset, so `not_shown` stops meaning "this
 draft's writer never saw this" and starts meaning "nothing in this folder has
 ever read it" — a citation you invented can come back `resolved` because some
 earlier run happened to read that page. `backdraft session show` says which
-session you are in and warns when it is the shared one.
+session you are in and warns when it is the shared one; `bind` names it on the
+report's first line (`against session <id>`) and closes with the same warning
+when it is `default` — if you see that, export your session and bind again.
 
 Name every source in one `ingest`; it attempts all of them. If one cannot be
 read the command exits 1 and prints `N of M sources ingested` followed by one
@@ -306,7 +308,7 @@ strays from older runs. `bind --lean` skips the page images when a small
 artifact matters more.
 
 ```
-bound 17 claim(s), 18 citation(s) [frontwalk]
+bound 17 claim(s), 18 citation(s) [frontwalk] against session s-bridgeview
   resolved: 17
   unresolved: 1
   ! unresolved: bd:t12-summary:p4.c1:1a2b — replacement reserve of $250 per unit per year @3629

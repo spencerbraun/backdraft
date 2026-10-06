@@ -26,7 +26,14 @@ from typer.testing import CliRunner
 
 from conftest_registry import PAGE_BREAK
 
-from backdraft.kernel.artifact import ISLAND_ID, VERIFY_FORMAT, sidecar as artifact_payload
+from backdraft.kernel.artifact import (
+    DEFAULT_SESSION,
+    DEFAULT_SESSION_MEANING,
+    ISLAND_ID,
+    LEGEND,
+    VERIFY_FORMAT,
+    sidecar as artifact_payload,
+)
 from backdraft.kernel.model import BindReport
 from backdraft.registry import Registry
 from backdraft.render import sidecar
@@ -927,3 +934,44 @@ def test_a_bare_json_value_is_not_a_payload(tmp_path: pathlib.Path) -> None:
     path.write_text("[1, 2, 3]", encoding="utf-8")
     with pytest.raises(ValueError, match="bare list"):
         sidecar.read_payload(path)
+
+
+# ---- the session the record was judged against -------------------------------
+#
+# A recipient holding only the file cannot otherwise learn that `default` weakens
+# every `not_shown` and `resolved` in it, so tier one says so from the record
+# alone — in the legend's own sentence, not a second wording.
+
+SESSION_LINE = f"  session: {DEFAULT_SESSION} — {DEFAULT_SESSION_MEANING}"
+
+
+def test_a_default_session_record_says_so_with_no_registry(record: pathlib.Path) -> None:
+    payload = _payload(record)
+    payload["session_id"] = DEFAULT_SESSION
+    result = runner.invoke(app, ["verify", str(_rewrite(record, payload))])
+    assert result.exit_code == 0, result.output
+    assert SESSION_LINE in result.output.splitlines()
+    assert "not re-checked" in result.output
+
+
+def test_a_named_session_record_prints_no_session_line(record: pathlib.Path) -> None:
+    assert _payload(record)["session_id"] != DEFAULT_SESSION
+    result = runner.invoke(app, ["verify", str(record)])
+    assert "  session:" not in result.output
+
+
+def test_a_default_session_backfill_record_prints_no_session_line(
+    tmp_path: pathlib.Path, backfill: BindReport
+) -> None:
+    """Backfill never judged `not_shown`, so the session costs it nothing."""
+    path = sidecar.write(backfill, tmp_path / "draft.backdraft.json")
+    payload = _payload(path)
+    payload["session_id"] = DEFAULT_SESSION
+    result = runner.invoke(app, ["verify", str(_rewrite(path, payload))])
+    assert "  session:" not in result.output
+
+
+def test_the_legend_says_what_a_default_session_means() -> None:
+    """The record travels and the CLI does not: the file itself carries it."""
+    assert DEFAULT_SESSION_MEANING in LEGEND["citation_status"]["not_shown"]
+    assert f"`{DEFAULT_SESSION}`" in LEGEND["citation_status"]["not_shown"]
