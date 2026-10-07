@@ -375,7 +375,9 @@ reason attached.
   can read what it said, but the source is no longer on offer here — do not
   re-ingest it to make the error go away. Find the fact in a source that is
   still ingested, or leave the claim uncited and tell the user which source was
-  withdrawn.
+  withdrawn. `backdraft ls --withdrawn` lists every source withdrawn here, with
+  its date, so you can tell the user what else went in one message rather than
+  discovering it one citation at a time.
 - `not_shown` — a real anchor you were never shown. `show` it (or read or search
   it) and re-bind: showing is minting, so that alone clears the status.
 - `drifted` — the source changed after you wrote. Run `backdraft locate

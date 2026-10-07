@@ -32,44 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. A withdrawn source is invisible, including to the person looking for it
-
-**Intent.** `forget` withdraws a source from every surface that offers one, which
-is right, and the result is that nothing lists what was withdrawn. `ls` says `no
-documents ingested` in a registry holding two withdrawn documents — true about
-sources, false about the registry, and the wording admits nothing. The three
-places a withdrawn document still appears are `session show`'s mark, the JSON
-export, and the unknown-slug error added 2026-09-04; none of them is where
-somebody looks. So an agent handed a project, meeting a citation that binds
-`unresolved — withdrawn from the registry on ...`, can learn that one source went
-and cannot learn what else did. The documented undo makes it worse: re-ingesting
-the file is the way back, and the path to re-ingest lives on the document, which
-is exactly what no surface will show once it is out of the list.
-
-**Shape.** `cli.list_documents`, off `documents(include_withdrawn=True)`, which
-already exists. Reuse `registry.withdrawn_reason` for the date and
-`gate.WITHDRAWN_HINT` for the way back — both are single owners and this must not
-mint a fourth wording for a withdrawal. The decision to make and write down is
-whether this is a flag on `ls` or a block printed under it when the registry has
-any: the objection to answer is that `ls` is the readable set, so anything that
-widens it must not make a withdrawn source look available — mark every row and
-never sort a withdrawn one among the live ones. The gate's own document list is
-out of scope and must not change: the gate serves sources, and a withdrawn source
-is not one. Hold the byte-identity rule the source-naming work established — a
-registry with nothing withdrawn prints exactly what it prints today, everywhere.
-
-**Acceptance.** In a registry with two documents, one withdrawn, `ls`'s default
-output is byte-identical to the same registry with only the live document — pin
-it. The withdrawn view names the slug, the date it went and the exact `backdraft
-ingest <path>` that brings it back, asserted against `WITHDRAWN_HINT` by
-constant. A registry where everything has been withdrawn no longer reports itself
-empty without qualification. `backdraft read` and the gate's list are unchanged,
-pinned. `README.md`'s "Forgetting a source", `site/docs.html`, `site/llms.txt`
-and `skills/backdraft/SKILL.md` say where to look. DESIGN row.
-
-**Size.** One day.
-
-### 2. `--slug` is dropped without a word when the document is already there
+### 1. `--slug` is dropped without a word when the document is already there
 
 **Intent.** `Registry.ingest`'s docstring says "`slug` is honoured only when the
 document is new — a slug is stable once assigned", which is the right rule and is
@@ -107,7 +70,7 @@ pass `--slug`. DESIGN row.
 
 **Size.** One day.
 
-### 3. `verify` cannot re-check the one status only the ledger can settle
+### 2. `verify` cannot re-check the one status only the ledger can settle
 
 **Intent.** `verify`'s source tier re-resolves every token and reports the
 statuses "as `bind` would", with one gap the code names out loud: `not_shown`
@@ -149,7 +112,7 @@ DESIGN row.
 
 **Size.** Two to three days.
 
-### 4. `bind` and `verify` name the failure and not the move
+### 3. `bind` and `verify` name the failure and not the move
 
 **Intent.** 2026-09-01 made `ingest`'s failures say what to do as well as what
 went wrong, on the argument that a calling agent reads the reason and acts on it.
@@ -190,7 +153,7 @@ verify blocks show the real output. DESIGN row.
 
 **Size.** Two days.
 
-### 5. A chunk the table of contents lists is a chunk no read can ask for
+### 4. A chunk the table of contents lists is a chunk no read can ask for
 
 **Intent.** Since 2026-09-07 `backdraft read <slug>` on a one-page source lists
 that page's chunks — `p1.c9  From Wikipedia, the free encyclopedia...` — and the
@@ -237,7 +200,7 @@ form.
 
 **Size.** Two days.
 
-### 6. A search hit's excerpt can leave out the words that matched
+### 5. A search hit's excerpt can leave out the words that matched
 
 **Intent.** `search` prints each hit's first 160 characters, and
 `gate.reader.excerpt`'s NOTE says so on purpose: the cut is from the start rather
@@ -278,7 +241,7 @@ matched, asserted by test. No `registry-v1` export field changes. SPEC § Gate's
 
 **Size.** Two days.
 
-### 7. A small table is marked a shell, and the skill says not to cite it
+### 6. A small table is marked a shell, and the skill says not to cite it
 
 **Intent.** The thin-source mark (2026-08-20, carried onto every list
 2026-09-09) is a character count under `THIN_SOURCE_CHARS`, and for prose that
@@ -319,7 +282,7 @@ mark means for a table. DESIGN row.
 
 **Size.** One day.
 
-### 8. `ingest --dry-run` names the source and not the run
+### 7. `ingest --dry-run` names the source and not the run
 
 **Intent.** The dry run (2026-09-10) answers what a source would be called, and
 `tests/test_dry_run.py` pins that the prediction equals the outcome — for the
@@ -367,7 +330,7 @@ row.
 
 **Size.** Two days.
 
-### 9. `session show` counts what was read and cannot say what was not
+### 8. `session show` counts what was read and cannot say what was not
 
 **Intent.** `session show` (2026-08-31) answers "have I read enough to write
 this yet?" with a count per document. Since the page-read budget (2026-09-08) a
@@ -411,7 +374,7 @@ ask it after a context loss rather than re-reading from the top. DESIGN row.
 
 **Size.** Two days.
 
-### 10. An artifact word-diffs a drifted citation against whatever now stands at its old address
+### 9. An artifact word-diffs a drifted citation against whatever now stands at its old address
 
 **Intent.** The artifact's drift block (`render/html/text.py`'s `_drift_block`)
 shows `as cited` and `now`, word-diffed with `<del>` and `<ins>`, where `now` is
@@ -463,7 +426,7 @@ DESIGN row.
 
 **Size.** Three days.
 
-### 11. `locate` leaves the fix to hand edits of tokens, which the skill forbids
+### 10. `locate` leaves the fix to hand edits of tokens, which the skill forbids
 
 **Intent.** `locate` prints `moved: <old> — now at <new>` and closes by telling
 the writer to put each moved token in place of the old one, while the writing
@@ -508,7 +471,7 @@ pins for the plain run. DESIGN row.
 
 **Size.** Two days.
 
-### 12. `locate` calls intact words `gone` when an insertion merged or split their chunk
+### 11. `locate` calls intact words `gone` when an insertion merged or split their chunk
 
 **Intent.** `locate` matches the cited snippet's hash exactly, and the 2026-09-17
 row named the price: "a chunk that an insertion under 200 characters merged into"
@@ -556,7 +519,7 @@ every existing `tests/test_locate.py` expectation is unchanged. SPEC Addendum B'
 
 **Size.** Two days.
 
-### 13. A draft outside its project is told there is no registry, about the wrong directory
+### 12. A draft outside its project is told there is no registry, about the wrong directory
 
 **Intent.** `bind` and `locate` find the registry from the document's directory
 (SPEC § CLI), and when that walk finds nothing `cli_context.open_registry`
@@ -595,7 +558,7 @@ must live under its project or name it with `BACKDRAFT_HOME`. DESIGN row.
 
 **Size.** One day.
 
-### 14. After a re-ingest, nothing says which drafts cite the source that moved
+### 13. After a re-ingest, nothing says which drafts cite the source that moved
 
 **Intent.** `ingest`'s new-generation note says citations "may now report
 `drifted`", that `bind` on a document citing the source says which, and names

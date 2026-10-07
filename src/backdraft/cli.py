@@ -1142,7 +1142,16 @@ def clean(
 
 
 @app.command("ls")
-def list_documents() -> None:
+def list_documents(
+    withdrawn: Annotated[
+        bool,
+        typer.Option(
+            "--withdrawn",
+            help="List the sources `forget` withdrew instead, each with its date "
+            "and the ingest that brings it back.",
+        ),
+    ] = False,
+) -> None:
     """List the ingested documents: slug, name, media type, page count.
 
     The name is the filename, or — for a source fetched from the web — the URL
@@ -1150,14 +1159,30 @@ def list_documents() -> None:
     it. A source that extracted almost nothing — a login wall, a scan with no
     text layer — closes its row with `little text: N chars`; read it before
     citing it. A registry of ordinary files prints what it always did.
+
+    A withdrawn source is not on offer, so it is not listed here. `--withdrawn`
+    lists those instead, each row closing with the date it went and the
+    `backdraft ingest` that brings it back.
     """
     # The name is `kernel.model.source_name`'s, shared with `ingest` and the gate's
     # own list. Out of the docstring on purpose: typer prints this one to a user,
     # and a module path is a pointer into code they are not reading.
     with opened_registry() as registry:
+        if withdrawn:
+            _list_withdrawn(registry)
+            return
         documents = registry.documents()
         if not documents:
-            typer.echo("no documents ingested")
+            # Only an empty readable set reaches here, so the qualification costs
+            # nothing anywhere else: a registry with something on offer prints its
+            # rows and not a word about what was withdrawn beside them.
+            gone = _withdrawn_documents(registry)
+            typer.echo(
+                f"no documents on offer: {len(gone)} withdrawn "
+                "(`backdraft ls --withdrawn` lists them)"
+                if gone
+                else "no documents ingested"
+            )
             return
         for document in documents:
             pages = registry.pages(document.slug)
@@ -1170,6 +1195,36 @@ def list_documents() -> None:
                 f"{document.slug}\t{source_name(document)}\t{document.media_type}\t"
                 f"{len(pages)} {unit(pages)}" + (f"\t{mark}" if mark else "")
             )
+
+
+def _withdrawn_documents(registry: Registry) -> list[Document]:
+    """The documents `forget` withdrew, oldest first; `documents()` leaves them out."""
+    return [d for d in registry.documents(include_withdrawn=True) if d.withdrawn_at]
+
+
+def _list_withdrawn(registry: Registry) -> None:
+    """`ls --withdrawn`: the rows `ls` leaves out, never mixed in with its own.
+
+    A view of its own rather than marked rows sorted among the live ones,
+    because `ls` is the readable set and a withdrawn row beside a live one is a
+    row that looks available. Each closes with the two things a caller holding
+    a `withdrawn` citation needs and no other surface lists: when it went, in
+    `withdrawn_reason`'s words, and the way back, in `WITHDRAWN_HINT`'s — the
+    path to re-ingest lives on the document, which is exactly what drops out of
+    every list once it is withdrawn. No `little text` mark: that one advises a
+    citation, and nothing here is on offer to cite.
+    """
+    gone = _withdrawn_documents(registry)
+    if not gone:
+        typer.echo("nothing withdrawn")
+        return
+    for document in gone:
+        pages = registry.pages(document.slug)
+        typer.echo(
+            f"{document.slug}\t{source_name(document)}\t{document.media_type}\t"
+            f"{len(pages)} {unit(pages)}\t{withdrawn_reason(document)}\t"
+            + WITHDRAWN_HINT.format(path=document.path)
+        )
 
 
 @app.command()

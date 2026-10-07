@@ -22,7 +22,14 @@ import pytest
 from typer.testing import CliRunner
 
 from backdraft import cli
-from backdraft.registry import GENERATION, Registry, RegistryError, UNCHANGED
+from backdraft.gate import WITHDRAWN_HINT
+from backdraft.registry import (
+    GENERATION,
+    Registry,
+    RegistryError,
+    UNCHANGED,
+    withdrawn_reason,
+)
 
 runner = CliRunner()
 
@@ -413,6 +420,85 @@ def test_snapshot_pages_names_the_known_slugs_the_same_way(two: Path) -> None:
     assert "no document with slug 'nope'" in result.stderr
     assert "scratch (withdrawn)" in result.stderr
     assert "quarterly-notes" in result.stderr
+
+
+def _solo(tmp_path: Path, note: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A second project holding only the live document, cwd moved into it."""
+    solo = tmp_path / "solo"
+    solo.mkdir()
+    monkeypatch.chdir(solo)
+    runner.invoke(cli.app, ["init"])
+    assert _run("ingest", str(note)).exit_code == 0
+    return solo
+
+
+def test_ls_prints_a_withdrawal_beside_live_sources_as_if_it_never_happened(
+    two: Path, note: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The byte-identity rule: `ls` is the readable set, and a registry with a
+    withdrawn source beside a live one prints exactly what a registry of the
+    live one alone prints — no block, no footer, no count."""
+    _forget()
+    mixed = _run("ls")
+    gate_mixed = _run("read")
+    _solo(two, note, monkeypatch)
+    alone = _run("ls")
+    assert mixed.exit_code == alone.exit_code == 0
+    assert mixed.stdout == alone.stdout
+    # The gate's own list serves sources, and a withdrawn source is not one.
+    assert gate_mixed.stdout == _run("read").stdout
+
+
+def test_ls_withdrawn_names_the_date_and_the_way_back(two: Path) -> None:
+    """Where the slug, the date and the re-ingest path are listed at all."""
+    _forget()
+    with Registry.open(two) as registry:
+        gone = registry.document("scratch")
+    assert gone is not None
+    result = _run("ls", "--withdrawn")
+    assert result.exit_code == 0, result.output
+    rows = result.stdout.splitlines()
+    assert len(rows) == 1
+    fields = rows[0].split("\t")
+    assert fields[0] == "scratch" and fields[1] == "scratch.md"
+    assert fields[-2] == withdrawn_reason(gone)
+    assert fields[-1] == WITHDRAWN_HINT.format(path=gone.path)
+    # The live document is never listed among the withdrawn ones.
+    assert "quarterly-notes" not in result.stdout
+
+
+def test_ls_withdrawn_with_nothing_withdrawn_says_so(two: Path) -> None:
+    result = _run("ls", "--withdrawn")
+    assert result.exit_code == 0
+    assert result.stdout == "nothing withdrawn\n"
+
+
+def test_a_registry_of_nothing_but_withdrawals_does_not_list_itself_empty(
+    two: Path,
+) -> None:
+    """Two documents in here, both withdrawn: `ls` said `no documents
+    ingested`, true of sources and false of the registry."""
+    _forget()
+    _forget("quarterly-notes")
+    result = _run("ls")
+    assert result.exit_code == 0
+    assert "no documents ingested" not in result.stdout
+    assert "2 withdrawn" in result.stdout and "ls --withdrawn" in result.stdout
+    assert len(_run("ls", "--withdrawn").stdout.splitlines()) == 2
+
+
+def test_an_empty_registry_still_says_nothing_is_ingested(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    runner.invoke(cli.app, ["init"])
+    assert _run("ls").stdout == "no documents ingested\n"
+
+
+def test_a_re_ingested_source_leaves_the_withdrawn_list(two: Path, scratch: Path) -> None:
+    _forget()
+    assert _run("ingest", str(scratch)).exit_code == 0
+    assert _run("ls", "--withdrawn").stdout == "nothing withdrawn\n"
 
 
 def test_forgetting_twice_keeps_the_first_date_and_is_not_a_failure(two: Path) -> None:

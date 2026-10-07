@@ -218,7 +218,7 @@ CREATE VIRTUAL TABLE search USING fts5(snippet, token UNINDEXED, slug UNINDEXED,
 
 Anchor creation is **eager at ingest** for chunks and cells-with-content (they're cheap rows and make search/read/bind all hit the same table) — but this is an implementation choice inside `Registry`, not a contract; the contract is that any token the gate ever emitted resolves.
 
-Withdrawal semantics (`forget`): a row in `withdrawals` takes its document out of the registry's *readable* set — `documents()`, and therefore `ls`, the gate's list, its table of contents, page reads and `search` — and takes nothing away. Rows are never deleted: `resolve` still finds every anchor, `document(slug)` still answers, and `citation_for` reports such a token `unresolved` carrying the reason, reusing the closed status set rather than widening the artifact format. Ingesting the source again deletes the row, restoring the same document under the same slug; `Ingested.restored` says so, independently of which of the three outcomes the run had.
+Withdrawal semantics (`forget`): a row in `withdrawals` takes its document out of the registry's *readable* set — `documents()`, and therefore `ls`, the gate's list, its table of contents, page reads and `search` — and takes nothing away. Rows are never deleted: `resolve` still finds every anchor, `document(slug)` still answers, and `citation_for` reports such a token `unresolved` carrying the reason, reusing the closed status set rather than widening the artifact format. Ingesting the source again deletes the row, restoring the same document under the same slug; `Ingested.restored` says so, independently of which of the three outcomes the run had. `ls --withdrawn` is the one listing of the withdrawn set — off `documents(include_withdrawn=True)`, each row closing with `withdrawn_reason` and `WITHDRAWN_HINT` rather than a wording of its own — and default `ls` stays the readable set, byte-identical to a registry that never held the withdrawn documents unless nothing at all is on offer, where it says how many were withdrawn instead of `no documents ingested`.
 
 Re-ingest semantics (the drift contract):
 1. New extraction row; old one keeps its anchors.
@@ -310,6 +310,8 @@ backdraft ingest <sources...> [--extractor auto] [--slug S] [--config k=v] [--dr
                                     # --dry-run: the slug and media type each source
                                     # would take, fetching and writing nothing
 backdraft forget <slug> [--yes]      # withdraw a source; citations keep resolving
+backdraft ls [--withdrawn]          # --withdrawn: what forget took out, its date,
+                                    # and the ingest that brings it back
 backdraft ls | backdraft read ...   # gate, above
 backdraft search "<query>" [--in slug] [--limit N]
                                     # a run `--limit` cut says how many matched and

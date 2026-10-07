@@ -460,6 +460,19 @@ slug, not a second one beside it, so every token it ever minted resolves again.
 The price of never actually removing anything is that a registry only grows; a
 corpus you must be able to shrink is a new registry, not a `forget`.
 
+`ls` lists what is on offer, so a withdrawn source leaves it too, and a registry
+with nothing withdrawn prints exactly what it always did. `ls --withdrawn` is
+where the rest are listed — each with the date it went and the ingest that
+brings it back, which is the one place that path is still written down:
+
+```console
+$ backdraft ls --withdrawn
+scratch-copy	scratch-copy.md	text	1 page	withdrawn from the registry on 2026-10-07T13:03:11.922792Z	Re-ingest it to bring it back: backdraft ingest scratch-copy.md
+```
+
+A registry whose every source has been withdrawn says so — `no documents on
+offer: 2 withdrawn` — rather than calling itself empty.
+
 ## What lives where
 
 A working directory stays clean: the authored document and its artifact are

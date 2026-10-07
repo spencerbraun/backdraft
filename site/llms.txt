@@ -126,6 +126,8 @@ backdraft forget <slug> --yes               # a source ingest should not have
                                             # receipts. Ingesting the file
                                             # again brings it back. Ask the
                                             # user before running it.
+backdraft ls --withdrawn                    # what was withdrawn, when, and the
+                                            # ingest that brings each back
 backdraft session start --id s-<name>       # do this. Without it every run in
 export BACKDRAFT_SESSION=s-<name>           # the project shares one ledger that
                                             # is never reset, so not_shown drops
@@ -236,7 +238,8 @@ error, or a source somebody withdrew. Statuses:
 unresolved (token names nothing: search, fix, re-bind, or state "not supported
 by the ingested sources" — but if the reason says the source was *withdrawn*,
 it was taken out of the registry on purpose: do not re-ingest it to make the
-error go away, ask the user, and until then treat the claim as uncited),
+error go away, ask the user, and until then treat the claim as uncited;
+`backdraft ls --withdrawn` lists every source withdrawn and when),
 not_shown (real anchor you were never shown: read
 it, re-bind), drifted (source changed: `backdraft locate <doc.md>` first,
 since a moved paragraph is not a changed one; otherwise re-read, confirm),
