@@ -136,8 +136,13 @@ You do not have to guess which case you are in: `backdraft ingest <url>
 fetching nothing and writing nothing, so ask it first and pass `--slug` when
 the answer names the site rather than the page. It also tells you when the
 source is already ingested — under which slug, and that `--slug` would not
-rename it — and when the name it wants is taken by another document. Quote the
-URL in the shell — `&` in a query string backgrounds the command otherwise.
+rename it — and when the name it wants is taken by another document. Choose
+before the first ingest, because there is no second chance: `--slug` on a
+source already ingested is not applied (the line says `--slug not applied`, and
+a note names the slug the document keeps — cite it by that one), and `forget`
+followed by a re-ingest brings the same document back under the same slug.
+Quote the URL in the shell — `&` in a query string backgrounds the command
+otherwise.
 
 Ingest also stores each PDF page's image — both paths, since the text-layer
 path renders the pages locally through poppler — so the artifact can show the

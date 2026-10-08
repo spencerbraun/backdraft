@@ -469,6 +469,20 @@ def test_a_slug_can_be_given_to_a_fetched_page(project: Path, serve) -> None:
     assert _document(project, "bridgeview-web")["meta"]["url"] == f"{base}/q4"
 
 
+def test_a_refetch_with_a_new_slug_says_it_was_not_applied(project: Path, serve) -> None:
+    """The fallback slug is what a late `--slug` is trying to replace, and it cannot."""
+    base = serve(_page_routes())
+    runner.invoke(cli.app, ["ingest", f"{base}/q4"])
+    result = runner.invoke(cli.app, ["ingest", f"{base}/q4", "--slug", "bridgeview-web"])
+    assert result.exit_code == 0, result.output
+    assert "unchanged  --slug not applied" in result.stdout
+    assert (
+        f"--slug bridgeview-web not applied — {base}/q4 is already in the registry as q4"
+        in result.stdout
+    )
+    assert _slugs(project) == ["q4"]
+
+
 # ---- files and URLs in one run ----------------------------------------------
 
 

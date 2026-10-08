@@ -32,45 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. `--slug` is dropped without a word when the document is already there
-
-**Intent.** `Registry.ingest`'s docstring says "`slug` is honoured only when the
-document is new — a slug is stable once assigned", which is the right rule and is
-stated nowhere a caller reads. `backdraft ingest report.pdf --slug q4-report`
-against a `report.pdf` already in the registry prints the old slug, exits 0, and
-never mentions that the flag did nothing; the same is true of a URL re-fetch,
-where the fallback slug the docs warn about is exactly what the caller was trying
-to replace. This is the one input `ingest` accepts and does not report on, in the
-week it learned to report everything else it did — `unchanged`, `new generation`,
-`restored`, thin extractions, and every source that never landed. It is not
-`ingest --dry-run`, which predicts what a source would be called *before* the
-ingest and already says there that `--slug` would not rename a document that has
-one; this is the ingest itself saying what it did with the flag it was handed.
-
-**Shape.** `cli.ingest`, in the shape `_outcome_note` and the grouped notes
-already use — a mark on the source's line or one grouped note, matching how
-`restored` was added rather than inventing a third reporting shape. No schema
-change and no registry change: the CLI holds the requested slug and the returned
-`Ingested` carries the assigned one, so the comparison is a string equality in
-the layer that already owns the reporting. Say the next step, which fd8d00f made
-the rule for this command: the slug is permanent because every token carries it,
-so the honest options are keep it, or `forget` the document and ingest the file
-under the new slug as a *new* document — which strands every token minted under
-the old one, and the note must name that cost rather than recommending it. Exit 0
-throughout: getting back the document you already had is not a failure.
-
-**Acceptance.** Ingest a file, then ingest it again with `--slug something-else`:
-the run says the slug was not applied, names the slug the document actually has,
-names what re-slugging would cost, and exits 0. Same for a URL re-fetched with a
-`--slug` it did not have the first time. A `--slug` on a genuinely new document,
-and every ingest with no `--slug` at all, is byte-identical to today — pin both,
-including `demo/`'s three sources. `README.md`, `site/llms.txt` and
-`skills/backdraft/SKILL.md` say a slug is permanent where they currently say to
-pass `--slug`. DESIGN row.
-
-**Size.** One day.
-
-### 2. `verify` cannot re-check the one status only the ledger can settle
+### 1. `verify` cannot re-check the one status only the ledger can settle
 
 **Intent.** `verify`'s source tier re-resolves every token and reports the
 statuses "as `bind` would", with one gap the code names out loud: `not_shown`
@@ -112,7 +74,7 @@ DESIGN row.
 
 **Size.** Two to three days.
 
-### 3. `bind` and `verify` name the failure and not the move
+### 2. `bind` and `verify` name the failure and not the move
 
 **Intent.** 2026-09-01 made `ingest`'s failures say what to do as well as what
 went wrong, on the argument that a calling agent reads the reason and acts on it.
@@ -153,7 +115,7 @@ verify blocks show the real output. DESIGN row.
 
 **Size.** Two days.
 
-### 4. A chunk the table of contents lists is a chunk no read can ask for
+### 3. A chunk the table of contents lists is a chunk no read can ask for
 
 **Intent.** Since 2026-09-07 `backdraft read <slug>` on a one-page source lists
 that page's chunks — `p1.c9  From Wikipedia, the free encyclopedia...` — and the
@@ -200,7 +162,7 @@ form.
 
 **Size.** Two days.
 
-### 5. A search hit's excerpt can leave out the words that matched
+### 4. A search hit's excerpt can leave out the words that matched
 
 **Intent.** `search` prints each hit's first 160 characters, and
 `gate.reader.excerpt`'s NOTE says so on purpose: the cut is from the start rather
@@ -241,7 +203,7 @@ matched, asserted by test. No `registry-v1` export field changes. SPEC § Gate's
 
 **Size.** Two days.
 
-### 6. A small table is marked a shell, and the skill says not to cite it
+### 5. A small table is marked a shell, and the skill says not to cite it
 
 **Intent.** The thin-source mark (2026-08-20, carried onto every list
 2026-09-09) is a character count under `THIN_SOURCE_CHARS`, and for prose that
@@ -282,7 +244,7 @@ mark means for a table. DESIGN row.
 
 **Size.** One day.
 
-### 7. `ingest --dry-run` names the source and not the run
+### 6. `ingest --dry-run` names the source and not the run
 
 **Intent.** The dry run (2026-09-10) answers what a source would be called, and
 `tests/test_dry_run.py` pins that the prediction equals the outcome — for the
@@ -330,7 +292,7 @@ row.
 
 **Size.** Two days.
 
-### 8. `session show` counts what was read and cannot say what was not
+### 7. `session show` counts what was read and cannot say what was not
 
 **Intent.** `session show` (2026-08-31) answers "have I read enough to write
 this yet?" with a count per document. Since the page-read budget (2026-09-08) a
@@ -374,7 +336,7 @@ ask it after a context loss rather than re-reading from the top. DESIGN row.
 
 **Size.** Two days.
 
-### 9. An artifact word-diffs a drifted citation against whatever now stands at its old address
+### 8. An artifact word-diffs a drifted citation against whatever now stands at its old address
 
 **Intent.** The artifact's drift block (`render/html/text.py`'s `_drift_block`)
 shows `as cited` and `now`, word-diffed with `<del>` and `<ins>`, where `now` is
@@ -426,7 +388,7 @@ DESIGN row.
 
 **Size.** Three days.
 
-### 10. `locate` leaves the fix to hand edits of tokens, which the skill forbids
+### 9. `locate` leaves the fix to hand edits of tokens, which the skill forbids
 
 **Intent.** `locate` prints `moved: <old> — now at <new>` and closes by telling
 the writer to put each moved token in place of the old one, while the writing
@@ -471,7 +433,7 @@ pins for the plain run. DESIGN row.
 
 **Size.** Two days.
 
-### 11. `locate` calls intact words `gone` when an insertion merged or split their chunk
+### 10. `locate` calls intact words `gone` when an insertion merged or split their chunk
 
 **Intent.** `locate` matches the cited snippet's hash exactly, and the 2026-09-17
 row named the price: "a chunk that an insertion under 200 characters merged into"
@@ -519,7 +481,7 @@ every existing `tests/test_locate.py` expectation is unchanged. SPEC Addendum B'
 
 **Size.** Two days.
 
-### 12. A draft outside its project is told there is no registry, about the wrong directory
+### 11. A draft outside its project is told there is no registry, about the wrong directory
 
 **Intent.** `bind` and `locate` find the registry from the document's directory
 (SPEC § CLI), and when that walk finds nothing `cli_context.open_registry`
@@ -558,7 +520,7 @@ must live under its project or name it with `BACKDRAFT_HOME`. DESIGN row.
 
 **Size.** One day.
 
-### 13. After a re-ingest, nothing says which drafts cite the source that moved
+### 12. After a re-ingest, nothing says which drafts cite the source that moved
 
 **Intent.** `ingest`'s new-generation note says citations "may now report
 `drifted`", that `bind` on a document citing the source says which, and names

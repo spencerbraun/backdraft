@@ -309,6 +309,8 @@ backdraft ingest <sources...> [--extractor auto] [--slug S] [--config k=v] [--dr
                                     # a source is a path or an http(s) URL
                                     # --dry-run: the slug and media type each source
                                     # would take, fetching and writing nothing
+                                    # --slug names a new document only; on one already
+                                    # ingested the line says `--slug not applied`
 backdraft forget <slug> [--yes]      # withdraw a source; citations keep resolving
 backdraft ls [--withdrawn]          # --withdrawn: what forget took out, its date,
                                     # and the ingest that brings it back

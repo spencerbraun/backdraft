@@ -362,7 +362,14 @@ def ingest(
         ),
     ] = "auto",
     slug: Annotated[
-        str | None, typer.Option("--slug", help="Slug for a new document. One source only.")
+        str | None,
+        typer.Option(
+            "--slug",
+            help=(
+                "Slug for a new document. One source only. A document already "
+                "ingested keeps the slug it has."
+            ),
+        ),
     ] = None,
     config: Annotated[
         list[str] | None,
@@ -410,6 +417,11 @@ def ingest(
     text came out of gets a note naming the likely cause, at exit 0: a thin
     snapshot is still a real one.
 
+    `--slug` names a new document and nothing else. A source already in the
+    registry keeps the slug it was given, because every token written against
+    it carries that slug; its line says `--slug not applied` and a note names
+    the slug to cite it by, at exit 0.
+
     `--dry-run` answers what each source would be *called* and stops there: the
     slug and the media type, nothing fetched, nothing written, no anchor minted.
     A slug is permanent once a token carries it, so this is how to see the
@@ -431,6 +443,7 @@ def ingest(
     thin: dict[str, list[str]] = {}  # why it came back thin -> which documents
     regenerated: list[str] = []  # documents that gained a generation this run
     restored: list[str] = []  # documents that had been withdrawn and are back
+    kept: list[tuple[str, str]] = []  # which source -> the slug `--slug` did not replace
     unread: list[tuple[str, str]] = []  # which source -> why it never landed
     with guard():
         if slug is not None and len(sources) > 1:
@@ -461,11 +474,19 @@ def ingest(
                         # worth citing. `chars` for sheets too — this is the
                         # extraction's volume, not a window into it.
                         chars = extracted_chars(pages)
+                        # `--slug` is honoured only for a new document, and the
+                        # registry says which slug it assigned rather than whether
+                        # it took the one asked for — so the comparison is here,
+                        # in the layer that owns the reporting.
+                        unapplied = slug is not None and slug != document.slug
                         typer.echo(
                             f"{document.slug}  {source_name(document)}  "
                             f"{document.media_type}  {len(pages)} {unit(pages)}  "
                             f"{chars} chars{_outcome_note(document)}"
+                            + ("  --slug not applied" if unapplied else "")
                         )
+                        if unapplied:
+                            kept.append((source_name(document), document.slug))
                         if document.outcome == GENERATION:
                             regenerated.append(document.slug)
                         if document.restored:
@@ -534,6 +555,21 @@ def ingest(
             "forget`, and ingesting the source again is the undo. Back in "
             "`backdraft read`, `search` and `ls`, with citations into them "
             "resolving again. Forget again if that was not the intent."
+        )
+    for name, kept_slug in kept:
+        # One source at most — `--slug` names one — so this is a single line,
+        # last among the notes on what landed because it is about the one input
+        # the run was handed and did not use. It names the cost of a rename
+        # rather than a route to one, because there is none: identity is the
+        # bytes and then the origin, never the slug, so `forget` followed by a
+        # re-ingest brings this same document back under this same slug.
+        typer.echo(
+            f"note: --slug {slug} not applied — {name} is already in the registry "
+            f"as {kept_slug}, and a slug is fixed once assigned. Every token "
+            f"written against the source carries {kept_slug}, so a rename would "
+            "strand each one, and nothing renames a document: not `--slug`, and "
+            "not `backdraft forget` then a re-ingest, which brings the same "
+            f"document back under the same slug. Cite it as {kept_slug}."
         )
     if regenerated:
         # The one line here that is about work already done: a new generation is

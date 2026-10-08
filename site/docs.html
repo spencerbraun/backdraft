@@ -190,8 +190,10 @@ page, and a slug is permanent once tokens carry it. Ask before you commit:
 <code>backdraft ingest &lt;source&gt; --dry-run</code> prints the slug and media
 type each source would take and stops there — nothing fetched, nothing written,
 no anchor minted — and says when a source is already ingested or when the name
-it wants is taken. The slug comes from the address alone, so the dry run
-settles it; a media type comes from the content type the server sends, so for a
+it wants is taken. Permanent is literal: <code>--slug</code> on a source already
+ingested is reported as <code>--slug not applied</code> with the slug it keeps,
+and <code>forget</code> then a re-ingest brings the same slug back. The slug
+comes from the address alone, so the dry run settles it; a media type comes from the content type the server sends, so for a
 URL it stays the address's implication until the fetch. The
 <a href="demo.html">demo</a> cites a Wikipedia article this way.</p>
 <p>What this does not do, said plainly rather than worked around:

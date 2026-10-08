@@ -65,7 +65,10 @@ than a page, so the host stands in — and a slug is permanent once tokens carry
 it. `backdraft ingest <source> --dry-run` is how to see that before choosing:
 it prints the slug and media type each source would take and stops, fetching
 nothing and writing nothing, and it says when a source is already ingested or
-when the name it wants is taken.
+when the name it wants is taken. Permanent means `--slug` only ever names a new
+document: on a source already ingested the line says `--slug not applied` and a
+note names the slug it keeps — and `forget` then a re-ingest brings back that
+same slug rather than a new one, since identity is the bytes, not the name.
 
 Every ingest line ends with how much text came out, and says which of three
 things happened: a document created, a **new generation** of one whose bytes

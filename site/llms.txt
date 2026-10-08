@@ -76,10 +76,13 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # the slug and media type each source would take and stops there — nothing
 # fetched, nothing written, no anchor minted — so ask it before you commit to a
 # name rather than after: it also says when a source is already ingested (and
-# under which slug) and when the name it wants is taken. A slug comes from the
-# address alone, so the dry run settles it; a media type comes from the content
-# type the server sends, so for a URL it is the address's implication until the
-# fetch. JavaScript-rendered pages and anything
+# under which slug) and when the name it wants is taken. --slug only names a new
+# document: on one already ingested the line ends `--slug not applied` and a
+# note names the slug it keeps — cite it by that one. Nothing renames a
+# document, `forget` then a re-ingest included: it comes back under the old
+# slug. A slug comes from the address alone, so the dry run settles it; a media
+# type comes from the content type the server sends, so for a URL it is the
+# address's implication until the fetch. JavaScript-rendered pages and anything
 # behind a login are out of reach — you get what a plain GET returns. No
 # boilerplate stripping: nav and footers are part of the page.
 # Each ingest line ends with the extracted character count and what happened:

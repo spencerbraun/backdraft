@@ -224,6 +224,71 @@ def test_ingest_accepts_an_explicit_slug(project: Path, note: Path) -> None:
     assert "t12-audit" in result.stdout
 
 
+def test_a_slug_on_a_document_already_ingested_says_it_was_not_applied(
+    project: Path, note: Path
+) -> None:
+    """`--slug` is honoured only for a new document; saying nothing let a caller
+    believe the document had been renamed."""
+    runner.invoke(cli.app, ["ingest", str(note)])
+    result = runner.invoke(cli.app, ["ingest", str(note), "--slug", "q4-report"])
+    assert result.exit_code == 0, result.output
+    line, *notes = result.stdout.splitlines()
+    assert line.startswith("quarterly-notes  ")
+    assert line.endswith("unchanged  --slug not applied")
+    (kept,) = [n for n in notes if "--slug q4-report not applied" in n]
+    assert "already in the registry as quarterly-notes" in kept
+    assert "a rename would strand each one" in kept
+    assert "Cite it as quarterly-notes." in kept
+    with Registry.open(project) as registry:
+        assert [d.slug for d in registry.documents()] == ["quarterly-notes"]
+
+
+def test_the_slug_a_document_already_has_is_not_reported_as_refused(
+    project: Path, note: Path
+) -> None:
+    runner.invoke(cli.app, ["ingest", str(note), "--slug", "t12-audit"])
+    result = runner.invoke(cli.app, ["ingest", str(note), "--slug", "t12-audit"])
+    assert result.exit_code == 0
+    assert "not applied" not in result.stdout
+
+
+def test_an_edited_source_keeps_its_slug_and_says_both_things(
+    project: Path, note: Path
+) -> None:
+    runner.invoke(cli.app, ["ingest", str(note)])
+    note.write_text(note.read_text(encoding="utf-8") + "\nOne more line.\n", encoding="utf-8")
+    result = runner.invoke(cli.app, ["ingest", str(note), "--slug", "renamed"])
+    assert result.exit_code == 0, result.output
+    assert "new generation  --slug not applied" in result.stdout
+    assert "--slug renamed not applied" in result.stdout
+
+
+def test_forget_then_ingest_is_not_a_rename(project: Path, note: Path) -> None:
+    """The note says a re-ingest after `forget` brings the same slug back. Pinned,
+    because it is the advice a caller would otherwise try."""
+    runner.invoke(cli.app, ["ingest", str(note)])
+    runner.invoke(cli.app, ["forget", "quarterly-notes", "--yes"])
+    result = runner.invoke(cli.app, ["ingest", str(note), "--slug", "renamed"])
+    assert result.exit_code == 0, result.output
+    assert "restored  --slug not applied" in result.stdout
+    assert "--slug renamed not applied" in result.stdout
+    with Registry.open(project) as registry:
+        assert [d.slug for d in registry.documents()] == ["quarterly-notes"]
+
+
+def test_ingest_lines_without_a_refused_slug_are_unchanged(
+    project: Path, note: Path
+) -> None:
+    """A `--slug` on a new document, and an ingest without one, print exactly the
+    output they printed before the refused-slug report existed."""
+    first = runner.invoke(cli.app, ["ingest", str(note), "--slug", "t12-audit"])
+    assert re.fullmatch(
+        r"t12-audit  quarterly-notes\.md  text  1 page  \d+ chars\n", first.stdout
+    )
+    again = runner.invoke(cli.app, ["ingest", str(note)])
+    assert again.stdout == first.stdout.replace(" chars\n", " chars  unchanged\n")
+
+
 def test_a_slug_with_several_files_is_a_usage_error(project: Path, note: Path) -> None:
     result = runner.invoke(cli.app, ["ingest", str(note), str(note), "--slug", "x"])
     assert result.exit_code == cli.EXIT_USAGE
