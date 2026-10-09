@@ -433,11 +433,26 @@ class Registry:
         root = Path(root)
         directory = root / DIRECTORY
         directory.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(directory / DATABASE)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        with connection:
-            connection.executescript(_SCHEMA.read_text(encoding="utf-8"))
+        path = directory / DATABASE
+        connection = None
+        try:
+            connection = sqlite3.connect(path)
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA foreign_keys = ON")
+            with connection:
+                connection.executescript(_SCHEMA.read_text(encoding="utf-8"))
+        except sqlite3.DatabaseError as error:
+            # A damaged or foreign file reached every verb as a traceback, and
+            # `doctor`, whose answer is never a failure, crashed on it too. As a
+            # `RegistryError` it is one exit-1 line through the CLI's guard, and
+            # nothing is repaired or replaced: the bytes may be all there is.
+            if connection is not None:
+                connection.close()
+            raise RegistryError(
+                f"{path} is not a registry backdraft can read ({error}). Nothing "
+                "was changed; restore it from a copy, or `backdraft init` an empty "
+                "registry in another directory."
+            ) from error
         return cls(root, connection)
 
     def close(self) -> None:

@@ -106,6 +106,22 @@ def test_a_named_directory_with_no_registry_is_refused_not_discovered_past(
 # ---- the authored document --------------------------------------------------
 
 
+def test_a_damaged_registry_is_one_exit_1_line_and_is_left_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A foreign file where the database belongs reached every verb as a traceback."""
+    monkeypatch.chdir(tmp_path)
+    runner.invoke(cli.app, ["init"])
+    database = tmp_path / DIRECTORY / "registry.db"
+    database.write_bytes(b"not a database, " * 64)
+    result = runner.invoke(cli.app, ["ls"])
+    assert result.exit_code == 1
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+    assert "is not a registry backdraft can read" in result.output
+    assert "Nothing was changed" in result.output
+    assert database.read_bytes() == b"not a database, " * 64
+
+
 def test_an_authored_document_that_is_not_utf8_is_a_usage_error_naming_it(
     tmp_path: Path,
 ) -> None:

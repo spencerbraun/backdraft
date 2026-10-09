@@ -205,6 +205,19 @@ def test_a_home_override_naming_an_empty_directory_is_reported_not_created(
     assert not (tmp_path / DIRECTORY).exists()
 
 
+def test_a_damaged_registry_is_a_gap_in_the_registrys_own_words(
+    project: Path, everything_else_ready: None
+) -> None:
+    database = project / DIRECTORY / "registry.db"
+    database.write_bytes(b"not a database, " * 64)
+    result = runner.invoke(cli.app, ["doctor"])
+    assert result.exit_code == 0, result.output
+    line = _line(result.output, "registry")
+    assert "missing" in line and "is not a registry backdraft can read" in line
+    assert line.count(str(database)) == 1, line
+    assert database.read_bytes() == b"not a database, " * 64  # nothing repaired
+
+
 def test_a_registry_counts_its_documents(project: Path, note: Path) -> None:
     runner.invoke(cli.app, ["ingest", str(note)])
     result = runner.invoke(cli.app, ["doctor"])

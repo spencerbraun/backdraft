@@ -235,7 +235,7 @@ def _registry_state() -> tuple[str | None, str]:
         finally:
             registry.close()
     except BackdraftError as error:
-        return f"{root / DIRECTORY} will not open: {error}", ""
+        return str(error), ""  # the registry's own reason names the file
     return None, f"{root / DIRECTORY}, {count} document(s)"
 
 
