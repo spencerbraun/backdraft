@@ -122,6 +122,20 @@ def test_a_damaged_registry_is_one_exit_1_line_and_is_left_alone(
     assert database.read_bytes() == b"not a database, " * 64
 
 
+def test_a_registry_that_cannot_be_opened_is_not_called_damaged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A directory where the database belongs is sqlite's `OperationalError`, the
+    family a lock is in too: nothing is wrong with any bytes, so no restore advice."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / DIRECTORY / "registry.db").mkdir(parents=True)
+    result = runner.invoke(cli.app, ["ls"])
+    assert result.exit_code == 1
+    assert "could not be opened" in result.output
+    assert "restore" not in result.output
+    assert (tmp_path / DIRECTORY / "registry.db").is_dir()
+
+
 def test_an_authored_document_that_is_not_utf8_is_a_usage_error_naming_it(
     tmp_path: Path,
 ) -> None:

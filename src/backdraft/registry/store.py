@@ -446,8 +446,17 @@ class Registry:
             # `doctor`, whose answer is never a failure, crashed on it too. As a
             # `RegistryError` it is one exit-1 line through the CLI's guard, and
             # nothing is repaired or replaced: the bytes may be all there is.
+            # An `OperationalError` — locked by another writer, a directory where
+            # the file belongs, no permission — says nothing about the bytes, so
+            # it must not send anyone to restore a registry that may be fine.
             if connection is not None:
                 connection.close()
+            if isinstance(error, sqlite3.OperationalError):
+                raise RegistryError(
+                    f"{path} could not be opened ({error}). Nothing was changed; "
+                    "if another backdraft command is writing to it, run this one "
+                    "again when that finishes."
+                ) from error
             raise RegistryError(
                 f"{path} is not a registry backdraft can read ({error}). Nothing "
                 "was changed; restore it from a copy, or `backdraft init` an empty "

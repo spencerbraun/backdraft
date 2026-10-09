@@ -47,7 +47,12 @@ ever read it" — a citation you invented can come back `resolved` because some
 earlier run happened to read that page. `backdraft session show` says which
 session you are in and warns when it is the shared one; `bind` names it on the
 report's first line (`against session <id>`) and closes with the same warning
-when it is `default` — if you see that, export your session and bind again.
+when it is `default`. Seeing that means the reads behind this draft went into
+the shared ledger, and a new session holds none of them: binding again under
+one you just started reports every citation `not_shown`. Start and export the
+session before the next draft's first read; for this one, either re-read what
+it cites under the new session and bind again, or tell the user the record was
+judged against the shared ledger.
 
 Name every source in one `ingest`; it attempts all of them. If one cannot be
 read the command exits 1 and prints `N of M sources ingested` followed by one
