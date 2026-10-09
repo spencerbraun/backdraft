@@ -705,8 +705,8 @@ def _naming_notes(named: list[tuple[str, Naming]], requested: str | None) -> lis
         notes.append(
             "note: nothing is ingested yet, so `--slug <name>` still names "
             f"{', '.join(fresh)}. After ingest it is fixed: every token written "
-            "against the source carries the slug, so changing it means "
-            "re-ingesting and rewriting the draft."
+            "against the source carries the slug, and nothing renames a "
+            "document — not `--slug`, and not `forget` then a re-ingest."
         )
     return notes
 

@@ -113,7 +113,7 @@ backdraft ingest "https://en.wikipedia.org/w/index.php?title=Franklin_County,_Oh
 ```
 en-wikipedia-org-index  https://en.wikipedia.org/w/index.php?title=Franklin_County,_Ohio&oldid=1367935775  html
 note: nothing was fetched. A slug comes from the address alone, so the ones above are what ingest would use; a media type comes from the content type the server sends, so the ones above are what the address implies and the fetch settles.
-note: nothing is ingested yet, so `--slug <name>` still names en-wikipedia-org-index. After ingest it is fixed: every token written against the source carries the slug, so changing it means re-ingesting and rewriting the draft.
+note: nothing is ingested yet, so `--slug <name>` still names en-wikipedia-org-index. After ingest it is fixed: every token written against the source carries the slug, and nothing renames a document — not `--slug`, and not `forget` then a re-ingest.
 ```
 
 Which is the whole argument for `--slug` in one line: a name that says which

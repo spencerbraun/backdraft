@@ -256,16 +256,11 @@ def vlm_ready(config: dict | None = None) -> bool:
     Equivalent to consent: `auto` may only choose the paid, off-machine path
     when the user deliberately configured backdraft to use it. Ambient
     provider keys are never read (see `backdraft.credentials`).
-    """
-    from ..credentials import setting  # noqa: PLC0415 - keep base import-light
 
-    if not setting("BACKDRAFT_VLM_API_KEY", config, config_key="api_key"):
-        return False
-    try:
-        get("vlm")
-    except ExtractionError:
-        return False
-    return True
+    The answer is `vlm_gap`'s, so the condition `auto` acts on and the reason
+    `ingest` and `doctor` print are one check.
+    """
+    return vlm_gap(config) is None
 
 
 def vlm_gap(config: dict | None = None) -> str | None:
