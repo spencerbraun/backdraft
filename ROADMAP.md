@@ -561,6 +561,171 @@ the note names the drafts. DESIGN row.
 
 **Size.** Two days.
 
+### 13. `render` ships a draft edited after `bind` as if the record had judged it
+
+**Intent.** `render` reads two files, the draft and the record `bind` wrote for
+it, and never checks that they still describe the same text. Checked on
+2026-10-09 in a scratch project: bind a memo with one resolved citation, then add
+a sentence citing `bd:notes:p1.c1:ffff` — a token no gate ever emitted — and
+`backdraft render memo.md` writes the artifact at exit 0 with that claim in it
+and not a word said. An agent's normal loop is draft, bind, fix a sentence,
+render, so the commonest way to ship an unchecked citation is not to skip `bind`
+but to edit after it, and the artifact — the file whose whole claim is that every
+citation in it was checked — is the thing that carries it out.
+
+**Shape.** `render/cli.py`, before anything is written: parse the draft with
+`kernel.claims.parse_claims` and compare it against the record's `claims` on what
+a claim is — its text, its tokens in order, and its `start`/`end`, since render
+places each claim by offset and a shifted offset misplaces every highlight after
+it. Any difference is a `UsageError` (exit 1, the code `render` already uses for a
+record it cannot use) naming how many claims differ, the first one by offset, the
+record's `bound_at`, and the one fix: `backdraft bind <doc>` then render again.
+No artifact-format change — the comparison uses what the record already carries;
+a content hash of the draft in the record is the alternative and is a format
+change, so name it in the DESIGN row and say why it lost. Prose edits outside any
+claim that move no offset render as today. `verify` is not touched: it checks an
+artifact against itself, and the artifact embeds the draft it was rendered from.
+
+**Acceptance.** The scratch repro above exits 1 with the message, and no
+`memo.backdraft.html` is written or overwritten (assert the old file's bytes are
+unchanged). Re-binding then rendering succeeds. An edit that changes no claim and
+no offset (a typo fixed after the last claim) renders byte-identical to before.
+`demo/`'s render is byte-identical. `render --help`, README's render section,
+`site/docs.html`, `site/llms.txt` and `skills/backdraft/SKILL.md` say that render
+refuses a draft edited since bind. DESIGN row.
+
+**Size.** One to two days.
+
+### 14. An older backdraft reads a newer registry as if what it does not know were not there
+
+**Intent.** The registry travels with the project folder — the documented answer
+to a sandbox that cannot reach the vision model is to ingest locally and hand the
+folder over — so registries routinely meet a different backdraft than the one
+that wrote them. The schema has grown by adding tables (`document_meta`,
+`withdrawals`, `page_meta`) under idempotent `CREATE ... IF NOT EXISTS` DDL, and
+nothing records which backdraft last wrote a registry. So a registry with a
+`withdrawals` row, opened by a release from before `forget`, lists the withdrawn
+source in `ls` and binds its citations `resolved`; the older binary cannot know
+it is missing anything, and nothing tells it. The same will happen to every
+table added from here on.
+
+**Shape.** `registry/store.py`'s `Registry.open` and `schema.sql`. Give the
+schema an integer version, stamped with `PRAGMA user_version` (SQLite's own slot,
+no table needed), bumped by any change that adds meaning an older reader would
+silently drop. `open` reads it after the DDL: a registry stamped lower is stamped
+up (the DDL already made it current); one stamped higher than this build knows
+raises `RegistryError` naming both numbers and the fix (upgrade backdraft), at
+exit 1 through the guard, before anything is written. Releases from before the
+stamp cannot be fixed by it, which the DESIGN row must say plainly: the guard
+protects every pair of versions from this one on. `doctor`'s registry line shows
+the schema version; `export` carries it. SPEC Addendum A and `spec/registry.md`
+name the stamp, since another implementation opening the same file must honour
+it.
+
+**Acceptance.** A registry created by this build carries the current
+`user_version`. An existing registry with `user_version` 0 opens and is stamped,
+with every existing test unchanged. A registry whose `user_version` is set one
+higher refuses every verb with the message and exits 1, and `doctor` reports it
+as the registry's gap at exit 0; assert the file's bytes are unchanged after both.
+DESIGN row.
+
+**Size.** One to two days.
+
+### 15. `ingest` reports per source in columns an agent has to scrape
+
+**Intent.** `bind` and `verify` gained `--json` (2026-09-14) because their output
+is read by agents and every wording fix silently broke a parser. `ingest` is the
+other command an agent reads closely and acts on, and its line is two-space
+separated fields whose name column is a URL or a filename that may hold spaces,
+followed by marks that now come in five kinds — `unchanged`, `new generation`,
+`restored`, `--slug not applied`, and the `!` failure lines after a count — with
+the notes that explain them in prose below. An agent ingesting a folder has to
+pull the slug of each source out of that to cite it, and tell a thin source, a
+failed one and a renamed-refused one apart by matching sentences this repo
+rewords most weeks.
+
+**Shape.** `--json` on `ingest` in `cli.py`, printing one object instead of the
+report, with the exit codes exactly where they are. Per source: `source` as
+typed, `slug`, `name` (`source_name`), `media_type`, `pages`, `chars`, `outcome`
+(`Ingested.outcome`'s values), `restored`, `slug_applied` (null when no `--slug`
+was given), `thin` (bool, by `gate.THIN_SOURCE_CHARS`), `snapshots` (captured,
+not captured with the reason, not applicable); failures as `{source, reason}` with
+the reason string the `!` line prints. Run-level: the notes as an array of the
+same strings the report prints, so one owner per wording still holds. Built from
+the same values the report is built from — collect first, then present twice,
+the 2026-09-14 shape — not a second walk. `--dry-run --json` is the same object
+with `outcome: "would-ingest"` or the dry run's own marks, or is refused; decide
+and say which in the row.
+
+**Acceptance.** A test ingests a fresh file, an unchanged one, a changed one, a
+withdrawn one and a missing path in one `--json` run and asserts each object's
+fields and the exit code (1, for the missing path). The report without `--json`
+is byte-identical, pinned. `site/llms.txt`, `skills/backdraft/SKILL.md`,
+`site/docs.html` and SPEC § CLI name the flag and its object. DESIGN row.
+
+**Size.** Two days.
+
+### 16. `forget` asks for confirmation without saying which drafts it will break
+
+**Intent.** `forget` is the one command that takes something away, so it asks
+first, and what it says is general: a token already written into a draft still
+shows its receipt, and `bind` will report it `unresolved` naming the withdrawal.
+Whether any draft in this project cites the source — the one fact that decides
+whether forgetting it is tidying or breaking a memo the user is about to send —
+is not said, though every rooted bind wrote its record under
+`.backdraft/records/` listing every token it cited. An agent removing what looks
+like a duplicate source cannot tell from the prompt that the memo it bound
+yesterday cites only the duplicate.
+
+**Shape.** Depends on item 12's records reader in `registry/` (the walk over
+`record_path`'s layout that maps each record back to a draft that still exists
+and skips a malformed record); if 12 has not landed, land that reader here and
+let 12 reuse it. `forget`'s description before the prompt names each draft whose
+record cites the slug and how many citations each would turn `unresolved`, a
+count past a handful, and nothing new when none does. `--yes` prints the same
+lines before withdrawing, since an agent passing `--yes` is the caller most in
+need of them in the output it reads afterwards. Display only: the prompt's
+question, the exit codes and the withdrawal itself do not move. The records
+reflect the last bind, not the draft's current text, and the wording must say
+"as last bound".
+
+**Acceptance.** In a scratch project with two bound memos, one citing `notes`
+and one not, `backdraft forget notes --yes` names the first memo and its citation
+count and not the second. A registry with no records prints exactly today's
+output, pinned. A record file holding invalid JSON does not stop the forget. The
+`forget` row in `site/docs.html` and the forget paragraph in README say it names
+the drafts.
+
+**Size.** One day, two if it lands the records reader.
+
+### 17. `doctor` is read by agents and prints only columns
+
+**Intent.** The writing skill's first instruction is now "Run `backdraft doctor`
+before you promise anything" and plan from its `missing` lines. An agent does
+that by scraping aligned columns whose third field is a sentence, whose
+continuation lines are told apart by leading spaces, and whose summary is a
+bracketed line — the shape `bind --json` and `verify --json` (2026-09-14) were
+added to stop agents depending on. The capability set will grow; each new line
+moves the column widths.
+
+**Shape.** `--json` on `doctor` in `cli.py`, printing one object from the same
+`_Capability` list the report is built from: per capability `name`, `ready`
+(bool), `gap` (the verb's own string, or null), `costs` (null when ready),
+`ready_detail`, and `key` as `{name, set}` where the capability spends one —
+never a value. The registry's entry carries the root and document count as
+fields. Exit 0 always, as today. Document the object in SPEC § CLI beside
+`doctor`'s paragraph; it is not part of the artifact format and does not go in
+`spec/`.
+
+**Acceptance.** A test runs `doctor --json` with everything missing and with
+everything ready (the existing fixtures), parses it, and asserts every field; a
+test with a fake key set asserts its value appears nowhere in the output. The
+report without `--json` is byte-identical, pinned. `skills/backdraft/SKILL.md`
+tells an agent to read `doctor --json`; `site/llms.txt` and `site/docs.html`
+name the flag.
+
+**Size.** One day.
+
 ## Parked
 
 Deliberately not queued, each with the reason, so picking one up starts from
