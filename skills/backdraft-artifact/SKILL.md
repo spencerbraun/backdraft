@@ -35,7 +35,12 @@ It reports two tiers and always says which ran:
   in the project the artifact came out of, and not on a file someone emailed you
   unless you say which project that file came from. Every token is re-resolved,
   the statuses are reported as `bind` would, and the `sources:` line names the
-  registry that answered. When the output says
+  registry that answered. That includes `not_shown`: the ledger session the
+  record names is asked whether it was ever shown each citation, which is the
+  one check that says the author read what they cited. A `ledger:` line under
+  `sources:` says when that could not be asked — the session is not in this
+  registry, or the run had none — and then a `resolved` there means only that
+  the source holds the text, not that the author read it; say so. When the output says
   `sources: no .backdraft/ found from here`, that check did not run: say so
   rather than implying the sources were confirmed.
 
@@ -60,7 +65,10 @@ Read the whole output, not just the code. A `! receipt:` line means the file was
 edited after it was written — lead your report with it. A `! <status>:` line
 under `sources:` means the citation does not resolve against the registry today;
 when it also says `— the record says resolved`, the source moved *since the
-document was bound*, which is a stale artifact rather than a dishonest one.
+document was bound*, which is a stale artifact rather than a dishonest one. A
+`! not_shown:` line names the session that was never shown the citation: the
+author cited a real passage they had not read, which is the finding to lead the
+claims part of your report with.
 
 Exit 2 covers both of those, and they call for opposite conclusions, so **decide
 from `--json`, not from the lines**:
@@ -71,7 +79,9 @@ backdraft verify path/to/memo.backdraft.html --json
 
 prints one small object in place of the report, with the same exit code.
 `record.ran` and `sources.ran` say which tiers ran — `sources.registry` names
-the project that answered, or is `null`. Each entry in `findings` has a `kind`:
+the project that answered, or is `null`, and `sources.ledger` is `read` when the
+record's session was asked about `not_shown`, or says why not (`absent`,
+`no_session`, `backfill`). Each entry in `findings` has a `kind`:
 `receipt` (the file was edited; `check` names which receipt check failed),
 `recount` (`summary` disagrees with `claims`), or `source` (the citation does
 not resolve today; `status` is today's and `recorded` the record's, so the two

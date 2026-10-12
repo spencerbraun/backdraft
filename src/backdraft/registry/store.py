@@ -352,8 +352,10 @@ def withdrawn_reason(document: Document) -> str:
     return f"withdrawn from the registry on {document.withdrawn_at}"
 
 
-def citation_for(registry: "Registry", token: str) -> Citation:
-    """What one token says against this registry, with no session in the picture.
+def citation_for(
+    registry: "Registry", token: str, *, session_id: str | None = None
+) -> Citation:
+    """What one token says against this registry, and against a ledger session if named.
 
     The token-to-status walk, in one place. `bind` takes it to resolve a
     document's citations and `verify` takes it to re-check an artifact against
@@ -367,9 +369,13 @@ def citation_for(registry: "Registry", token: str) -> Citation:
     the reserved `bd:calc(...)` form lands identically everywhere; `drifted`
     carries the superseded snippet in `drifted_from` and the anchor standing at
     that locator now (or, when the locator itself is gone, the cited one, so the
-    two sides of the diff agree). `not_shown` is deliberately absent: it is a
-    fact about a ledger session, and the caller that has one adds it — see
-    `bind.binder._resolve_citation`.
+    two sides of the diff agree). `not_shown` is the fifth, and only with a
+    `session_id`: a `resolved` token that session was never shown comes back
+    `not_shown` with the same anchor. It is a fact about a ledger session rather
+    than the registry, so the caller decides whether there is one — `bind`
+    passes its run's session in front-walk mode, `verify` the session the record
+    names once it has checked that session exists here — and both take the rule
+    from this one place rather than restating it.
 
     A token whose document was **withdrawn** comes back `unresolved` carrying
     `withdrawn_reason` as its `error`, and that is the whole of what a withdrawal
@@ -404,6 +410,8 @@ def citation_for(registry: "Registry", token: str) -> Citation:
             error=withdrawn_reason(document),
         )
     if resolution.current:
+        if session_id is not None and not registry.was_shown(session_id, token):
+            return Citation(token=token, status=CitationStatus.NOT_SHOWN, anchor=anchor)
         return Citation(token=token, status=CitationStatus.RESOLVED, anchor=anchor)
     return Citation(
         token=token,
@@ -932,6 +940,10 @@ class Registry:
         """Return an existing session id, or create one (generating an id if needed)."""
         with self._connection:
             return ledger_module.ensure_session(self._connection, session_id, label, _now())
+
+    def has_session(self, session_id: str) -> bool:
+        """True if a session by this id exists here. Read-only, unlike `ensure_session`."""
+        return ledger_module.has_session(self._connection, session_id)
 
     def record_shown(self, session_id: str, anchor_ids: Sequence[int]) -> None:
         """Record that these anchors were minted into the session's context."""

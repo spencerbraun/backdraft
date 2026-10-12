@@ -274,10 +274,14 @@ def verify(
     `--against` names the project it came from, which is the one way to check a
     file you were sent against a registry you have. It re-resolves every token
     and reports the statuses as `bind` would, and names the registry it used.
+    That includes `not_shown`: a front-walk record names the ledger session it
+    was bound under, and a citation that session was never shown is reported as
+    such, with the session named.
 
     Read-only. It opens no session and mints nothing, which is what separates it
     from `backdraft show`: showing is minting, and an audit must not make its
-    subject citable.
+    subject citable. Reading the ledger the record names is not opening one — a
+    session this registry does not have is reported absent, never created.
 
     Exit codes: 0 everything checked passed · 1 the file is missing, is not an
     artifact, or `--against` names no registry · 2 something did not verify, so
@@ -287,8 +291,8 @@ def verify(
 
     `--json` prints the same check as one object instead of the report. Its
     `findings` carry a `kind` — `receipt` means the file was edited, `source`
-    that the sources do not stand behind a citation today — so the causes of an
-    exit 2 are told apart without reading a sentence.
+    that the sources or the ledger do not stand behind a citation today — so
+    the causes of an exit 2 are told apart without reading a sentence.
     """
     with guard():
         if not artifact.is_file():
@@ -311,6 +315,24 @@ def verify(
         _print_verification(artifact, checked)
     if not checked.clean:
         raise typer.Exit(EXIT_UNRESOLVED)
+
+
+class _Ledger(StrEnum):
+    """What the source tier could ask of the ledger session the record names.
+
+    `--json`'s `sources.ledger`. Only `read` re-checks `not_shown`; each of the
+    others says why it was not, so a `resolved` from this tier is never mistaken
+    for one the ledger stands behind.
+    """
+
+    READ = "read"
+    """The record's session is in this registry, and every citation resolving today was asked of it."""
+    ABSENT = "absent"
+    """The record names a session this registry does not have — it was bound against another registry."""
+    NO_SESSION = "no_session"
+    """The run that bound it had no session, so there was nothing to judge `not_shown` against."""
+    BACKFILL = "backfill"
+    """Backfill judges nothing against a ledger, so neither does its re-check."""
 
 
 class _Problem(NamedTuple):
@@ -343,10 +365,12 @@ class _Checked:
     """The registry tier two ran against — discovered or named — or None when it did not run."""
     against: list[tuple[Claim, Citation, Citation]]
     """Every citation re-resolved: the claim, what the record says, what the registry says."""
+    ledger: _Ledger | None
+    """What the ledger could say about the record's session, or None when tier two did not run."""
 
     @property
     def moved(self) -> list[tuple[Claim, Citation, Citation]]:
-        """Tier two's findings: every citation the sources do not resolve today."""
+        """Tier two's findings: every citation the sources and the ledger do not stand behind today."""
         return [row for row in self.against if row[2].status is not CitationStatus.RESOLVED]
 
     @property
@@ -362,6 +386,7 @@ def _check(payload: dict[str, Any], report: BindReport, root: Path | None) -> _C
         for citation in claim.citations
         if citation.anchor is not None
     ]
+    against, ledger = ([], None) if root is None else _against_sources(report, root)
     return _Checked(
         payload=payload,
         report=report,
@@ -373,7 +398,8 @@ def _check(payload: dict[str, Any], report: BindReport, root: Path | None) -> _C
         ],
         recounts=payload.get("summary") == report.summary,
         root=root,
-        against=[] if root is None else _against_sources(report, root),
+        against=against,
+        ledger=ledger,
     )
 
 
@@ -401,6 +427,9 @@ def _print_verification(artifact: Path, checked: _Checked) -> None:
             f"  sources: re-resolved against {checked.root} — "
             f"{_counts(_tally(fresh for _, _, fresh in checked.against))}"
         )
+        ledger_line = _ledger_line(checked)
+        if ledger_line is not None:
+            typer.echo(f"  ledger: {ledger_line}")
 
     for claim, citation, problem in checked.broken:
         typer.echo(f"  ! receipt: {citation.token} — {problem.detail} — {_where(claim)}")
@@ -410,6 +439,8 @@ def _print_verification(artifact: Path, checked: _Checked) -> None:
         # against the sources, and only the reason tells a reader which happened.
         # Same position bind's line items give it, so the two read alike.
         reason = f" — {fresh.error}" if fresh.error else ""
+        if fresh.status is CitationStatus.NOT_SHOWN:
+            reason = f" — session {checked.report.session_id} was never shown it"
         moved = (
             "" if fresh.status is recorded.status
             else f" — the record says {recorded.status}"
@@ -420,6 +451,33 @@ def _print_verification(artifact: Path, checked: _Checked) -> None:
         typer.echo(
             "[Re-check against the sources: run this inside the project it was bound in.]"
         )
+
+
+def _ledger_line(checked: _Checked) -> str | None:
+    """The `ledger:` line, or None where there is nothing the sources line has not said.
+
+    Silent when the ledger was read and agreed with every citation, so a record
+    the ledger stands behind reads exactly as it did before verify asked — and
+    silent for backfill, which never judged `not_shown` to begin with. Every
+    other outcome is said, because each one is a `resolved` that would otherwise
+    read as stronger than it is.
+    """
+    session = checked.report.session_id
+    if checked.ledger is _Ledger.READ:
+        unseen = sum(
+            1 for _, _, fresh in checked.against if fresh.status is CitationStatus.NOT_SHOWN
+        )
+        if not unseen:
+            return None
+        return f"read session {session} — {unseen} citation(s) it was never shown"
+    if checked.ledger is _Ledger.ABSENT:
+        return (
+            f"no session {session} in this registry — not_shown not re-checked; "
+            "it was bound against another registry"
+        )
+    if checked.ledger is _Ledger.NO_SESSION:
+        return "the run that bound this had no session — not_shown not re-checked"
+    return None
 
 
 def _in_default_session(report: BindReport) -> bool:
@@ -503,6 +561,7 @@ def _verification(artifact: Path, checked: _Checked) -> dict[str, Any]:
                 if ran
                 else None
             ),
+            "ledger": None if checked.ledger is None else str(checked.ledger),
         },
         "findings": findings,
     }
@@ -571,25 +630,41 @@ def _receipt_problem(citation: Citation) -> _Problem | None:
 
 def _against_sources(
     report: BindReport, root: Path
-) -> list[tuple[Claim, Citation, Citation]]:
-    """Every citation re-resolved: the claim, what the record says, what the registry says.
+) -> tuple[list[tuple[Claim, Citation, Citation]], _Ledger]:
+    """Every citation re-resolved — the claim, what the record says, what the registry
+    says — and what the ledger could be asked.
 
-    `registry.citation_for` is the walk `bind` runs, so a status printed here is
-    the status a re-bind would print — with one gap, named rather than papered
-    over: `not_shown` cannot appear, because it is a fact about a ledger session
-    and verify opens none. A citation the record calls `not_shown` therefore
-    comes back `resolved` here, which is not a contradiction; it is the other
-    question being answered.
+    `registry.citation_for` is the walk `bind` runs, `not_shown` included, so a
+    status printed here is the status a re-bind would print. The session it is
+    judged against is the one the record names, never one verify picks, and it
+    is looked up with `has_session` rather than `ensure_session`: reading a
+    ledger is not opening one, and a session this registry never had is a fact
+    about where the record came from. Without that session `not_shown` cannot
+    appear, and `_Ledger` says which reason applies.
     """
     registry = Registry.open(root)
     try:
-        return [
-            (claim, citation, citation_for(registry, citation.token))
+        ledger = _ledger(report, registry)
+        session_id = report.session_id if ledger is _Ledger.READ else None
+        rows = [
+            (claim, citation, citation_for(registry, citation.token, session_id=session_id))
             for claim in report.claims
             for citation in claim.citations
         ]
+        return rows, ledger
     finally:
         registry.close()
+
+
+def _ledger(report: BindReport, registry: Registry) -> _Ledger:
+    """Which ledger question this record lets the source tier ask, in bind's own terms."""
+    if report.mode != "frontwalk":
+        return _Ledger.BACKFILL
+    if report.session_id is None:
+        return _Ledger.NO_SESSION
+    if not registry.has_session(report.session_id):
+        return _Ledger.ABSENT
+    return _Ledger.READ
 
 
 def _not_an_artifact(artifact: Path, error: Exception) -> str:

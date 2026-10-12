@@ -223,7 +223,11 @@ backdraft verify memo.backdraft.html        # check a record you were handed:
                                             # .backdraft/ is found from cwd or
                                             # named by --against <project>,
                                             # every token re-resolved against
-                                            # the sources. Read-only: mints
+                                            # the sources, not_shown re-asked
+                                            # of the record's own session
+                                            # (read, never created; a ledger:
+                                            # line says when it could not be).
+                                            # Read-only: mints
                                             # nothing, unlike `show`. Exit 2 if
                                             # something did not verify.
 # Look: --theme <default|press|slate|file.toml>, else .backdraft/theme.toml
@@ -273,7 +277,9 @@ bytes bind writes under .backdraft/records/: every citation's token, status and
 error under claims[].citations[], counts in summary.by_status. It carries the
 embedded evidence (page images make it hundreds of KB), so pipe it into a
 parser. `verify --json` prints a small object (format backdraft/verify-v1):
-record.ran and sources.ran say which tiers ran, and each findings[] entry has a
+record.ran and sources.ran say which tiers ran, sources.ledger whether the
+record's session was asked about not_shown (read) or why not (absent,
+no_session, backfill), and each findings[] entry has a
 kind — receipt (the file was edited; check names which), recount (summary
 disagrees with claims) or source (status is today's, recorded is the record's;
 differing means the source moved). findings is empty exactly when exit is 0.

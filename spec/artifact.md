@@ -323,7 +323,14 @@ receipt exists to make rare.
 `backdraft verify <artifact>` is this list, implemented: steps 1 to 4 from the
 file alone, and — only where a registry is discoverable from the current
 directory, or where `--against <project>` names one — the outside check as well,
-re-resolving every token and reporting the statuses. Where the file sits is never
+re-resolving every token and reporting the statuses. That re-resolution includes
+`not_shown` for a front-walk record: the ledger session the record's
+`session_id` names is asked whether it was ever shown each citation that resolves
+today, so the check that says the author read what they cited can be re-made by
+anyone holding the registry. The session is the record's, never one the checker
+chooses, and is read and never created: a `session_id` the registry has no
+session for, a `null` one, and a backfill record each leave `not_shown` unchecked
+and the report says which. Where the file sits is never
 evidence of which registry produced it, so a registry is found from where the
 check is run or named by whoever runs it, and never inferred from the artifact's
 own location. It exits 0 when everything it checked passed, 1 when the file is
@@ -364,7 +371,7 @@ releases; the plain report is what to show that person.
   },
   "sources": {
     "ran": true, "registry": "/work/project",
-    "by_status": {"resolved": 17, "unresolved": 1}
+    "by_status": {"resolved": 17, "unresolved": 1}, "ledger": "read"
   },
   "findings": [
     {"kind": "source", "token": "bd:t12-summary:p4.c1:1a2b",
@@ -388,8 +395,18 @@ anchor, each checked) and `receipts_held`, `summary_agrees` (step 4), and the
 recounted `claims`, `citations`, `by_status` and `unmatched` — what the record
 says, which is not a finding: a kept failure is the record working. `sources`
 carries `ran`, `registry` (the project root whose registry answered, or `null`)
-and `by_status` (every citation's status against that registry, or `null` when
-the check did not run). Every `by_status` is keyed in sorted order.
+`by_status` (every citation's status against that registry, or `null` when
+the check did not run), and `ledger` — what that registry's ledger could say
+about the record's session, or `null` when the check did not run:
+
+| `ledger` | Means |
+|---|---|
+| `read` | the record's `session_id` is a session in this registry, and every citation resolving today was asked of it, so `not_shown` is re-checked |
+| `absent` | the record names a session this registry does not have; `not_shown` was not re-checked, and the session was not created |
+| `no_session` | the record's `session_id` is `null`; there was nothing to judge `not_shown` against |
+| `backfill` | a backfill record, which never judged `not_shown` |
+
+Every `by_status` is keyed in sorted order.
 
 Each finding has a `kind`, and the kind fixes its other keys:
 
@@ -397,7 +414,7 @@ Each finding has a `kind`, and the kind fixes its other keys:
 |---|---|---|
 | `receipt` | a receipt in the file does not hold — the file was edited | `check`, `token`, `detail`, `claim` |
 | `recount` | `summary` disagrees with a recount of `claims` | `recorded` (the file's `summary`), `recounted` |
-| `source` | a citation does not resolve against the registry today | `token`, `status` (today's), `recorded` (the record's), `error`, `claim` |
+| `source` | a citation does not resolve against the registry today, or its session was never shown it | `token`, `status` (today's), `recorded` (the record's), `error`, `claim` |
 
 A `receipt` finding's `check` names the step that failed, and only the first to
 fail is reported per citation, in this order: `snippet_sha256` (step 2),

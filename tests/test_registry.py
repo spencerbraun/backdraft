@@ -13,11 +13,13 @@ from pathlib import Path
 import pytest
 
 from backdraft.extract.base import ExtractedPage
+from backdraft.kernel.model import CitationStatus
 from backdraft.kernel.tokens import parse as parse_token
 from backdraft.registry import (
     CREATED,
     Registry,
     RegistryError,
+    citation_for,
     sanitize_sheet_name,
     slug_for,
 )
@@ -685,3 +687,22 @@ def test_save_page_image_backfills_and_replaces(registry, note) -> None:
     )
     stored = registry.page_image(document.slug, 1)
     assert stored.data == b"TWO" and stored.width == 2
+
+
+def test_has_session_asks_and_never_creates(registry: Registry) -> None:
+    assert registry.has_session("s1") is False
+    assert registry.has_session("s1") is False
+    registry.ensure_session("s1")
+    assert registry.has_session("s1") is True
+
+
+def test_citation_for_with_a_session_says_not_shown(registry: Registry, note: Path) -> None:
+    """The one place `not_shown` is decided, for `bind` and `verify` alike."""
+    registry.ingest(note)
+    seen, unseen = registry.anchors_for_page("quarterly-notes", 1)[:2]
+    registry.ensure_session("s1")
+    registry.record_shown("s1", [seen.id])
+
+    assert citation_for(registry, seen.token, session_id="s1").status is CitationStatus.RESOLVED
+    assert citation_for(registry, unseen.token, session_id="s1").status is CitationStatus.NOT_SHOWN
+    assert citation_for(registry, unseen.token).status is CitationStatus.RESOLVED

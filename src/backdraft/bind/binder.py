@@ -285,10 +285,10 @@ def _resolve_citation(
 ) -> Citation:
     """One citation's status, from the closed set.
 
-    `registry.citation_for` does the lookup — the same walk `verify` runs over
-    an artifact, kept in one place — and this adds the one status that lookup
-    cannot reach: `not_shown` is a fact about *this* run's ledger session, not
-    about the registry, so it is asked here and only in front-walk mode.
+    `registry.citation_for` does the walk — the same one `verify` runs over an
+    artifact, `not_shown` included, kept in one place. `not_shown` is a fact
+    about *this* run's ledger session, not about the registry, so the session
+    is handed over only in front-walk mode.
 
     `malformed` is already decided by the kernel and is never revisited: a
     token that does not parse cannot be looked up. The early return keeps the
@@ -297,17 +297,9 @@ def _resolve_citation(
     """
     if citation.status is CitationStatus.MALFORMED:
         return citation
-    resolved = citation_for(registry, citation.token)
-    if (
-        resolved.status is CitationStatus.RESOLVED
-        and mode == "frontwalk"
-        and session_id is not None
-        and not registry.was_shown(session_id, citation.token)
-    ):
-        return Citation(
-            token=citation.token, status=CitationStatus.NOT_SHOWN, anchor=resolved.anchor
-        )
-    return resolved
+    return citation_for(
+        registry, citation.token, session_id=session_id if mode == "frontwalk" else None
+    )
 
 
 # --- backfill --------------------------------------------------------------

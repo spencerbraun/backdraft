@@ -16,6 +16,7 @@ from typing import Sequence
 
 __all__ = [
     "ensure_session",
+    "has_session",
     "record_shown",
     "sessions",
     "shown_by_document",
@@ -39,6 +40,20 @@ def ensure_session(
         (resolved, label, now),
     )
     return resolved
+
+
+def has_session(connection: sqlite3.Connection, session_id: str) -> bool:
+    """True if this registry has a session by this id. Asks; never creates.
+
+    `ensure_session` is the call that answers "which session" for a run that is
+    about to read, and it creates what it does not find. A reader checking
+    someone else's record must not: a session id the registry has never seen is
+    a fact about where the record came from, not a session to start.
+    """
+    row = connection.execute(
+        "SELECT 1 FROM sessions WHERE id = ? LIMIT 1", (session_id,)
+    ).fetchone()
+    return row is not None
 
 
 def record_shown(

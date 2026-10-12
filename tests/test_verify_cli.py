@@ -607,6 +607,7 @@ def test_against_is_named_in_json_as_the_registry_that_answered(
         "ran": True,
         "registry": str(root),
         "by_status": {"resolved": 1},
+        "ledger": "no_session",
     }
 
 
@@ -726,7 +727,9 @@ def test_json_on_a_clean_record_names_both_tiers_and_no_findings(
     assert checked["record"]["ran"] is True
     assert checked["record"]["summary_agrees"] is True
     assert checked["record"]["receipts"] == checked["record"]["receipts_held"] > 0
-    assert checked["sources"] == {"ran": False, "registry": None, "by_status": None}
+    assert checked["sources"] == {
+        "ran": False, "registry": None, "by_status": None, "ledger": None
+    }
     assert checked["findings"] == []
 
 
@@ -975,3 +978,185 @@ def test_the_legend_says_what_a_default_session_means() -> None:
     """The record travels and the CLI does not: the file itself carries it."""
     assert DEFAULT_SESSION_MEANING in LEGEND["citation_status"]["not_shown"]
     assert f"`{DEFAULT_SESSION}`" in LEGEND["citation_status"]["not_shown"]
+
+
+# ---- the ledger the record names ---------------------------------------------
+#
+# `not_shown` is the status that says the author cited something they never read,
+# and it is a fact about a ledger session rather than the registry. A recipient
+# holding the registry can ask it — of the session the record names, never one
+# verify picks, and without creating that session when it is not there.
+
+
+def _bound_under(
+    root: pathlib.Path, registry: Registry, body: str, session: str
+) -> pathlib.Path:
+    """A front-walk record judged against `session`, as `bind --session` writes it."""
+    from backdraft.bind.binder import bind
+
+    doc = root / "memo.md"
+    doc.write_text(body, encoding="utf-8")
+    report = bind(doc, registry, session_id=session, write=False)
+    return sidecar.write(report, sidecar.sidecar_path(doc))
+
+
+def _shown(registry: Registry, session: str, page: int) -> str:
+    """Mint page `page`'s first anchor into `session`, as `read` would; its token."""
+    anchor = registry.anchors_for_page("quarterly-notes", page)[0]
+    registry.ensure_session(session)
+    registry.record_shown(session, [anchor.id])
+    return anchor.token
+
+
+def _sessions(registry: Registry) -> list[str]:
+    return [row["id"] for row in registry.export_json()["sessions"]]
+
+
+def test_a_citation_the_session_never_read_is_reported_not_shown(project) -> None:
+    registry, root, _ = project
+    read = _shown(registry, "s-writer", 2)
+    unread = _token(registry, 1)
+    path = _bound_under(
+        root, registry, f"Coverage is [1.42x]({read}); the covenant [holds]({unread}).\n",
+        "s-writer",
+    )
+
+    result = runner.invoke(app, ["verify", str(path)])
+
+    assert result.exit_code == EXIT_UNVERIFIED, result.output
+    assert f"sources: re-resolved against {root} — not_shown 1, resolved 1" in result.output
+    assert "  ledger: read session s-writer — 1 citation(s) it was never shown" in result.output
+    assert f"! not_shown: {unread} — session s-writer was never shown it — holds @" in (
+        result.output
+    )
+    assert "the record says" not in result.output
+
+
+def test_not_shown_is_a_source_finding_in_json(project) -> None:
+    registry, root, _ = project
+    read = _shown(registry, "s-writer", 2)
+    unread = _token(registry, 1)
+    path = _bound_under(
+        root, registry, f"Coverage is [1.42x]({read}); the covenant [holds]({unread}).\n",
+        "s-writer",
+    )
+
+    result, checked = _checked(str(path))
+
+    assert result.exit_code == EXIT_UNVERIFIED
+    assert checked["sources"]["by_status"] == {"not_shown": 1, "resolved": 1}
+    assert checked["sources"]["ledger"] == "read"
+    assert checked["record"]["by_status"] == {"not_shown": 1, "resolved": 1}
+    [finding] = checked["findings"]
+    assert finding["kind"] == "source"
+    assert finding["token"] == unread
+    assert finding["status"] == finding["recorded"] == "not_shown"
+
+
+def test_a_session_read_after_binding_is_a_status_that_moved(project) -> None:
+    """The ledger is read as it stands today, the way the sources are."""
+    registry, root, _ = project
+    token = _token(registry, 2)
+    registry.ensure_session("s-writer")
+    path = _bound_under(root, registry, f"The file says [1.42x]({token}).\n", "s-writer")
+    assert _payload(path)["summary"]["by_status"] == {"not_shown": 1}
+
+    _shown(registry, "s-writer", 2)
+    result = runner.invoke(app, ["verify", str(path)])
+
+    assert result.exit_code == 0, result.output
+    assert "resolved 1" in result.output
+    assert "ledger:" not in result.output
+
+
+def test_a_record_the_ledger_agrees_with_prints_no_ledger_line(project) -> None:
+    """Byte-identical to the report before verify asked the ledger anything."""
+    registry, root, _ = project
+    token = _shown(registry, "s-writer", 2)
+    path = _bound_under(root, registry, f"The file says [1.42x]({token}).\n", "s-writer")
+
+    result = runner.invoke(app, ["verify", str(path)])
+
+    assert result.exit_code == 0, result.output
+    assert result.output == (
+        f"checked {path} [backdraft/artifact-v1]\n"
+        "  receipts: 1 of 1 hold\n"
+        "  record: 1 claim(s), 1 citation(s); the summary recount agrees\n"
+        "  recorded: resolved 1\n"
+        f"  sources: re-resolved against {root} — resolved 1\n"
+    )
+
+
+def test_a_session_this_registry_lacks_is_reported_and_not_created(project) -> None:
+    registry, root, _ = project
+    token = _shown(registry, "s-writer", 2)
+    path = _bound_under(root, registry, f"The file says [1.42x]({token}).\n", "s-writer")
+    payload = _payload(path)
+    payload["session_id"] = "s-elsewhere"
+    _rewrite(path, payload)
+    before = _sessions(registry)
+
+    result = runner.invoke(app, ["verify", str(path)])
+    _, checked = _checked(str(path))
+
+    assert _sessions(registry) == before
+    assert registry.has_session("s-elsewhere") is False
+    assert result.exit_code == 0, result.output
+    assert (
+        "  ledger: no session s-elsewhere in this registry — not_shown not re-checked"
+        in result.output
+    )
+    assert checked["sources"]["ledger"] == "absent"
+
+
+def test_a_record_with_no_session_says_the_run_had_none(project) -> None:
+    registry, root, _ = project
+    path = _bound(root, registry, f"The file says [1.42x]({_token(registry, 2)}).\n")
+    assert _payload(path)["session_id"] is None
+
+    result = runner.invoke(app, ["verify", str(path)])
+
+    assert result.exit_code == 0, result.output
+    assert "  ledger: the run that bound this had no session" in result.output
+    assert _checked(str(path))[1]["sources"]["ledger"] == "no_session"
+
+
+def test_a_backfill_record_is_not_asked_of_the_ledger(project) -> None:
+    """Backfill never judged `not_shown`, so its re-check does not either."""
+    registry, root, _ = project
+    path = _bound(root, registry, f"The file says [1.42x]({_token(registry, 2)}).\n")
+    payload = _payload(path)
+    payload["mode"] = "backfill"
+    payload["session_id"] = "s-nowhere"
+    _rewrite(path, payload)
+
+    result = runner.invoke(app, ["verify", str(path)])
+
+    assert "ledger:" not in result.output
+    assert _checked(str(path))[1]["sources"]["ledger"] == "backfill"
+
+
+def test_from_outside_the_project_the_ledger_is_not_asked(project, inbox: pathlib.Path) -> None:
+    registry, root, _ = project
+    _shown(registry, "s-writer", 2)
+    path = _bound_under(
+        root, registry, f"The covenant [holds]({_token(registry, 1)}).\n", "s-writer"
+    )
+
+    result = runner.invoke(app, ["verify", str(path)])
+
+    assert result.exit_code == 0, result.output
+    assert "ledger:" not in result.output
+    assert "not re-checked" in result.output
+    assert _checked(str(path))[1]["sources"]["ledger"] is None
+
+
+def test_reading_the_ledger_mints_nothing(project) -> None:
+    registry, root, _ = project
+    unread = _token(registry, 1)
+    _shown(registry, "s-writer", 2)
+    path = _bound_under(root, registry, f"The covenant [holds]({unread}).\n", "s-writer")
+
+    runner.invoke(app, ["verify", str(path)])
+
+    assert registry.was_shown("s-writer", unread) is False

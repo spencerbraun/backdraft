@@ -276,7 +276,10 @@ That first tier needs nothing but the file, which is the point — it is the che
 someone who was emailed the artifact can still make. Run it inside the project
 the document was bound in and it also re-resolves every citation against the
 registry, so a source that has changed since shows up as `drifted` rather than
-going unnoticed. Exit 0 when everything it checked passed, 2 when something did
+going unnoticed — and asks the ledger session the record names whether it was
+ever shown each citation, so a `not_shown` is re-checked rather than taken on
+the record's word. That session is read, never created: when this registry does
+not have it, a `ledger:` line says so. Exit 0 when everything it checked passed, 2 when something did
 not, so a hook can gate on it. It opens no session and mints nothing: an audit
 must not make its subject citable.
 
