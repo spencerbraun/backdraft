@@ -20,6 +20,7 @@ completed and did not come out clean — `bind` with non-resolved citations, and
 from __future__ import annotations
 
 import os
+import shlex
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn
@@ -28,10 +29,11 @@ import typer
 
 from .kernel.artifact import DEFAULT_SESSION
 from .kernel.errors import BackdraftError
+from .kernel.model import CitationStatus
 from .registry import DIRECTORY, Registry
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Collection, Iterator
 
 __all__ = [
     "CLAIM_WIDTH",
@@ -39,7 +41,11 @@ __all__ = [
     "EXIT_USAGE",
     "EXIT_UNRESOLVED",
     "HOME_ENV",
+    "NEXT_MOVES",
+    "RECEIPT",
+    "RECOUNT",
     "SESSION_ENV",
+    "UNMATCHED",
     "UsageError",
     "as_typed",
     "authored_text",
@@ -48,6 +54,7 @@ __all__ = [
     "find_root",
     "guard",
     "named_root",
+    "next_moves",
     "open_registry",
     "opened_registry",
     "resolve_session",
@@ -277,3 +284,80 @@ def claim_words(text: str) -> str:
     """
     collapsed = " ".join(text.split())
     return collapsed[:CLAIM_WIDTH] if collapsed else "(no claim text)"
+
+
+UNMATCHED = "unmatched"
+"""A backfill claim bind could not anchor: a line item, not a `CitationStatus`."""
+
+RECEIPT = "receipt"
+"""`verify`'s finding that a receipt in the file does not hold — the file was edited."""
+
+RECOUNT = "recount"
+"""`verify`'s finding that the file's `summary` disagrees with its `claims`."""
+
+NEXT_MOVES: dict[str, str] = {
+    RECEIPT: (
+        "the file was edited after it was written; the sources did not move. Ask "
+        "whoever sent it for the original, or rebuild it from {doc} with "
+        "`backdraft bind` then `backdraft render`."
+    ),
+    RECOUNT: (
+        "the file's summary was edited after it was written, and its claims are the "
+        "record. Rebuild it from {doc} with `backdraft bind` then `backdraft render`."
+    ),
+    CitationStatus.MALFORMED: (
+        "the href is not a token. `backdraft show <token>` names the segment that "
+        "broke; fix the syntax, then re-bind."
+    ),
+    CitationStatus.UNRESOLVED: (
+        "the token names nothing. `backdraft show <token>` says which half is wrong, "
+        "and `backdraft search \"<the fact>\"{session}` finds the real one. A claim no "
+        "source supports says so in its text; a withdrawn source is replaced by one "
+        "still ingested, not re-ingested. Never clear one by deleting the token."
+    ),
+    CitationStatus.NOT_SHOWN: (
+        "the anchor is real and this session never read it. `backdraft show "
+        "<token>{session}` puts it in the ledger, which alone clears it; then re-bind."
+    ),
+    CitationStatus.DRIFTED: (
+        "the source changed under the citation. `backdraft locate {doc}{session}` finds "
+        "where each one's text stands now and names the new token where it only "
+        "moved; where it was edited, `backdraft show <token>{session}` prints both "
+        "snippets, and the claim is judged against the new one before anything is cited."
+    ),
+    UNMATCHED: (
+        "no anchor carries the claim's value. `backdraft search \"<the fact>\"{session}` "
+        "for each one, and cite a hit only where it says what the claim says; a claim "
+        "nothing supports stays uncited and is reported as open."
+    ),
+}
+"""What to do about each kind of failure `bind` and `verify` report — one owner.
+
+Every key is something a report prints as a `!` line item (or, for `recount`, a
+finding), and every non-`resolved` `CitationStatus` is a key: the status set is
+the artifact format's and closed, so the mapping is total and a test holds it so.
+`resolved` has no entry because it is not a failure, which is what keeps a clean
+run's report byte-identical to one printed before this table existed.
+
+Each line names the exact command that addresses its case, because the reader is
+not always an agent running the skill — a hook, a CI log, a person — and the
+move differs sharply per status and is not guessable from the diagnosis. The
+skill says the same at length; this is the line the report carries.
+"""
+
+
+def next_moves(present: Collection[str], *, doc: str, session: str | None) -> list[str]:
+    """The closing `next:` lines for the kinds of failure `present`, in table order.
+
+    One line per kind present and none for the rest — the shape `ingest`'s
+    grouped notes use, rather than a hint on every line item, since one move
+    answers every line item of its kind. `doc` is the authored document and
+    `session` the one the run was judged against, so the commands are the ones
+    to type; both are shell-quoted for that reason.
+    """
+    flag = f" --session {shlex.quote(session)}" if session else ""
+    return [
+        f"next: {key} — {move.format(doc=shlex.quote(doc), session=flag)}"
+        for key, move in NEXT_MOVES.items()
+        if key in present
+    ]

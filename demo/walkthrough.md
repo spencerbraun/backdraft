@@ -542,6 +542,7 @@ bound 17 claim(s), 18 citation(s) [frontwalk] against session s-bridgeview
   value-trace: pass 17
   ! unresolved: bd:t12-summary:p4.c1:1a2b — replacement reserve of $250 per unit per year @3629
 wrote .backdraft/records/memo.backdraft.json
+next: unresolved — the token names nothing. `backdraft show <token>` says which half is wrong, and `backdraft search "<the fact>" --session s-bridgeview` finds the real one. A claim no source supports says so in its text; a withdrawn source is replaced by one still ingested, not re-ingested. Never clear one by deleting the token.
 exit: 2
 ```
 
@@ -558,6 +559,13 @@ thing you already had. The claim's own words follow it, then `@3629` — the
 claim's character offset into the authored document, which is what tells two
 line items carrying the same token apart when one token is cited from several
 sentences.
+
+**The last line is the move, not the diagnosis.** One `next:` line per kind of
+failure the report printed — here only `unresolved`, so only its line — naming
+the command that addresses it. What clears a `not_shown` (show the token) and
+what clears an `unresolved` (find the real one, or say the claim is
+unsupported) have nothing in common, and a hook's log or a person reading the
+report should not need the skill to know which. A clean bind prints no such line.
 
 **Exit code 2 means unresolved citations.** Not a failed check — a citation that
 does not point at anything. It is the code a `Stop` hook or a CI job gates on.
@@ -726,6 +734,7 @@ checked memo.backdraft.html [backdraft/artifact-v1]
   recorded: resolved 17, unresolved 1
   sources: re-resolved against /…/demo — resolved 17, unresolved 1
   ! unresolved: bd:t12-summary:p4.c1:1a2b — replacement reserve of $250 per unit per year @3629
+next: unresolved — the token names nothing. `backdraft show <token>` says which half is wrong, and `backdraft search "<the fact>" --session s-bridgeview` finds the real one. A claim no source supports says so in its text; a withdrawn source is replaced by one still ingested, not re-ingested. Never clear one by deleting the token.
 exit: 2
 ```
 
@@ -735,7 +744,9 @@ Two tiers, and the report always names which one ran.
 the file: every snippet rehashed and compared to the `snippet_sha256` recorded
 beside it, every token checked against the anchor it names, `summary` recounted
 from `claims`. Edit one byte of one snippet and that line reads `16 of 17`, with
-a `! receipt:` item naming the claim and both hashes.
+a `! receipt:` item naming the claim and both hashes. Its `next: receipt` line then
+says the file was edited and the sources did not move — the opposite finding from
+the `unresolved` above, with the opposite fix.
 
 **Against the sources** is the fourth line, and it happens here only because
 this directory has a registry. Copy the artifact somewhere else — which is what

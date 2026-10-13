@@ -1160,3 +1160,82 @@ def test_reading_the_ledger_mints_nothing(project) -> None:
     runner.invoke(app, ["verify", str(path)])
 
     assert registry.was_shown("s-writer", unread) is False
+
+
+# ---- the closing `next:` block -----------------------------------------------
+#
+# `bind`'s table, one line per kind of finding. An edited file is told apart from
+# moved sources in words as well as in `--json`'s `kind`.
+
+
+def _next_lines(output: str) -> list[str]:
+    return [line for line in output.splitlines() if line.startswith("next: ")]
+
+
+def test_an_edited_snippet_says_the_file_changed_not_the_sources(record: pathlib.Path) -> None:
+    payload = _payload(record)
+    _first_anchored(payload)["anchor"]["snippet"] += " and one sentence nobody wrote."
+    _rewrite(record, payload)
+
+    result = runner.invoke(app, ["verify", str(record)])
+
+    (line,) = _next_lines(result.output)
+    assert line.startswith("next: receipt — the file was edited after it was written")
+    assert "the sources did not move" in line
+    assert "`backdraft bind`" in line
+
+
+def test_a_disagreeing_summary_gets_its_own_move(record: pathlib.Path) -> None:
+    payload = _payload(record)
+    payload["summary"]["citations"] += 4
+    _rewrite(record, payload)
+    (line,) = _next_lines(runner.invoke(app, ["verify", str(record)]).output)
+    assert line.startswith("next: recount — ")
+
+
+def test_a_carried_failure_is_no_finding_and_gets_no_move(record: pathlib.Path) -> None:
+    """Tier one exits 0 on a record that honestly carries an `unresolved`; with
+    nothing to fix in the file, there is no next step to name."""
+    result = runner.invoke(app, ["verify", str(record)])
+    assert result.exit_code == 0, result.output
+    assert _next_lines(result.output) == []
+
+
+def test_a_source_finding_gets_bind_s_move(project) -> None:
+    registry, root, _ = project
+    path = _bound(root, registry, "The file says [1.42x](bd:ghost:p1.c1:0000).\n")
+    result = runner.invoke(app, ["verify", str(path)])
+    (line,) = _next_lines(result.output)
+    assert line.startswith("next: unresolved — ")
+    assert "`backdraft search" in line
+
+
+def test_a_drifted_source_names_locate_on_the_recorded_document(project) -> None:
+    registry, root, source = project
+    path = _bound(root, registry, f"The file says [1.42x]({_token(registry, 2)}).\n")
+    source.write_text(PAGE_BREAK.join([PAGE_ONE, PAGE_TWO_EDITED]), encoding="utf-8")
+    registry.ingest(source, extractor="paged")
+    (line,) = _next_lines(runner.invoke(app, ["verify", str(path)]).output)
+    assert "`backdraft locate" in line and "memo.md" in line
+
+
+def test_a_clean_verify_is_byte_identical(project) -> None:
+    registry, root, _ = project
+    path = _bound(root, registry, f"The file says [1.42x]({_token(registry, 2)}).\n")
+    result = runner.invoke(app, ["verify", str(path)])
+    assert result.exit_code == 0, result.output
+    assert result.output == (
+        f"checked {path} [backdraft/artifact-v1]\n"
+        "  receipts: 1 of 1 hold\n"
+        "  record: 1 claim(s), 1 citation(s); the summary recount agrees\n"
+        "  recorded: resolved 1\n"
+        f"  sources: re-resolved against {root} — resolved 1\n"
+        "  ledger: the run that bound this had no session — not_shown not re-checked\n"
+    )
+
+
+def test_json_carries_no_next_lines(record: pathlib.Path) -> None:
+    payload = _payload(record)
+    payload["summary"]["citations"] += 4
+    _rewrite(record, payload)
+    assert "next:" not in runner.invoke(app, ["verify", str(record), "--json"]).output

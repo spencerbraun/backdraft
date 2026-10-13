@@ -32,48 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. `bind` and `verify` name the failure and not the move
-
-**Intent.** 2026-09-01 made `ingest`'s failures say what to do as well as what
-went wrong, on the argument that a calling agent reads the reason and acts on it.
-`bind` and `verify` are the two commands whose output *is* the product, and
-neither says a next step anywhere: `! not_shown: <token> — <claim> @<offset>` is
-a complete diagnosis and a blank instruction. The move differs sharply per status
-and is not guessable — `not_shown` clears by showing the token, `unresolved`
-needs a search and a new token or an uncited claim, `drifted` needs `locate`
-and, where the text did not simply move, both snippets read and a judgement,
-`malformed` is an href to fix, and a `receipt:` finding means the artifact was
-edited rather than the sources moved. Today that mapping
-lives only in `skills/backdraft/SKILL.md`, which means it works for an agent
-running the skill and for nobody else — a hook, a CI job, a person, or any agent
-that reached the command another way.
-
-**Shape.** A closing block on both commands, one line per status actually
-present, naming the exact command that addresses it — the shape `ingest`'s
-grouped notes already use, and never a hint appended to each of eighteen line
-items. One owner for the mapping, imported by `bind/cli.py` and `render/cli.py`
-rather than written twice; the status set is the artifact format's and closed,
-so the mapping is total and a test asserts every `CitationStatus` has a line.
-`verify` adds the `receipt` case, which is not a citation status and is the
-finding that means something categorically different. Display only: no exit code
-moves, no status moves, no record field is added — a run that came out clean
-prints exactly what it prints today. Not `--json` (2026-09-14), which gave the
-same two commands a machine-readable payload; that serves a caller that parses,
-this one serves the caller that reads, and both are wanted because the human
-report is what gets relayed to the user.
-
-**Acceptance.** In `demo/`, `backdraft bind memo.md --session s-bridgeview
---check value-trace,overlap` closes by naming `backdraft search` for its one
-`unresolved`, and says nothing about the statuses it did not produce. A bind that
-comes out clean is byte-identical to today, as is a clean `verify` — pin both. A
-test enumerates `CitationStatus` and asserts each has a line and a command that
-`backdraft --help` lists. `verify` on an artifact with one edited snippet says
-the file was changed rather than the sources. `demo/walkthrough.md`'s bind and
-verify blocks show the real output. DESIGN row.
-
-**Size.** Two days.
-
-### 2. A chunk the table of contents lists is a chunk no read can ask for
+### 1. A chunk the table of contents lists is a chunk no read can ask for
 
 **Intent.** Since 2026-09-07 `backdraft read <slug>` on a one-page source lists
 that page's chunks — `p1.c9  From Wikipedia, the free encyclopedia...` — and the
@@ -120,7 +79,7 @@ form.
 
 **Size.** Two days.
 
-### 3. A search hit's excerpt can leave out the words that matched
+### 2. A search hit's excerpt can leave out the words that matched
 
 **Intent.** `search` prints each hit's first 160 characters, and
 `gate.reader.excerpt`'s NOTE says so on purpose: the cut is from the start rather
@@ -161,7 +120,7 @@ matched, asserted by test. No `registry-v1` export field changes. SPEC § Gate's
 
 **Size.** Two days.
 
-### 4. A small table is marked a shell, and the skill says not to cite it
+### 3. A small table is marked a shell, and the skill says not to cite it
 
 **Intent.** The thin-source mark (2026-08-20, carried onto every list
 2026-09-09) is a character count under `THIN_SOURCE_CHARS`, and for prose that
@@ -202,7 +161,7 @@ mark means for a table. DESIGN row.
 
 **Size.** One day.
 
-### 5. `ingest --dry-run` names the source and not the run
+### 4. `ingest --dry-run` names the source and not the run
 
 **Intent.** The dry run (2026-09-10) answers what a source would be called, and
 `tests/test_dry_run.py` pins that the prediction equals the outcome — for the
@@ -250,7 +209,7 @@ row.
 
 **Size.** Two days.
 
-### 6. `session show` counts what was read and cannot say what was not
+### 5. `session show` counts what was read and cannot say what was not
 
 **Intent.** `session show` (2026-08-31) answers "have I read enough to write
 this yet?" with a count per document. Since the page-read budget (2026-09-08) a
@@ -294,7 +253,7 @@ ask it after a context loss rather than re-reading from the top. DESIGN row.
 
 **Size.** Two days.
 
-### 7. An artifact word-diffs a drifted citation against whatever now stands at its old address
+### 6. An artifact word-diffs a drifted citation against whatever now stands at its old address
 
 **Intent.** The artifact's drift block (`render/html/text.py`'s `_drift_block`)
 shows `as cited` and `now`, word-diffed with `<del>` and `<ins>`, where `now` is
@@ -346,7 +305,7 @@ DESIGN row.
 
 **Size.** Three days.
 
-### 8. `locate` leaves the fix to hand edits of tokens, which the skill forbids
+### 7. `locate` leaves the fix to hand edits of tokens, which the skill forbids
 
 **Intent.** `locate` prints `moved: <old> — now at <new>` and closes by telling
 the writer to put each moved token in place of the old one, while the writing
@@ -391,7 +350,7 @@ pins for the plain run. DESIGN row.
 
 **Size.** Two days.
 
-### 9. `locate` calls intact words `gone` when an insertion merged or split their chunk
+### 8. `locate` calls intact words `gone` when an insertion merged or split their chunk
 
 **Intent.** `locate` matches the cited snippet's hash exactly, and the 2026-09-17
 row named the price: "a chunk that an insertion under 200 characters merged into"
@@ -439,7 +398,7 @@ every existing `tests/test_locate.py` expectation is unchanged. SPEC Addendum B'
 
 **Size.** Two days.
 
-### 10. A draft outside its project is told there is no registry, about the wrong directory
+### 9. A draft outside its project is told there is no registry, about the wrong directory
 
 **Intent.** `bind` and `locate` find the registry from the document's directory
 (SPEC § CLI), and when that walk finds nothing `cli_context.open_registry`
@@ -478,7 +437,7 @@ must live under its project or name it with `BACKDRAFT_HOME`. DESIGN row.
 
 **Size.** One day.
 
-### 11. After a re-ingest, nothing says which drafts cite the source that moved
+### 10. After a re-ingest, nothing says which drafts cite the source that moved
 
 **Intent.** `ingest`'s new-generation note says citations "may now report
 `drifted`", that `bind` on a document citing the source says which, and names
@@ -519,7 +478,7 @@ the note names the drafts. DESIGN row.
 
 **Size.** Two days.
 
-### 12. `render` ships a draft edited after `bind` as if the record had judged it
+### 11. `render` ships a draft edited after `bind` as if the record had judged it
 
 **Intent.** `render` reads two files, the draft and the record `bind` wrote for
 it, and never checks that they still describe the same text. Checked on
@@ -554,7 +513,7 @@ refuses a draft edited since bind. DESIGN row.
 
 **Size.** One to two days.
 
-### 13. An older backdraft reads a newer registry as if what it does not know were not there
+### 12. An older backdraft reads a newer registry as if what it does not know were not there
 
 **Intent.** The registry travels with the project folder — the documented answer
 to a sandbox that cannot reach the vision model is to ingest locally and hand the
@@ -589,7 +548,7 @@ DESIGN row.
 
 **Size.** One to two days.
 
-### 14. `ingest` reports per source in columns an agent has to scrape
+### 13. `ingest` reports per source in columns an agent has to scrape
 
 **Intent.** `bind` and `verify` gained `--json` (2026-09-14) because their output
 is read by agents and every wording fix silently broke a parser. `ingest` is the
@@ -623,7 +582,7 @@ is byte-identical, pinned. `site/llms.txt`, `skills/backdraft/SKILL.md`,
 
 **Size.** Two days.
 
-### 15. `forget` asks for confirmation without saying which drafts it will break
+### 14. `forget` asks for confirmation without saying which drafts it will break
 
 **Intent.** `forget` is the one command that takes something away, so it asks
 first, and what it says is general: a token already written into a draft still
@@ -635,7 +594,7 @@ is not said, though every rooted bind wrote its record under
 like a duplicate source cannot tell from the prompt that the memo it bound
 yesterday cites only the duplicate.
 
-**Shape.** Depends on item 11's records reader in `registry/` (the walk over
+**Shape.** Depends on item 10's records reader in `registry/` (the walk over
 `record_path`'s layout that maps each record back to a draft that still exists
 and skips a malformed record); if 12 has not landed, land that reader here and
 let 12 reuse it. `forget`'s description before the prompt names each draft whose
@@ -656,7 +615,7 @@ the drafts.
 
 **Size.** One day, two if it lands the records reader.
 
-### 16. `doctor` is read by agents and prints only columns
+### 15. `doctor` is read by agents and prints only columns
 
 **Intent.** The writing skill's first instruction is now "Run `backdraft doctor`
 before you promise anything" and plan from its `missing` lines. An agent does

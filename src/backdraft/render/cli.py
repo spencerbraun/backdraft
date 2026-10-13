@@ -43,6 +43,8 @@ import typer
 
 from ..cli_context import (
     EXIT_UNRESOLVED,
+    RECEIPT,
+    RECOUNT,
     UsageError,
     as_typed,
     authored_text,
@@ -50,6 +52,7 @@ from ..cli_context import (
     find_root,
     guard,
     named_root,
+    next_moves,
 )
 from ..kernel.artifact import (
     ARTIFACT_SUFFIX,
@@ -292,7 +295,9 @@ def verify(
     `--json` prints the same check as one object instead of the report. Its
     `findings` carry a `kind` — `receipt` means the file was edited, `source`
     that the sources or the ledger do not stand behind a citation today — so
-    the causes of an exit 2 are told apart without reading a sentence.
+    the causes of an exit 2 are told apart without reading a sentence. The
+    report says the same in words: it closes with one `next:` line per kind of
+    finding, naming the command that addresses it.
     """
     with guard():
         if not artifact.is_file():
@@ -451,6 +456,28 @@ def _print_verification(artifact: Path, checked: _Checked) -> None:
         typer.echo(
             "[Re-check against the sources: run this inside the project it was bound in.]"
         )
+    for line in _next_moves(checked):
+        typer.echo(line)
+
+
+def _next_moves(checked: _Checked) -> list[str]:
+    """The closing `next:` lines: one per kind of finding, bind's table.
+
+    `receipt` and `recount` come first because they mean something categorically
+    different — the file was edited, so what the sources say about it is moot
+    until it is rebuilt. The source tier's statuses get the moves `bind` prints
+    for them, against the document and session the record names, since the fix
+    is a re-bind of that document. A record that only *carries* a failure is not
+    a finding here (it exits 0), so it gets no line either.
+    """
+    present: set[str] = {str(fresh.status) for _, _, fresh in checked.moved}
+    if checked.broken:
+        present.add(RECEIPT)
+    if not checked.recounts:
+        present.add(RECOUNT)
+    report = checked.report
+    session = report.session_id if report.mode == "frontwalk" else None
+    return next_moves(present, doc=report.doc_path, session=session)
 
 
 def _ledger_line(checked: _Checked) -> str | None:

@@ -633,3 +633,93 @@ def test_the_sub_app_mounts_as_backdraft_bind() -> None:
     result = RUNNER.invoke(top, ["--help"])
     assert result.exit_code == 0
     assert "bind" in result.output
+
+
+# --- the closing `next:` block -----------------------------------------------
+#
+# One line per kind of failure the report printed, naming the command that
+# addresses it; nothing for the kinds it did not print, and nothing at all on a
+# clean run, whose report stays byte-identical.
+
+
+def _next_lines(output: str) -> list[str]:
+    return [line for line in output.splitlines() if line.startswith("next: ")]
+
+
+def test_an_unresolved_run_closes_by_naming_search(tmp_path, fake_bind_registry) -> None:
+    doc = write(tmp_path, "[NOI was $4.12M](bd:ghost:p1.c1:0000).\n")
+    result = run(str(doc), "--session", "s1")
+    (line,) = _next_lines(result.output)
+    assert line.startswith("next: unresolved — ")
+    assert '`backdraft search "<the fact>" --session s1`' in line
+    assert result.output.splitlines()[-1] == line
+
+
+def test_the_default_session_note_still_closes_the_report(
+    tmp_path, fake_bind_registry, monkeypatch
+) -> None:
+    """The `next:` lines go above the note, which keeps the last word."""
+    monkeypatch.delenv(cli_context.SESSION_ENV, raising=False)
+    doc = write(tmp_path, "[NOI](bd:ghost:p1.c1:0000).\n")
+    lines = run(str(doc)).output.splitlines()
+    assert lines[-2].startswith("next: unresolved — ")
+    assert lines[-1] == DEFAULT_SESSION_NOTE.format(env=cli_context.SESSION_ENV)
+
+
+def test_each_kind_present_gets_one_line_however_many_items(
+    tmp_path, fake_bind_registry
+) -> None:
+    doc = write(
+        tmp_path,
+        "[one](bd:ghost:p1.c1:0000) and [two](bd:ghost:p2.c1:0000) "
+        f"and [three]({token(fake_bind_registry)}).\n",
+    )
+    result = run(str(doc), "--session", "s1")
+    assert [line.split(" — ")[0] for line in _next_lines(result.output)] == [
+        "next: unresolved",
+        "next: not_shown",
+    ]
+    assert "`backdraft show <token> --session s1`" in result.output
+
+
+def test_a_drifted_run_names_locate_on_the_document(tmp_path, fake_bind_registry) -> None:
+    stale = fake_bind_registry.add_anchor(
+        "t12-audit", "p9.c1", "Net operating income was 3,980,000.", current=False, page_number=9
+    )
+    fake_bind_registry.show("s1", stale.token)
+    doc = write(tmp_path, f"[NOI was $3.98M]({stale.token}).\n")
+    result = run(str(doc), "--session", "s1")
+    (line,) = _next_lines(result.output)
+    assert f"`backdraft locate {doc} --session s1`" in line
+
+
+def test_a_malformed_run_says_to_fix_the_syntax(tmp_path, fake_bind_registry) -> None:
+    doc = write(tmp_path, "[the sum](bd:calc(a+b)).\n")
+    (line,) = _next_lines(run(str(doc), "--session", "s1").output)
+    assert line.startswith("next: malformed — ")
+
+
+def test_an_unmatched_backfill_claim_gets_a_move(tmp_path, fake_bind_registry) -> None:
+    doc = write(tmp_path, "Net operating income was 4,120,000 last year.\n")
+    result = run(str(doc), "--mode", "backfill")
+    (line,) = _next_lines(result.output)
+    assert line.startswith("next: unmatched — ")
+
+
+def test_a_clean_bind_is_byte_identical(tmp_path, fake_bind_registry) -> None:
+    resolved = token(fake_bind_registry)
+    fake_bind_registry.show("s1", resolved)
+    doc = write(tmp_path, f"[Net operating income was 4,120,000]({resolved}).\n")
+    result = run(str(doc), "--session", "s1")
+    assert result.exit_code == 0, result.output
+    assert result.output == (
+        "bound 1 claim(s), 1 citation(s) [frontwalk] against session s1\n"
+        "  resolved: 1\n"
+        f"wrote {sidecar_path(doc)}\n"
+    )
+
+
+def test_json_carries_no_next_lines(tmp_path, fake_bind_registry) -> None:
+    doc = write(tmp_path, "[NOI](bd:ghost:p1.c1:0000).\n")
+    result = run(str(doc), "--session", "s1", "--json")
+    assert "next:" not in result.output

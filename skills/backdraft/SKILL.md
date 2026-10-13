@@ -323,6 +323,7 @@ bound 17 claim(s), 18 citation(s) [frontwalk] against session s-bridgeview
   unresolved: 1
   ! unresolved: bd:t12-summary:p4.c1:1a2b — replacement reserve of $250 per unit per year @3629
 wrote .backdraft/records/memo.backdraft.json
+next: unresolved — the token names nothing. `backdraft show <token>` says which half is wrong, and `backdraft search "<the fact>" --session s-bridgeview` finds the real one. A claim no source supports says so in its text; a withdrawn source is replaced by one still ingested, not re-ingested. Never clear one by deleting the token.
 ```
 
 **Show the user the report verbatim.** It is the deliverable's quality statement;
@@ -355,7 +356,9 @@ report it to the user as a verification gap. Relay the reason as it is printed.
 Each line item is `<status>: <token> — <the claim's own words> @<offset>`, so
 the report already tells you which sentence to go fix and where it sits in the
 document. Do not grep for the token; the offset is what distinguishes two line
-items carrying the same one.
+items carrying the same one. The report closes with one `next:` line per status it
+printed, naming the command to run; it is the short form of the list below, which
+says the rest.
 
 **Parse keys, not lines.** When you need the result as data — to loop over the
 failures, or in a script or a hook — do not scrape the report: its wording is

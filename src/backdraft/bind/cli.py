@@ -30,6 +30,11 @@ which one:
 what tells two line items carrying the same token apart. The record JSON says
 all of this already, nested; this is the same fact on one line.
 
+The report closes with one `next:` line per kind of failure it printed, naming
+the command that addresses it — a diagnosis alone leaves the move to whoever
+knows the skill, and the reader of a hook's log may not. The wording is
+`cli_context.NEXT_MOVES`, shared with `verify`; a clean run prints none.
+
 A verifier's `skip` count gets the same treatment one level up. `overlap: pass
 13, skip 4` names four citations nobody checked without saying whether that is
 benign, so the reasons print under it, grouped:
@@ -76,11 +81,13 @@ from ..cli_context import (
     EXIT_UNRESOLVED,
     EXIT_USAGE,
     SESSION_ENV,
+    UNMATCHED,
     UsageError,
     as_typed,
     authored_text,
     claim_words,
     guard,
+    next_moves,
     open_registry,
     resolve_session,
 )
@@ -151,10 +158,10 @@ def bind(
     The report names on its first line the session `not_shown` was judged
     against, and closes with a note when that is the shared default one. It
     counts the statuses and prints each failure as `! <status>: <token> —
-    <claim> @<offset>`. `backdraft show <token>` says what any of
-    them names; after a re-ingest, `backdraft locate <doc.md>` finds where a
-    `drifted` citation's text went. `--json` prints the record instead of the
-    report, for a caller that parses.
+    <claim> @<offset>`, then one `next:` line per kind of failure it
+    printed, naming the command that addresses it — `show`, `search`, or
+    `locate` for a `drifted` one. `--json` prints the record
+    instead of the report, for a caller that parses.
 
     Exit codes: 0 every citation resolved · 1 no registry, a document that is
     missing or not UTF-8 text, or an unknown `--mode` or `--check` · 2 the run
@@ -190,7 +197,7 @@ def bind(
 
 
 def _print_report(report, doc: Path, *, bound: bool = False, record: Path | None = None) -> None:  # noqa: ANN001 - BindReport, kernel-typed
-    """The human-readable report: counts, then every line item.
+    """The human-readable report: counts, every line item, then what to do about them.
 
     A front-walk header names the session `not_shown` was judged against, since
     that one input decides the status and is otherwise resolved in silence; and
@@ -199,6 +206,10 @@ def _print_report(report, doc: Path, *, bound: bool = False, record: Path | None
     Keyed on the id, as `session show` keys it: an explicit `--session default`
     lands in the same shared ledger. Backfill never consults the ledger, so its
     header names none and it gets no note.
+
+    Before that note come the `next:` lines, one per kind of failure it printed,
+    naming the command that addresses it (`cli_context.NEXT_MOVES`, shared with
+    `verify`). A clean run prints none, so its report is what it always was.
     """
     summary = report.summary
     judged = report.mode == "frontwalk" and report.session_id is not None
@@ -215,7 +226,9 @@ def _print_report(report, doc: Path, *, bound: bool = False, record: Path | None
         typer.echo(f"  {method}: {detail}")
         for reason, count in skipped.get(method, ()):
             typer.echo(f"    skip {count} — {reason}")
+    present: set[str] = set()
     for claim, citation in _line_items(report):
+        present.add(citation.status)
         reason = f" — {citation.error}" if citation.error else ""
         typer.echo(
             f"  ! {citation.status}: {citation.token}{reason}"
@@ -223,10 +236,13 @@ def _print_report(report, doc: Path, *, bound: bool = False, record: Path | None
         )
     for claim in report.claims:
         if claim.unmatched:
+            present.add(UNMATCHED)
             typer.echo(f"  ! unmatched: {claim_words(claim.text)}")
     if bound:
         typer.echo(f"wrote {bound_path(doc)}")
     typer.echo(f"wrote {as_typed(record or sidecar_path(doc))}")
+    for line in next_moves(present, doc=str(doc), session=report.session_id):
+        typer.echo(line)
     if judged and report.session_id == DEFAULT_SESSION:
         typer.echo(DEFAULT_SESSION_NOTE.format(env=SESSION_ENV))
 

@@ -255,13 +255,15 @@ other status: it says which half of an unresolved token is wrong and mints a
 not_shown one so the next bind resolves. On a drifted one it prints what you
 cited and what stands at that locator now — after an edit above, a different
 passage, which is why locate comes first there. NEVER fix exit 2 by
-deleting the token; a kept failure is the honest outcome. Show the user the bind
-report verbatim.
+deleting the token; a kept failure is the honest outcome. The report closes with
+one `next:` line per status it printed, naming the command that addresses it.
+Show the user the bind report verbatim.
 
 `verify` shares the codes and the line shape. Its 0 means everything it checked
 passed — not that every claim is supported, and not that the sources were
 looked at unless the `sources:` line says they were. A `! receipt:` line means
-the file was edited after it was written; report that first. A tier-two line
+the file was edited after it was written; report that first. Its closing
+`next:` lines name the move per finding, as bind's do. A tier-two line
 ending `— the record says resolved` means the source moved since the document
 was bound: re-read and confirm, do not delete. To check a file you were sent
 against a project you have, pass `--against <project root or its .backdraft>`

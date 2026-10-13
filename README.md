@@ -237,13 +237,15 @@ bound 17 claim(s), 18 citation(s) [frontwalk] against session s-bridgeview
   value-trace: pass 17
   ! unresolved: bd:t12-summary:p4.c1:1a2b — replacement reserve of $250 per unit per year @3629
 wrote .backdraft/records/memo.backdraft.json
+next: unresolved — the token names nothing. `backdraft show <token>` says which half is wrong, and `backdraft search "<the fact>" --session s-bridgeview` finds the real one. A claim no source supports says so in its text; a withdrawn source is replaced by one still ingested, not re-ingested. Never clear one by deleting the token.
 
 $ echo $?
 2
 ```
 
 Exit 2 means a citation did not resolve, the code a `Stop` hook or a CI job
-gates on.
+gates on. The closing `next:` line names the command that fixes each kind of
+failure the report printed.
 
 **Render.** One self-contained HTML file: the document, the receipts, the
 evidence, cited page images, spreadsheet cells in place, the machine-readable
