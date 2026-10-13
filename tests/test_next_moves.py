@@ -10,8 +10,6 @@ from __future__ import annotations
 
 import re
 
-from typer.testing import CliRunner
-
 from backdraft import cli
 from backdraft.cli_context import NEXT_MOVES, RECEIPT, RECOUNT, UNMATCHED, next_moves
 from backdraft.kernel.model import CitationStatus
@@ -20,14 +18,18 @@ COMMAND = re.compile(r"`backdraft ([a-z][a-z-]*)")
 
 
 def _listed_commands() -> set[str]:
-    """The command names `backdraft --help` prints, read off the help itself."""
-    result = CliRunner().invoke(cli.app, ["--help"], terminal_width=200)
-    assert result.exit_code == 0, result.output
-    return {
-        match.group(1)
-        for line in result.output.splitlines()
-        if (match := re.match(r"^│\s+([a-z][a-z-]*)\s", line))
+    """The command names `backdraft --help` lists: the top-level app's visible ones.
+
+    Read off the app's registrations rather than scraped from the help text,
+    whose box drawing depends on the terminal rich thinks it has.
+    """
+    commands = {
+        info.name or info.callback.__name__.replace("_", "-")
+        for info in cli.app.registered_commands
+        if not info.hidden
     }
+    groups = {info.name for info in cli.app.registered_groups if not info.hidden}
+    return commands | groups
 
 
 def test_every_failing_status_has_a_move() -> None:
