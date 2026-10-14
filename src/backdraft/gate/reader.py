@@ -184,6 +184,9 @@ so the way to read a large page in one call is the `--limit` that line names.
 
 _ELLIPSIS = "..."
 _PAGE_SELECTOR = re.compile(r"p(?P<first>[1-9][0-9]*)(?:-(?P<last>[1-9][0-9]*))?")
+_CHUNK_SELECTOR = re.compile(
+    r"p(?P<page>[1-9][0-9]*)\.c(?P<first>[1-9][0-9]*)(?:-c(?P<last>[1-9][0-9]*))?"
+)
 _BARE_NUMBER = re.compile(r"[1-9][0-9]*")
 _MARKDOWN_RULE = re.compile(r"[\s|:-]*-[\s|:-]*")
 
@@ -199,14 +202,28 @@ class Selection:
 
     `text` is echoed back verbatim in continuation hints, so the command the
     reader is told to run next is the command it just ran.
+
+    `chunks` is the ordinal range a `p1.c9` or `p1.c9-c14` selector names, first
+    and last as typed, on the one page in `numbers`; None for every other form.
+    It is not checked against the page here, because only the page's anchors
+    know which ordinals exist — `render_page_read` checks it.
     """
 
     numbers: tuple[int, ...]
     text: str
+    chunks: tuple[int, int] | None = None
 
 
 def select_pages(pages: Sequence[Page], selector: str) -> Selection:
-    """Resolve `p3`, `p3-5`, a sheet name, or a bare page number to page numbers.
+    """Resolve `p3`, `p3-5`, `p3.c2`, `p3.c2-c4`, a sheet name, or a bare page
+    number to page numbers.
+
+    The chunk forms are the locators a one-page source's table of contents lists
+    (`_chunk_lines`), so the address that list prints is one a read accepts.
+    They are *read* selectors and not a new token form: `spec/tokens.md` already
+    defines `p3.c2`, and what a chunk read prints is minted exactly as a page
+    read's is. Only a `page`-kind page takes one — a sheet's citable unit is the
+    cell, and it yields no chunk anchors to select.
 
     Sheet names win over the numeric forms so that a sheet named `p3` or `3` is
     still reachable by name. Matching is on `Page.name`, insensitive to case and
@@ -221,6 +238,20 @@ def select_pages(pages: Sequence[Page], selector: str) -> Selection:
         return Selection(numbers=tuple(sorted(named)), text=selector)
 
     known = {page.number for page in pages}
+    if match := _CHUNK_SELECTOR.fullmatch(selector):
+        number = int(match["page"])
+        page = next((page for page in pages if page.number == number), None)
+        if page is None:
+            raise GateError(f"no such page: {selector!r}; {_what_exists(pages)}")
+        if page.kind != "page":
+            raise GateError(
+                f"{selector!r} names a chunk, and p{number} is a sheet: a sheet is read "
+                f"by its name or as p{number}, and cited by cell, as sheet!B10"
+            )
+        first = int(match["first"])
+        last = int(match["last"]) if match["last"] else first
+        return Selection(numbers=(number,), text=selector, chunks=(first, last))
+
     if match := _PAGE_SELECTOR.fullmatch(selector):
         first = int(match["first"])
         last = int(match["last"]) if match["last"] else first
@@ -245,12 +276,45 @@ def _what_exists(pages: Sequence[Page]) -> str:
     the next command is a second `read` just to find out."""
     if not pages:
         return "this document has no pages"
-    names = [page.name for page in pages if page.name]
-    if len(names) == len(pages):
-        return "sheets: " + ", ".join(names)
+    # Keyed on kind, not on names: a fetched web page is named by its `<title>`
+    # and is not a sheet, and calling it one sends the caller looking for a
+    # workbook that is not there.
+    if all(page.kind == "sheet" and page.name for page in pages):
+        return "sheets: " + ", ".join(page.name for page in pages if page.name)
     numbers = sorted(page.number for page in pages)
     span = f"p{numbers[0]}" if len(numbers) == 1 else f"p{numbers[0]}-{numbers[-1]}"
     return f"this document has {span}"
+
+
+def _chunk_span(number: int, chunks: Sequence[Anchor]) -> str:
+    """What a chunk selector could have asked for, in `_what_exists`'s shape."""
+    if not chunks:
+        return f"p{number} has no chunks"
+    ordinals = [anchor.locator.ordinal for anchor in chunks]  # type: ignore[union-attr]
+    first, last = min(ordinals), max(ordinals)
+    return f"p{number} has c{first}" if first == last else f"p{number} has c{first}-c{last}"
+
+
+def _select_chunks(selection: Selection, chunks: Sequence[Anchor]) -> list[Anchor]:
+    """The chunks a chunk selection names, in order; every chunk otherwise.
+
+    A range clips to the chunks that exist, as `p2-9` clips to the pages that
+    do, and is refused only when it runs backwards or names none of them.
+    """
+    if selection.chunks is None:
+        return list(chunks)
+    first, last = selection.chunks
+    span = _chunk_span(selection.numbers[0], chunks)
+    if last < first:
+        raise GateError(f"chunk range runs backwards: {selection.text!r}; {span}")
+    chosen = [
+        anchor
+        for anchor in chunks
+        if first <= anchor.locator.ordinal <= last  # type: ignore[union-attr]
+    ]
+    if not chosen:
+        raise GateError(f"no such chunk: {selection.text!r}; {span}")
+    return chosen
 
 
 def _fold(name: str) -> str:
@@ -654,6 +718,15 @@ def render_page_read(
     Every anchor shown is recorded, including the cell anchors a sheet window
     exposes by their in-band references but does not print tokens for.
 
+    A chunk selector (`p1.c9`, `p1.c9-c14`) narrows its page to those chunks
+    before the window sees it, so the budget, the whole-chunk rule and the
+    continuation line work on the range as they do on a page, and the command
+    that continues it names the range again. A chunk on the same page beside a
+    selected one is not named, even where one paragraph runs across them: the
+    selector asked for exactly these chunks, and naming a neighbour mints it. A
+    range that takes in its page's last chunk still names the next page's first,
+    by the rule below, as a page read would.
+
     A read that shows the last chunk of its last page and stops there names the
     next page's first chunk, under `next page begins`, and mints it: a paragraph
     may cross that break, and nothing in the chunks can say whether it did
@@ -683,7 +756,8 @@ def render_page_read(
         if page.kind == "sheet":
             block, shown = _render_sheet(document, page, anchors, total_pages, window)
         else:
-            block, shown = _render_page(document, page, anchors, total_pages, window)
+            chosen = _select_chunks(selection, _chunks(anchors))
+            block, shown = _render_page(document, page, chosen, total_pages, window)
         if block:
             blocks.append(block)
         minted.extend(shown)

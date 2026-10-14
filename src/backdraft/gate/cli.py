@@ -98,7 +98,10 @@ what `read` actually does."""
 def read(
     slug: Annotated[str | None, typer.Argument(help="Document slug.")] = None,
     selector: Annotated[
-        str | None, typer.Argument(help="Page (`p3`), range (`p3-5`), or sheet name.")
+        str | None,
+        typer.Argument(
+            help="Page (`p3`), range (`p3-5`), chunk (`p3.c2`, `p3.c2-c4`), or sheet name."
+        ),
     ] = None,
     session: _SessionOption = None,
     offset: Annotated[

@@ -139,6 +139,12 @@ def test_unknown_page_is_exit_1(runner: CliRunner, wired: FakeDocumentRegistry) 
     )
 
 
+def test_an_unknown_chunk_is_exit_1(runner: CliRunner, wired: FakeDocumentRegistry) -> None:
+    result = runner.invoke(cli.app, ["read", "t12-audit", "p2.c9"])
+    assert result.exit_code == 1
+    assert result.stderr.strip() == "backdraft: no such chunk: 'p2.c9'; p2 has c1-c2"
+
+
 def test_the_registry_is_closed_even_after_an_error(
     runner: CliRunner, wired: FakeDocumentRegistry
 ) -> None:

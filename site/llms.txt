@@ -150,7 +150,9 @@ backdraft read <slug>                       # table of contents. A web page is
                                             # opens with. Read this before a
                                             # page read: one page can be tens
                                             # of thousands of characters.
-backdraft read <slug> p3                    # page/range/sheet; chunks arrive
+backdraft read <slug> p3                    # page/range/sheet, or chunks by
+                                            # the locator the contents list:
+                                            # p1.c9, p1.c9-c14. Chunks arrive
                                             # with tokens: [bd:slug:p3.c2:7f11]
                                             # One read shows 12000 chars (200
                                             # sheet rows) unless --limit says

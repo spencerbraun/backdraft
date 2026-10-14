@@ -305,7 +305,16 @@ the last three are its footer. That is deliberate: nothing here strips
 boilerplate, because a heuristic that changes its mind between two versions of a
 site moves every anchor under it. The list is how you find where the article
 starts — `p1.c9`, "From Wikipedia, the free encyclopedia" — without spending
-34,000 characters of context to find out.
+34,000 characters of context to find out, and the locator it prints is one
+`read` takes:
+
+```bash
+backdraft read franklin-county p1.c9-c14
+```
+
+That prints those six chunks under their tokens and mints those six and no
+others; `p1.c9` alone is one chunk. A range that runs past the budget closes
+with the same continuation line a page does, naming the range again.
 
 Reading the page itself does not spend all 34,000 either. One read shows 12,000
 characters by default, so `backdraft read franklin-county p1` returns chunks

@@ -123,9 +123,11 @@ the page's own name off its `<title>`, then `p1.c1`, `p1.c2` and what each one
 opens with. The opening chunks of any real site are its navigation menu and the
 closing ones its footer; nothing here strips them, because a boilerplate guess
 that changes its mind moves every anchor under it. Use the list to find where
-the content starts, then `backdraft search` for the figures you need rather
-than reading the whole page into context — and if you do read it, expect it in
-more than one window.
+the content starts, then read from there by the locator the list printed —
+`backdraft read <slug> p1.c9` for one chunk, `p1.c9-c14` for a run of them —
+or `backdraft search` for the figures you need, rather than reading the whole
+page into context from its navigation menu. A whole-page read comes in more
+than one window.
 
 Two habits make a web citation last. **Ingest a fixed revision when the site
 offers one** — Wikipedia's `?oldid=` permanent link, a DOI, an archived
@@ -162,7 +164,7 @@ Then read, narrowing as you go:
 backdraft read                        # what is ingested
 backdraft read t12-summary            # table of contents
 backdraft read franklin-county        # a web page is one page: its chunks
-backdraft read t12-summary p1         # p1, p3-5, or a sheet name
+backdraft read t12-summary p1         # p1, p3-5, p1.c2-c4, or a sheet name
 backdraft search "24850000"           # results are citable without a page read
 backdraft search "cap rate" --in underwriting-model
 ```

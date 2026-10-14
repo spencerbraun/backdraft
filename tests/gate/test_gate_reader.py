@@ -859,6 +859,101 @@ def test_a_dead_selector_on_a_workbook_names_the_sheets() -> None:
         read(registry, "book", "nope")
 
 
+def test_a_dead_selector_on_a_titled_web_page_does_not_call_it_a_sheet() -> None:
+    """Every page of a fetched article has a name, its `<title>`; that is not
+    what makes a workbook, and `sheets:` sent the caller looking for one."""
+    registry = FakeDocumentRegistry().add(_article())
+    with pytest.raises(GateError, match=r"^no page or sheet named 'nope'; this document has p1$"):
+        read(registry, "county", "nope")
+
+
+# ---------------------------------------------------------------------------
+# chunk selectors
+# ---------------------------------------------------------------------------
+
+
+def _tokens(output: str) -> list[str]:
+    return [line.strip("[]") for line in output.split("\n") if line.startswith("[bd:")]
+
+
+def test_a_chunk_the_contents_list_is_a_chunk_a_read_takes() -> None:
+    """The locator the table of contents printed is the selector that reads it:
+    that chunk under its own token, and nothing else printed or minted."""
+    registry = FakeDocumentRegistry().add(_article())
+    c2 = registry.anchors_for_page("county", 1)[1]
+    output = read(registry, "county", "p1.c2", session="s")
+    assert output == (
+        f"# county p1  (page 1 of 1)\n\n[{c2.token}]\nFranklin County had 1,326,063 residents."
+    )
+    assert registry.shown_tokens("s") == set(_tokens(output))
+
+
+def test_a_chunk_range_prints_those_chunks_in_order() -> None:
+    registry = FakeDocumentRegistry().add(_article())
+    output = read(registry, "county", "p1.c2-c3", session="s")
+    assert [token.split(":")[2] for token in _tokens(output)] == ["p1.c2", "p1.c3"]
+    assert registry.shown_tokens("s") == set(_tokens(output))
+
+
+def test_a_chunk_range_clips_to_the_chunks_that_exist() -> None:
+    """As `p2-9` clips to the pages that exist."""
+    registry = FakeDocumentRegistry().add(_article())
+    output = read(registry, "county", "p1.c3-c9", session="s")
+    assert [token.split(":")[2] for token in _tokens(output)] == ["p1.c3", "p1.c4"]
+
+
+@pytest.mark.parametrize(
+    ("selector", "reason"),
+    [
+        ("p1.c3-c2", r"^chunk range runs backwards: 'p1\.c3-c2'; p1 has c1-c4$"),
+        ("p1.c99", r"^no such chunk: 'p1\.c99'; p1 has c1-c4$"),
+        ("p2.c1", r"^no such page: 'p2\.c1'; this document has p1$"),
+    ],
+)
+def test_a_dead_chunk_selector_names_the_span(selector: str, reason: str) -> None:
+    registry = FakeDocumentRegistry().add(_article())
+    with pytest.raises(GateError, match=reason):
+        read(registry, "county", selector, session="s")
+    assert registry.shown_tokens("s") == set()
+
+
+def test_a_sheet_takes_no_chunk_selector(fake_gate_registry: FakeDocumentRegistry) -> None:
+    """A sheet's citable unit is the cell; the refusal says how it is read and cited."""
+    with pytest.raises(GateError, match=r"p1 is a sheet: a sheet is read by its name or as p1"):
+        read(fake_gate_registry, "rent-model", "p1.c1", session="s")
+
+
+def test_a_chunk_on_a_paginated_document(fake_gate_registry: FakeDocumentRegistry) -> None:
+    """Not only a web page: any `page`-kind page takes the form."""
+    output = read(fake_gate_registry, "t12-audit", "p2.c1", session="s")
+    assert _tokens(output) == ["bd:t12-audit:p2.c1:50bd"]
+
+
+def test_a_chunk_range_past_the_budget_continues_in_its_own_form() -> None:
+    """The continuation names the range again, and walking it shows each chunk
+    of the range exactly once and nothing outside it."""
+    registry = FakeDocumentRegistry().add(_long_page(200))
+    first = read(registry, "county", "p1.c10-c150", session="s")
+    assert "Continue with: backdraft read county p1.c10-c150 --offset " in first
+    seen: list[str] = []
+    args: dict[str, object] = {"slug": "county", "selector": "p1.c10-c150"}
+    for _ in range(20):
+        output = read(registry, session="s", **args)  # type: ignore[arg-type]
+        seen += _tokens(output)
+        following = continuation(output)
+        if following is None:
+            break
+        args = following
+    assert [token.split(":")[2] for token in seen] == [f"p1.c{n}" for n in range(10, 151)]
+
+
+def test_select_chunk_forms(fake_gate_registry: FakeDocumentRegistry) -> None:
+    pages = fake_gate_registry.pages("t12-audit")
+    assert select_pages(pages, "p2.c2").chunks == (2, 2)
+    assert select_pages(pages, "p2.c1-c2").chunks == (1, 2)
+    assert select_pages(pages, "p2").chunks is None
+
+
 def test_unknown_slug(fake_gate_registry: FakeDocumentRegistry) -> None:
     with pytest.raises(GateError):
         read(fake_gate_registry, "nope")
