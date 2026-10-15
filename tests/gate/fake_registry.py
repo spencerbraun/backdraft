@@ -53,6 +53,7 @@ class SearchHit:
     anchor: Anchor
     slug: str
     page_number: int
+    matches: tuple[tuple[int, int], ...] = ()
 
 
 class SearchResults(list):
@@ -135,10 +136,14 @@ class FakeDocumentRegistry:
                 continue
             for number in sorted(loaded.anchors):
                 for anchor in loaded.anchors[number]:
-                    if needle in anchor.receipt.snippet.lower():
+                    at = anchor.receipt.snippet.lower().find(needle)
+                    if at != -1:
                         hits.append(
                             SearchHit(
-                                anchor=anchor, slug=loaded.document.slug, page_number=number
+                                anchor=anchor,
+                                slug=loaded.document.slug,
+                                page_number=number,
+                                matches=((at, at + len(needle)),),
                             )
                         )
         return SearchResults(

@@ -32,48 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. A search hit's excerpt can leave out the words that matched
-
-**Intent.** `search` prints each hit's first 160 characters, and
-`gate.reader.excerpt`'s NOTE says so on purpose: the cut is from the start rather
-than centred on the match, because FTS5 decides what matched and the gate
-re-derives nothing the registry owns. The walkthrough's own step 11 shows the
-cost. `backdraft search "replacement reserve"` returns
-`bd:t12-summary:p3.c4:6f0f` over an excerpt about capital expenditures that never
-contains the phrase — the sentence that does starts past character 200 — and
-the walkthrough can say "that is the snippet that actually says it" only because
-it ran `show` next. An agent choosing among twenty hits does not run `show` on
-each; it picks by excerpts that, for any chunk longer than a couple of lines, are
-the chunk's opening rather than its evidence. Web pages, whose chunks run to a
-thousand characters, made that the common case.
-
-**Shape.** Answer the NOTE rather than override it: ask the registry, which does
-own what matched. The `search` table in `registry/schema.sql` is a
-content-storing FTS5 table, so `Registry.search` can return FTS5's own window
-for each hit — `snippet()`, or match offsets out of `highlight()` markers — and
-`SearchHit` gains that field. The gate then renders the window it was handed,
-which is the rule the NOTE protects, and `Registry.search` stays the only place
-an FTS5 function is called. Display only: token, anchor and receipt are
-untouched, and the excerpt stays one line of at most `EXCERPT_CHARS` with an
-elision mark at whichever end was cut. Keep byte-identity where it is free: a
-hit whose match already falls inside the first `EXCERPT_CHARS` prints exactly
-today's excerpt, so only the hits that were hiding their evidence change, and
-most documented `search` blocks do not move. A phrase-fallback retry windows on
-the phrase that actually ran. The DESIGN row says what replaced the NOTE and why
-the registry, not the gate, computes the window.
-
-**Acceptance.** In `demo/`, `backdraft search "replacement reserve"` shows the
-`p3.c4` excerpt containing "replacement reserve", opening with an elision mark.
-`backdraft search "24850000"` and every other `search` block in
-`demo/walkthrough.md` and `README.md` whose match lies in the first 160
-characters is byte-identical, pinned. A query that matches only late in a long
-chunk, and a query run through the phrase fallback, each window on what FTS5
-matched, asserted by test. No `registry-v1` export field changes. SPEC § Gate's
-`search` line follows. DESIGN row.
-
-**Size.** Two days.
-
-### 2. A small table is marked a shell, and the skill says not to cite it
+### 1. A small table is marked a shell, and the skill says not to cite it
 
 **Intent.** The thin-source mark (2026-08-20, carried onto every list
 2026-09-09) is a character count under `THIN_SOURCE_CHARS`, and for prose that
@@ -114,7 +73,7 @@ mark means for a table. DESIGN row.
 
 **Size.** One day.
 
-### 3. `ingest --dry-run` names the source and not the run
+### 2. `ingest --dry-run` names the source and not the run
 
 **Intent.** The dry run (2026-09-10) answers what a source would be called, and
 `tests/test_dry_run.py` pins that the prediction equals the outcome — for the
@@ -162,7 +121,7 @@ row.
 
 **Size.** Two days.
 
-### 4. `session show` counts what was read and cannot say what was not
+### 3. `session show` counts what was read and cannot say what was not
 
 **Intent.** `session show` (2026-08-31) answers "have I read enough to write
 this yet?" with a count per document. Since the page-read budget (2026-09-08) a
@@ -206,7 +165,7 @@ ask it after a context loss rather than re-reading from the top. DESIGN row.
 
 **Size.** Two days.
 
-### 5. An artifact word-diffs a drifted citation against whatever now stands at its old address
+### 4. An artifact word-diffs a drifted citation against whatever now stands at its old address
 
 **Intent.** The artifact's drift block (`render/html/text.py`'s `_drift_block`)
 shows `as cited` and `now`, word-diffed with `<del>` and `<ins>`, where `now` is
@@ -258,7 +217,7 @@ DESIGN row.
 
 **Size.** Three days.
 
-### 6. `locate` leaves the fix to hand edits of tokens, which the skill forbids
+### 5. `locate` leaves the fix to hand edits of tokens, which the skill forbids
 
 **Intent.** `locate` prints `moved: <old> — now at <new>` and closes by telling
 the writer to put each moved token in place of the old one, while the writing
@@ -303,7 +262,7 @@ pins for the plain run. DESIGN row.
 
 **Size.** Two days.
 
-### 7. `locate` calls intact words `gone` when an insertion merged or split their chunk
+### 6. `locate` calls intact words `gone` when an insertion merged or split their chunk
 
 **Intent.** `locate` matches the cited snippet's hash exactly, and the 2026-09-17
 row named the price: "a chunk that an insertion under 200 characters merged into"
@@ -351,7 +310,7 @@ every existing `tests/test_locate.py` expectation is unchanged. SPEC Addendum B'
 
 **Size.** Two days.
 
-### 8. A draft outside its project is told there is no registry, about the wrong directory
+### 7. A draft outside its project is told there is no registry, about the wrong directory
 
 **Intent.** `bind` and `locate` find the registry from the document's directory
 (SPEC § CLI), and when that walk finds nothing `cli_context.open_registry`
@@ -390,7 +349,7 @@ must live under its project or name it with `BACKDRAFT_HOME`. DESIGN row.
 
 **Size.** One day.
 
-### 9. After a re-ingest, nothing says which drafts cite the source that moved
+### 8. After a re-ingest, nothing says which drafts cite the source that moved
 
 **Intent.** `ingest`'s new-generation note says citations "may now report
 `drifted`", that `bind` on a document citing the source says which, and names
@@ -431,7 +390,7 @@ the note names the drafts. DESIGN row.
 
 **Size.** Two days.
 
-### 10. `render` ships a draft edited after `bind` as if the record had judged it
+### 9. `render` ships a draft edited after `bind` as if the record had judged it
 
 **Intent.** `render` reads two files, the draft and the record `bind` wrote for
 it, and never checks that they still describe the same text. Checked on
@@ -466,7 +425,7 @@ refuses a draft edited since bind. DESIGN row.
 
 **Size.** One to two days.
 
-### 11. An older backdraft reads a newer registry as if what it does not know were not there
+### 10. An older backdraft reads a newer registry as if what it does not know were not there
 
 **Intent.** The registry travels with the project folder — the documented answer
 to a sandbox that cannot reach the vision model is to ingest locally and hand the
@@ -501,7 +460,7 @@ DESIGN row.
 
 **Size.** One to two days.
 
-### 12. `ingest` reports per source in columns an agent has to scrape
+### 11. `ingest` reports per source in columns an agent has to scrape
 
 **Intent.** `bind` and `verify` gained `--json` (2026-09-14) because their output
 is read by agents and every wording fix silently broke a parser. `ingest` is the
@@ -535,7 +494,7 @@ is byte-identical, pinned. `site/llms.txt`, `skills/backdraft/SKILL.md`,
 
 **Size.** Two days.
 
-### 13. `forget` asks for confirmation without saying which drafts it will break
+### 12. `forget` asks for confirmation without saying which drafts it will break
 
 **Intent.** `forget` is the one command that takes something away, so it asks
 first, and what it says is general: a token already written into a draft still
@@ -547,10 +506,10 @@ is not said, though every rooted bind wrote its record under
 like a duplicate source cannot tell from the prompt that the memo it bound
 yesterday cites only the duplicate.
 
-**Shape.** Depends on item 9's records reader in `registry/` (the walk over
+**Shape.** Depends on item 8's records reader in `registry/` (the walk over
 `record_path`'s layout that maps each record back to a draft that still exists
-and skips a malformed record); if 9 has not landed, land that reader here and
-let 9 reuse it. `forget`'s description before the prompt names each draft whose
+and skips a malformed record); if 8 has not landed, land that reader here and
+let 8 reuse it. `forget`'s description before the prompt names each draft whose
 record cites the slug and how many citations each would turn `unresolved`, a
 count past a handful, and nothing new when none does. `--yes` prints the same
 lines before withdrawing, since an agent passing `--yes` is the caller most in
@@ -568,7 +527,7 @@ the drafts.
 
 **Size.** One day, two if it lands the records reader.
 
-### 14. `doctor` is read by agents and prints only columns
+### 13. `doctor` is read by agents and prints only columns
 
 **Intent.** The writing skill's first instruction is now "Run `backdraft doctor`
 before you promise anything" and plan from its `missing` lines. An agent does

@@ -839,11 +839,16 @@ backdraft search "replacement reserve"
   Replacement reserve
 
 [bd:t12-summary:p3.c4:6f0f]  t12-summary p3
-  Capital expenditures of $317,000 were incurred outside the operating statement and are not deducted in arriving at net operating income. The largest items were ...
+  ...The largest items were roof replacement on the A and B buildings ($186,000) and parking lot resurfacing ($64,500). A replacement reserve of $250 per unit per ye...
 
 [Read the page: backdraft read underwriting-model p2]
 [Read the page: backdraft read t12-summary p3]
 ```
+
+The phrase sits past the chunk's first 160 characters, so that hit's excerpt
+opens on the words FTS5 matched rather than on the chunk's opening, and the
+leading `...` says it was cut there. A hit whose match the opening already
+shows, like every cell above, prints its opening as before.
 
 `bd:t12-summary:p3.c4:6f0f` is the snippet that actually says it — and `show`
 confirms that before the edit, rather than after the re-bind:

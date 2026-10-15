@@ -31,7 +31,7 @@ from ..kernel.errors import BackdraftError
 from ..kernel.hashing import normalize
 from ..kernel.model import CitationStatus, source_name, source_origin
 from ..kernel.tokens import CellLocator, ChunkLocator, format_locator, parse as parse_token
-from ..registry import current_at, withdrawn_reason
+from ..registry import current_at, unmark, withdrawn_reason
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -130,6 +130,9 @@ chunk, and `backdraft show` prints the rest. It lives here rather than in
 `searcher.py`, which first needed it, because a page read names adjoining chunks
 too and the searcher imports this module, never the other way round.
 """
+
+MATCH_LEAD_CHARS = 30
+"""How much text a windowed excerpt keeps ahead of the match it was moved to."""
 
 ADJOINING_NOTE = (
     "note: text can run on across a paragraph split in two or a page break, so the "
@@ -455,16 +458,70 @@ def _one_paragraph(text: str | None, left: Anchor, right: Anchor) -> bool:
     return PARAGRAPH_BREAK.search(text[left.end : right.start]) is None
 
 
-def excerpt(snippet: str) -> str:
+def excerpt(snippet: str, matches: Sequence[tuple[int, int]] = ()) -> str:
     """A snippet collapsed onto one line and cut to `EXCERPT_CHARS`.
 
-    NOTE: the cut is from the start rather than centred on the match. FTS5
-    decides what matched (stemming, phrase queries), and the gate does not
-    re-derive anything the registry owns; the token beside it is the thing to
-    cite, and a read is the way to see the rest.
+    `matches` is what the registry says the query matched (`SearchHit.matches`,
+    offsets into `snippet`). The cut is from the start — exactly as it is with
+    no matches — unless the first match ends past `EXCERPT_CHARS`, in which
+    case the window moves to the run of matches it can hold the most of, opened
+    `MATCH_LEAD_CHARS` early and elided at whichever end it cut.
+
+    NOTE: the gate decides where to cut and nothing else. Which words matched
+    (stemming, a phrase run as one) is FTS5's call, read back by the registry
+    out of `highlight()`; re-deriving it here would be a second, disagreeing
+    answer. A hit whose match the opening already shows prints what it always
+    did, so only the excerpts that were hiding their evidence move.
     """
-    text = normalize(snippet)
-    return text if len(text) <= EXCERPT_CHARS else text[:EXCERPT_CHARS] + _ELLIPSIS
+    text, spans = _normalized_spans(snippet, matches)
+    if len(text) <= EXCERPT_CHARS:
+        return text
+    if not spans or spans[0][1] <= EXCERPT_CHARS:
+        return text[:EXCERPT_CHARS] + _ELLIPSIS
+
+    def held(start: int) -> tuple[int, int]:
+        """A window's rank: the matches it holds whole, then the earlier window."""
+        whole = sum(1 for a, b in spans if a >= start and b <= start + EXCERPT_CHARS)
+        return whole, -start
+
+    start = max((_window_start(text, span[0]) for span in spans), key=held)
+    end = start + EXCERPT_CHARS
+    return (_ELLIPSIS if start else "") + text[start:end] + (_ELLIPSIS if end < len(text) else "")
+
+
+_SPAN_OPEN = "\x01"
+_SPAN_CLOSE = "\x02"
+
+
+def _normalized_spans(
+    snippet: str, matches: Sequence[tuple[int, int]]
+) -> tuple[str, list[tuple[int, int]]]:
+    """`normalize(snippet)`, with `matches` carried into its coordinates.
+
+    Markers go into the raw snippet and come out of the normalized one, so the
+    whitespace collapse and the NFC pass move the spans with the text rather
+    than being re-implemented as offset arithmetic. A span that does not fit
+    the snippet is dropped, not trusted.
+    """
+    edges: dict[int, str] = {}
+    for start, end in matches:
+        if 0 <= start < end <= len(snippet):
+            edges[start] = edges.get(start, "") + _SPAN_OPEN
+            edges[end] = _SPAN_CLOSE + edges.get(end, "")
+    if not edges:
+        return normalize(snippet), []
+    marked = "".join(edges.get(i, "") + c for i, c in enumerate(snippet)) + edges.get(len(snippet), "")
+    return unmark(normalize(marked), _SPAN_OPEN, _SPAN_CLOSE)
+
+
+def _window_start(text: str, match_start: int) -> int:
+    """Where a window opened ahead of a match begins: at a word, never past the end."""
+    start = max(0, min(match_start - MATCH_LEAD_CHARS, len(text) - EXCERPT_CHARS))
+    if start and text[start - 1] != " ":
+        space = text.find(" ", start, match_start)
+        if space != -1:
+            start = space + 1
+    return start
 
 
 def _tail_excerpt(snippet: str) -> str:

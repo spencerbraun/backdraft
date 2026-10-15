@@ -171,6 +171,9 @@ backdraft read <slug> p3                    # page/range/sheet, or chunks by
                                             # begins: [token]" and an excerpt:
                                             # the paragraph may cross the break.
 backdraft search "24850000"                 # hits are citable directly.
+                                            # Each excerpt shows the words that
+                                            # matched; a leading "..." means the
+                                            # chunk opens earlier than shown.
                                             # A count line reading "2 of 56
                                             # results" means --limit cut the
                                             # rest: the best evidence may be

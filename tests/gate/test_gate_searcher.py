@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 from fake_registry import FakeDocumentRegistry, pdf_document
 
 from backdraft.gate.reader import ADJOINING_NOTE, EXCERPT_CHARS, GateError
-from backdraft.gate.searcher import PHRASE_FALLBACK_NOTE, search
+from backdraft.gate.searcher import PHRASE_FALLBACK_NOTE, render_search, search
 
 # The hit is p2's last chunk, so the first chunk of p3 is named under it: a page
 # break is a boundary chunking never sees past (`reader.adjoining`).
@@ -89,6 +91,25 @@ def test_excerpt_is_one_line_and_bounded() -> None:
     assert excerpt.startswith("  start word")
     assert excerpt.endswith("...")
     assert len(excerpt.strip()) == EXCERPT_CHARS + len("...")
+
+
+def test_a_late_match_moves_the_excerpt_to_it() -> None:
+    long = "word " * 200
+    fake_gate_registry = FakeDocumentRegistry().add(pdf_document("doc", "doc.pdf", [[f"start {long}needle end"]]))
+    excerpt = search(fake_gate_registry, "needle", session="s").split("\n")[3]
+    assert excerpt.startswith("  ...word")
+    assert excerpt.endswith("needle end")
+    assert len(excerpt.strip()) <= EXCERPT_CHARS + len("...")
+
+
+def test_a_hit_without_matches_still_cuts_from_the_start() -> None:
+    """A registry that reports no `matches` renders as the gate always did."""
+    long = "word " * 200
+    loaded = FakeDocumentRegistry().add(pdf_document("doc", "doc.pdf", [[f"start {long}needle end"]]))
+    anchor = loaded.search("needle")[0].anchor
+    hit = SimpleNamespace(anchor=anchor, slug="doc", page_number=1)
+    excerpt = render_search("needle", [hit]).split("\n")[3]
+    assert excerpt.startswith("  start word")
 
 
 def test_limit_is_passed_through() -> None:

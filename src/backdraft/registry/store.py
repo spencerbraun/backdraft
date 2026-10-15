@@ -70,6 +70,7 @@ __all__ = [
     "media_type_for",
     "sanitize_sheet_name",
     "slug_for",
+    "unmark",
     "withdrawn_reason",
 ]
 
@@ -202,11 +203,19 @@ class Resolution:
 
 @dataclass(frozen=True, slots=True)
 class SearchHit:
-    """One search result: a mintable anchor and where it lives."""
+    """One search result: a mintable anchor and where it lives.
+
+    `matches` is what FTS5 matched, as `(start, end)` character offsets into
+    `anchor.receipt.snippet`, in order — read out of `highlight()` markers, so
+    stemming, prefixes and a phrase that ran as one are FTS5's call and nobody
+    else's. Display only: it lets the gate show the words that matched rather
+    than the chunk's opening, and it is empty when nothing could be read back.
+    """
 
     anchor: Anchor
     slug: str
     page_number: int
+    matches: tuple[tuple[int, int], ...] = ()
 
 
 class SearchResults(list[SearchHit]):
@@ -241,6 +250,48 @@ class SearchResults(list[SearchHit]):
         super().__init__(hits)
         self.phrase_fallback = phrase_fallback
         self.total = len(self) if total is None else total
+
+
+_MATCH_OPEN = "\x01"
+_MATCH_CLOSE = "\x02"
+"""The `highlight()` markers `_search` asks FTS5 for: control characters no
+extracted snippet carries, so every one in the result is FTS5's."""
+
+
+def _match_spans(marked: str | None, snippet: str) -> tuple[tuple[int, int], ...]:
+    """The `(start, end)` offsets FTS5 marked, in the unmarked snippet's coordinates.
+
+    NOTE: the marked text is checked back against the snippet it claims to mark.
+    The FTS row and the anchor row are written together from one string, so they
+    agree; if they ever did not, offsets into the one would mislabel the other,
+    and no span is better than a wrong one — the gate prints the chunk's opening.
+    """
+    if not marked:
+        return ()
+    plain, spans = unmark(marked, _MATCH_OPEN, _MATCH_CLOSE)
+    return tuple(spans) if plain == snippet else ()
+
+
+def unmark(marked: str, opener: str, closer: str) -> tuple[str, list[tuple[int, int]]]:
+    """`marked` with its marker characters taken out, and the spans they enclosed.
+
+    Shared by the registry, reading FTS5's `highlight()`, and the gate, carrying
+    those spans through `normalize`: one reading of a marker, so the two cannot
+    disagree about where a span ends. An empty or unclosed span is dropped.
+    """
+    spans: list[tuple[int, int]] = []
+    plain: list[str] = []
+    opened: int | None = None
+    for character in marked:
+        if character == opener:
+            opened = len(plain)
+        elif character == closer:
+            if opened is not None and opened < len(plain):
+                spans.append((opened, len(plain)))
+            opened = None
+        else:
+            plain.append(character)
+    return "".join(plain), spans
 
 
 def media_type_for(path: Path) -> MediaType:
@@ -923,16 +974,25 @@ class Registry:
 
     def _search(self, query: str, slug: str | None, limit: int) -> list[SearchHit]:
         match, parameters = self._match_sql(slug)
-        sql = f"SELECT anchors.*, documents.slug AS slug {match} ORDER BY rank LIMIT ?"
-        rows = self._connection.execute(sql, [query, *parameters, limit]).fetchall()
-        return [
-            SearchHit(
-                anchor=_anchor(row, row["slug"]),
-                slug=row["slug"],
-                page_number=row["page_number"],
+        sql = (
+            "SELECT anchors.*, documents.slug AS slug, highlight(search, 0, ?, ?) AS marked "
+            f"{match} ORDER BY rank LIMIT ?"
+        )
+        rows = self._connection.execute(
+            sql, [_MATCH_OPEN, _MATCH_CLOSE, query, *parameters, limit]
+        ).fetchall()
+        hits = []
+        for row in rows:
+            anchor = _anchor(row, row["slug"])
+            hits.append(
+                SearchHit(
+                    anchor=anchor,
+                    slug=row["slug"],
+                    page_number=row["page_number"],
+                    matches=_match_spans(row["marked"], anchor.receipt.snippet),
+                )
             )
-            for row in rows
-        ]
+        return hits
 
     # ---- ledger -------------------------------------------------------------
 

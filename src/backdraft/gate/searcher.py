@@ -123,7 +123,7 @@ def render_search(
     beside = beside or {}
     for hit in hits:
         lines.append(f"[{hit.anchor.token}]  {hit.slug} p{hit.page_number}")
-        lines.append(f"  {excerpt(hit.anchor.receipt.snippet)}")
+        lines.append(f"  {excerpt(hit.anchor.receipt.snippet, getattr(hit, 'matches', ()))}")
         if hit.anchor.token in beside:
             lines += adjoining_lines(hit.anchor, beside[hit.anchor.token], indent="  ")
         lines.append("")

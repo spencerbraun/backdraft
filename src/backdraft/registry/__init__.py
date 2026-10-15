@@ -31,6 +31,7 @@ from .store import (
     media_type_for,
     sanitize_sheet_name,
     slug_for,
+    unmark,
     withdrawn_reason,
 )
 
@@ -53,5 +54,6 @@ __all__ = [
     "media_type_for",
     "sanitize_sheet_name",
     "slug_for",
+    "unmark",
     "withdrawn_reason",
 ]

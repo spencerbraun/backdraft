@@ -706,3 +706,22 @@ def test_citation_for_with_a_session_says_not_shown(registry: Registry, note: Pa
     assert citation_for(registry, seen.token, session_id="s1").status is CitationStatus.RESOLVED
     assert citation_for(registry, unseen.token, session_id="s1").status is CitationStatus.NOT_SHOWN
     assert citation_for(registry, unseen.token).status is CitationStatus.RESOLVED
+
+
+def test_search_hits_carry_what_fts5_matched(registry: Registry, note: Path) -> None:
+    """`matches` is `highlight()` read back: offsets into the snippet, FTS5's words."""
+    registry.ingest(note)
+    for hit in registry.search("covenant"):
+        snippet = hit.anchor.receipt.snippet
+        assert hit.matches
+        assert {snippet[a:b].lower() for a, b in hit.matches} == {"covenant"}
+
+
+def test_a_phrase_retry_matches_the_phrase_that_ran(registry: Registry, note: Path) -> None:
+    registry.ingest(note)
+    hits = registry.search("1.42x")
+    assert hits.phrase_fallback is True
+    for hit in hits:
+        snippet = hit.anchor.receipt.snippet
+        start, end = hit.matches[0][0], hit.matches[-1][1]
+        assert snippet[start:end] == "1.42x"
