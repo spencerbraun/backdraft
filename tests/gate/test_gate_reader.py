@@ -20,6 +20,7 @@ from backdraft.gate.reader import (
     THIN_SOURCE_CHARS,
     TOC_PREVIEW_CHARS,
     GateError,
+    extracted_chars,
     read,
     render_session,
     select_pages,
@@ -455,6 +456,33 @@ def test_the_mark_stops_at_the_threshold() -> None:
     )
     assert "little text" not in read(over)
     assert f"little text: {THIN_SOURCE_CHARS - 1} chars" in read(under)
+
+
+def test_a_small_complete_table_is_not_a_shell() -> None:
+    """A two-rate sheet is far under the prose threshold and is not marked.
+
+    Small and complete is normal for a sheet — an assumptions tab, a rate card —
+    so a sheet is judged by whether any cell holds a value, never by length.
+    """
+    rates = FakeDocumentRegistry().add(
+        sheet_document(
+            "rates",
+            "rates.xlsx",
+            [("rates", ["| | A | B |", "|---|---|---|", "| 1 | [A1] going-in | [B1] 5.75% |"])],
+        )
+    )
+    assert extracted_chars(rates.pages("rates")) < THIN_SOURCE_CHARS
+    assert "little text" not in read(rates)
+    assert "little text" not in read(rates, "rates")
+
+
+def test_a_workbook_with_no_cell_values_is_still_a_shell() -> None:
+    """Charts, images and pivot caches extract to sheets with no values at all."""
+    charts = FakeDocumentRegistry().add(
+        sheet_document("charts", "charts.xlsx", [("Dashboard", [])])
+    )
+    assert "little text: " in read(charts)
+    assert "little text: " in read(charts, "charts").splitlines()[0]
 
 
 # ---------------------------------------------------------------------------

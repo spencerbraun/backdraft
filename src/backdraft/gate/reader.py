@@ -152,7 +152,10 @@ so an output with no split paragraph and no page break in it is what it was.
 """
 
 THIN_SOURCE_CHARS = 200
-"""Below this many extracted characters, a source is probably a shell.
+"""Below this many extracted characters, a source of prose is probably a shell.
+
+Prose only: a source whose pages are all sheets is judged by whether any cell
+holds a value instead (`thin_mark`), because a small table is a complete one.
 
 A login wall, a JavaScript-rendered page and a scanned PDF with no text layer
 all ingest cleanly and produce almost nothing, so an agent can cite the shell of
@@ -1508,9 +1511,22 @@ def thin_mark(pages: Sequence[Page]) -> str:
     ordinary source on purpose: a registry of real documents gains no column and
     prints byte for byte what it always did, and only the rows worth doubting
     say anything.
+
+    Decided by page kind (2026-10-15). Prose is thin under `THIN_SOURCE_CHARS`,
+    where a short extraction really is the shape a login wall and a scan take.
+    A source whose pages are all sheets is thin only when no cell holds a value:
+    a three-row rate table is small and complete, which is normal for a sheet,
+    and a workbook's shell is charts, images or pivot caches with no values at
+    all — while the rendered table's pipes and `[B10]` prefixes would make a
+    character count meaningless there anyway. The mark still reads the count,
+    so every surface says the same thing about a source it does mark.
     """
     chars = extracted_chars(pages)
-    return f"little text: {chars} chars" if chars < THIN_SOURCE_CHARS else ""
+    if pages and all(page.kind == "sheet" for page in pages):
+        thin = not any(cell.value for page in pages for cell in page.cells)
+    else:
+        thin = chars < THIN_SOURCE_CHARS
+    return f"little text: {chars} chars" if thin else ""
 
 
 def unit(pages: Sequence[Page]) -> str:

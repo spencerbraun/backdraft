@@ -103,7 +103,21 @@ BACKDRAFT_ENTAIL_API_KEY=
 # BACKDRAFT_SNAPSHOT_MAX_HEIGHT=1056
 """
 
+_THIN_SHEET_CAUSE = (
+    "a sheet is marked only when none of its cells holds a value, which is "
+    "what a workbook of charts, images or pivot tables extracts to: this "
+    "extractor reads cell values, and those keep their content elsewhere. "
+    "Copying the data behind them into a sheet, or exporting the workbook to "
+    "PDF, and ingesting that gets something to cite."
+)
+"""The sheet cause, shared by every sheet media type: `gate.thin_mark` judges a
+sheet by its cell values and not its length, and the note says so, so an agent
+does not read the mark on an empty workbook as a verdict on small tables."""
+
 _THIN_CAUSE = {
+    "xlsx": _THIN_SHEET_CAUSE,
+    "xls": _THIN_SHEET_CAUSE,
+    "csv": _THIN_SHEET_CAUSE,
     "pdf": (
         "a PDF with no text layer is a scan, and the text layer is all `pdf-text` "
         "reads. The vision extractor reads the page image itself: set "
@@ -1193,8 +1207,9 @@ def list_documents(
     The name is the filename, or — for a source fetched from the web — the URL
     it came from, standing in the staging filename's place rather than beside
     it. A source that extracted almost nothing — a login wall, a scan with no
-    text layer — closes its row with `little text: N chars`; read it before
-    citing it. A registry of ordinary files prints what it always did.
+    text layer, a workbook with no cell values — closes its row with `little
+    text: N chars`; read it before citing it. A short table is never marked. A
+    registry of ordinary files prints what it always did.
 
     A withdrawn source is not on offer, so it is not listed here. `--withdrawn`
     lists those instead, each row closing with the date it went and the

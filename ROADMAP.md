@@ -32,48 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. A small table is marked a shell, and the skill says not to cite it
-
-**Intent.** The thin-source mark (2026-08-20, carried onto every list
-2026-09-09) is a character count under `THIN_SOURCE_CHARS`, and for prose that
-is a fair proxy: a login wall and a scanned PDF both extract almost nothing. For
-a table it is not. A three-row `rates.csv` — a going-in and an exit cap rate —
-ingests at 188 characters, and ingest says `note: little text extracted` and
-tells the agent to "tell the user the source came back thin rather than citing
-the shell of it"; `ls` ends its row `little text: 188 chars`; and
-`skills/backdraft/SKILL.md` says a row carrying that mark "is a source to read
-and report on, not one to cite". The heuristic built to stop an agent citing an
-empty page now stops it citing a correct, complete rate table, and has it tell
-the user something false about the source. Sheets are where small and complete
-is normal: an assumptions tab, a rate card, a cap table.
-
-**Shape.** `gate.thin_mark` owns the rule and is the only place it changes;
-`ingest`'s grouped note and all three list surfaces follow, which is what the
-2026-09-09 single owner was for (and what Friday's cleanup made true of `ingest`,
-which had kept a private copy of the threshold). Decide by page kind, not by
-extension: an extraction whose pages are sheets is thin when it holds no
-non-empty cell values at all — `Registry.pages` already returns sheet pages with
-their `cells` — because a sheet's shell is a workbook of charts, images or pivot
-caches, not a short table, and the rendered text's pipes and `[B10]` prefixes
-make a character count meaningless there anyway. Prose keeps the character
-threshold exactly. `cli._THIN_CAUSE` gains the sheet cause. The DESIGN row
-amends 2026-08-20 rather than contradicting it: still display only, still exit
-0, still no token, anchor or status derived from it. A registry's output changes
-only on the table rows this exists to unmark and on sheet sources that hold no
-values at all.
-
-**Acceptance.** `backdraft ingest rates.csv` for a three-row table prints no
-thin note, and `ls`, `backdraft read` and its table of contents carry no mark. A
-workbook whose only sheet holds no cell values is still marked and gets the
-sheet cause. A 27-character HTML login wall, a zero-page PDF and every existing
-thin-source test are unchanged, and the demo's three sources print byte for byte
-what they do today. `skills/backdraft/SKILL.md`,
-`skills/backdraft-backfill/SKILL.md`, `site/llms.txt` and `README.md` say what the
-mark means for a table. DESIGN row.
-
-**Size.** One day.
-
-### 2. `ingest --dry-run` names the source and not the run
+### 1. `ingest --dry-run` names the source and not the run
 
 **Intent.** The dry run (2026-09-10) answers what a source would be called, and
 `tests/test_dry_run.py` pins that the prediction equals the outcome — for the
@@ -121,7 +80,7 @@ row.
 
 **Size.** Two days.
 
-### 3. `session show` counts what was read and cannot say what was not
+### 2. `session show` counts what was read and cannot say what was not
 
 **Intent.** `session show` (2026-08-31) answers "have I read enough to write
 this yet?" with a count per document. Since the page-read budget (2026-09-08) a
@@ -165,7 +124,7 @@ ask it after a context loss rather than re-reading from the top. DESIGN row.
 
 **Size.** Two days.
 
-### 4. An artifact word-diffs a drifted citation against whatever now stands at its old address
+### 3. An artifact word-diffs a drifted citation against whatever now stands at its old address
 
 **Intent.** The artifact's drift block (`render/html/text.py`'s `_drift_block`)
 shows `as cited` and `now`, word-diffed with `<del>` and `<ins>`, where `now` is
@@ -217,7 +176,7 @@ DESIGN row.
 
 **Size.** Three days.
 
-### 5. `locate` leaves the fix to hand edits of tokens, which the skill forbids
+### 4. `locate` leaves the fix to hand edits of tokens, which the skill forbids
 
 **Intent.** `locate` prints `moved: <old> — now at <new>` and closes by telling
 the writer to put each moved token in place of the old one, while the writing
@@ -262,7 +221,7 @@ pins for the plain run. DESIGN row.
 
 **Size.** Two days.
 
-### 6. `locate` calls intact words `gone` when an insertion merged or split their chunk
+### 5. `locate` calls intact words `gone` when an insertion merged or split their chunk
 
 **Intent.** `locate` matches the cited snippet's hash exactly, and the 2026-09-17
 row named the price: "a chunk that an insertion under 200 characters merged into"
@@ -310,7 +269,7 @@ every existing `tests/test_locate.py` expectation is unchanged. SPEC Addendum B'
 
 **Size.** Two days.
 
-### 7. A draft outside its project is told there is no registry, about the wrong directory
+### 6. A draft outside its project is told there is no registry, about the wrong directory
 
 **Intent.** `bind` and `locate` find the registry from the document's directory
 (SPEC § CLI), and when that walk finds nothing `cli_context.open_registry`
@@ -349,7 +308,7 @@ must live under its project or name it with `BACKDRAFT_HOME`. DESIGN row.
 
 **Size.** One day.
 
-### 8. After a re-ingest, nothing says which drafts cite the source that moved
+### 7. After a re-ingest, nothing says which drafts cite the source that moved
 
 **Intent.** `ingest`'s new-generation note says citations "may now report
 `drifted`", that `bind` on a document citing the source says which, and names
@@ -390,7 +349,7 @@ the note names the drafts. DESIGN row.
 
 **Size.** Two days.
 
-### 9. `render` ships a draft edited after `bind` as if the record had judged it
+### 8. `render` ships a draft edited after `bind` as if the record had judged it
 
 **Intent.** `render` reads two files, the draft and the record `bind` wrote for
 it, and never checks that they still describe the same text. Checked on
@@ -425,7 +384,7 @@ refuses a draft edited since bind. DESIGN row.
 
 **Size.** One to two days.
 
-### 10. An older backdraft reads a newer registry as if what it does not know were not there
+### 9. An older backdraft reads a newer registry as if what it does not know were not there
 
 **Intent.** The registry travels with the project folder — the documented answer
 to a sandbox that cannot reach the vision model is to ingest locally and hand the
@@ -460,7 +419,7 @@ DESIGN row.
 
 **Size.** One to two days.
 
-### 11. `ingest` reports per source in columns an agent has to scrape
+### 10. `ingest` reports per source in columns an agent has to scrape
 
 **Intent.** `bind` and `verify` gained `--json` (2026-09-14) because their output
 is read by agents and every wording fix silently broke a parser. `ingest` is the
@@ -494,7 +453,7 @@ is byte-identical, pinned. `site/llms.txt`, `skills/backdraft/SKILL.md`,
 
 **Size.** Two days.
 
-### 12. `forget` asks for confirmation without saying which drafts it will break
+### 11. `forget` asks for confirmation without saying which drafts it will break
 
 **Intent.** `forget` is the one command that takes something away, so it asks
 first, and what it says is general: a token already written into a draft still
@@ -506,10 +465,11 @@ is not said, though every rooted bind wrote its record under
 like a duplicate source cannot tell from the prompt that the memo it bound
 yesterday cites only the duplicate.
 
-**Shape.** Depends on item 8's records reader in `registry/` (the walk over
+**Shape.** Depends on the records reader in `registry/` that "After a re-ingest,
+nothing says which drafts cite the source that moved" adds (the walk over
 `record_path`'s layout that maps each record back to a draft that still exists
-and skips a malformed record); if 8 has not landed, land that reader here and
-let 8 reuse it. `forget`'s description before the prompt names each draft whose
+and skips a malformed record); if that item has not landed, land that reader here and
+let that item reuse it. `forget`'s description before the prompt names each draft whose
 record cites the slug and how many citations each would turn `unresolved`, a
 count past a handful, and nothing new when none does. `--yes` prints the same
 lines before withdrawing, since an agent passing `--yes` is the caller most in
@@ -527,7 +487,7 @@ the drafts.
 
 **Size.** One day, two if it lands the records reader.
 
-### 13. `doctor` is read by agents and prints only columns
+### 12. `doctor` is read by agents and prints only columns
 
 **Intent.** The writing skill's first instruction is now "Run `backdraft doctor`
 before you promise anything" and plan from its `missing` lines. An agent does

@@ -82,7 +82,11 @@ so that note is not the only place the signal lives. `backdraft read`'s document
 list, a source's own table-of-contents headline and `backdraft ls` all close a
 thin source's row with `little text: N chars`. Read the list before you choose
 evidence: a row carrying that mark is a source to read and report on, not one to
-cite. Rows without it say nothing new, so the mark is the whole signal.
+cite. Rows without it say nothing new, so the mark is the whole signal. A
+spreadsheet or CSV is never marked for being short — a three-row rate table is
+a complete source and cites like any other; a sheet carries the mark only when
+no cell in it holds a value, which is what a workbook of charts or images
+extracts to.
 
 If the list took in a source it should not have — a scratch copy, the same
 report under two names, a file the user did not mean to include — say so and

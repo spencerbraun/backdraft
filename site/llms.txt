@@ -102,6 +102,9 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # the ingest to know: `backdraft read`'s document list, that source's table of
 # contents and `backdraft ls` all mark it `little text: N chars`. Check the
 # list before you cite, not just the ingest you may not have been present for.
+# A sheet or CSV is judged by its cells, not its length: a three-row rate
+# table is complete and unmarked, and only a sheet with no cell values at all
+# (a workbook of charts or images) carries the mark.
 # Sandboxes usually cannot reach model providers: if VLM ingest fails on
 # network, continue with the text layer and say so. The registry travels
 # with the project folder (.backdraft/), so a registry ingested with the
@@ -141,7 +144,9 @@ backdraft read                              # list documents. A row ending
                                             # "little text: N chars" is a
                                             # source that extracted almost
                                             # nothing — a login wall, a scan
-                                            # with no text layer. Read it
+                                            # with no text layer, a workbook
+                                            # with no cell values (a short
+                                            # table is never marked). Read it
                                             # before citing it and tell the
                                             # user it came back a shell.
 backdraft read <slug>                       # table of contents. A web page is

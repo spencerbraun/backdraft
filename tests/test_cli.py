@@ -748,6 +748,44 @@ def test_a_registry_with_nothing_thin_in_it_says_nothing_about_it(
     assert "little text" not in runner.invoke(cli.app, ["read", "quarterly-notes"]).stdout
 
 
+def test_a_small_rate_table_is_not_called_thin_anywhere(
+    project: Path, tmp_path: Path
+) -> None:
+    """Three rows, two rates, under 200 characters — and complete.
+
+    Under the prose threshold this was told to "tell the user the source came
+    back thin", which is false about a correct table. A sheet is a shell only
+    when no cell holds a value.
+    """
+    rates = tmp_path / "rates.csv"
+    rates.write_text("metric,rate\ngoing-in cap,5.75%\nexit cap,6.25%\n", encoding="utf-8")
+    result = runner.invoke(cli.app, ["ingest", str(rates)])
+    assert result.exit_code == 0
+    chars = int(re.search(r"(\d+) chars", result.stdout).group(1))
+    assert chars < reader.THIN_SOURCE_CHARS, "the case only matters under the prose threshold"
+    assert "little text" not in result.stdout
+    assert "little text" not in runner.invoke(cli.app, ["ls"]).stdout
+    assert "little text" not in runner.invoke(cli.app, ["read"]).stdout
+    assert "little text" not in runner.invoke(cli.app, ["read", "rates"]).stdout
+
+
+def test_a_workbook_with_no_cell_values_is_marked_with_the_sheet_cause(
+    project: Path, tmp_path: Path
+) -> None:
+    """A workbook of charts extracts to a sheet with nothing in it: still a shell."""
+    from openpyxl import Workbook
+
+    book = Workbook()
+    book.active.title = "Dashboard"
+    book.save(tmp_path / "charts.xlsx")
+    result = runner.invoke(cli.app, ["ingest", str(tmp_path / "charts.xlsx")])
+    assert result.exit_code == 0
+    assert "note: little text extracted — a sheet is marked only when none of its cells" in result.stdout
+    assert "may simply be short" not in result.stdout
+    assert "\tlittle text: " in runner.invoke(cli.app, ["ls"]).stdout
+    assert "little text: " in runner.invoke(cli.app, ["read", "charts"]).stdout.splitlines()[0]
+
+
 def test_a_thin_deck_is_pointed_at_the_note_that_already_named_the_gap(
     project: Path, tmp_path: Path
 ) -> None:

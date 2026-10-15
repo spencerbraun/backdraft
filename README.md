@@ -82,7 +82,10 @@ afterwards — `backdraft read`'s document list, its table of contents and
 `backdraft ls` end its row with `little text: N chars` — because a registry
 travels with the project folder and whoever writes against it is usually not
 whoever ingested it. Ordinary sources gain nothing: only the rows worth doubting
-say anything.
+say anything. A table is judged by its cells rather than its length — a
+three-row rate card is small and complete, so a spreadsheet or CSV is marked
+only when none of its cells holds a value, which is what a workbook of charts or
+images extracts to.
 
 **Read.** The page arrives with a citable name over each chunk. This is the whole
 mechanism: what you can cite is exactly what you were shown.

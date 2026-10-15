@@ -112,7 +112,8 @@ def read(
     """List documents, show a document's contents, or read pages from one.
 
     A source that came back with almost no text in it is marked `little text: N
-    chars` in the list and in its own headline: read it before citing it.
+    chars` in the list and in its own headline: read it before citing it. A
+    sheet is marked only when no cell holds a value; a short table is not.
     """
     # The list and the table of contents emit no tokens, so they mint nothing.
     minting = slug is not None and selector is not None

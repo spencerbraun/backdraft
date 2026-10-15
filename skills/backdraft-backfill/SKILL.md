@@ -40,7 +40,9 @@ one whose source never got ingested, and so is one whose source ingested as a
 shell: a `note: little text extracted` line names any source almost no text came
 out of, and `backdraft ls` keeps saying so afterwards — such a row ends with
 `little text: N chars`, so a registry ingested before you arrived still tells
-you which of its sources are shells.
+you which of its sources are shells. A short table is not one: a sheet or CSV
+is marked only when none of its cells holds a value, so a small rate table with
+no mark is a complete source to cite.
 
 The same glob sweeps in sources it should not have — a scratch copy, the same report
 under two names, a draft beside its final. Once they are in the registry they
