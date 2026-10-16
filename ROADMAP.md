@@ -515,6 +515,184 @@ name the flag.
 
 **Size.** One day.
 
+### 13. A `not_shown` cleared by `show` after `bind` reads like a citation read before writing
+
+**Intent.** `not_shown` is the one status that says the author cited a passage
+they never read, and it clears by being shown: `bind` flags it, the agent runs
+the `backdraft show` the `next:` line names, re-binds, and the second report
+says `resolved` with nothing to tell it from a citation read before the claim
+was written. Friday 2026-10-16 tightened the wording (read the snippet, keep the
+citation only where it says what the claim says), but wording is all that stands
+between the check and an agent that shows every flagged token to make the run
+green; and the record, the artifact and `verify` all carry the laundered
+`resolved` onward. The project already holds the evidence: the previous bind's
+record sits at `kernel.artifact.record_path`, and it names every citation it
+flagged.
+
+**Shape.** In `bind/cli.py`, before the record is overwritten, read the previous
+record for the same document (front-walk only; a missing, unreadable or
+backfill record means nothing to compare, and is skipped, not failed). A
+citation — keyed by token and claim offset, the pair the report already uses to
+tell line items apart — that the previous record called `not_shown` and this
+run resolves is a *cleared* one. The report prints one `cleared:` line per such
+citation, in the `! status:` line's shape but without the `!`, closing with how
+long after the flagging bind its anchor was shown (the ledger's `shown_at`
+against the previous record's `bound_at`), and one `next:`-style line saying the
+claim was written before its evidence was read and stands only if the snippet
+`show` printed says what it says. Display only: the status stays `resolved`, the
+exit code and the record format do not move, and `--json` is untouched — the
+DESIGN row should say why carrying "cleared" in the record was rejected (it
+would be a fact about two runs written into a record of one, and a format
+change). A first bind, and a re-bind with nothing cleared, are byte-identical to
+today, pinned.
+
+**Acceptance.** In a scratch project, bind a memo citing a chunk the session
+never read (exit 2, `not_shown`), run the `show` the `next:` line names, and
+re-bind: exit 0, and the report carries one `cleared:` line naming that token and
+claim. Re-binding a third time prints no `cleared:` line (the previous record
+now says `resolved`). A memo bound clean the first time, and `demo/`'s bind,
+print exactly today's output. A previous record holding invalid JSON does not
+break the bind. `skills/backdraft/SKILL.md`'s `not_shown` bullet names the line
+and says to re-judge each claim it lists. DESIGN row.
+
+**Size.** One to two days.
+
+### 14. `verify`'s `next: not_shown` tells an auditor to mint into the author's session
+
+**Intent.** Since 2026-10-14 `verify` re-checks `not_shown` against the session
+the record names, and its report closes with `cli_context.NEXT_MOVES`' line for
+it — `backdraft show <token> --session <the author's session>`. `verify` is the
+recipient's command: the artifact skill tells an auditor to relay `next:` lines
+rather than run them, but the line itself is an instruction, and anyone holding
+the registry who follows it mints the token into the author's ledger, so the next
+`verify` comes back clean. The audit's own report tells its reader how to erase
+its finding. The same table is right for `bind`, whose reader is the author.
+
+**Shape.** `NEXT_MOVES` stays the one owner, keyed now by the reader as well as
+the kind: `bind`'s moves are today's, and `verify` gets its own wording for the
+statuses where the author's move and the auditor's differ — `not_shown` above
+all ("the author cited this without reading it; it is theirs to re-read and
+re-bind — showing it here would clear the finding without answering it"), and
+`drifted`/`unresolved`, whose fixes are re-binds of a document the recipient may
+not hold. `receipt` and `recount` are already verify-only. Decide the key shape
+(a `(reader, kind)` pair, or a second table checked total by the same test) and
+write it down; the test that holds the table total and every command it names
+real covers both readers. Display only, and `verify --json` does not move.
+
+**Acceptance.** `verify` on an artifact whose record carries a `not_shown` the
+ledger confirms closes with a `next: not_shown` line that names no `backdraft
+show` and no `--session`; `bind` on the same draft still names the `show`.
+`tests/test_next_moves.py` asserts both readers' tables are total over the
+closed status set plus their own extra kinds. The demo's verify block, which
+prints only `unresolved`, is regenerated if its wording moved and otherwise
+byte-identical. `skills/backdraft-artifact/SKILL.md` stops having to say "rather
+than running them" for this case. DESIGN row amending 2026-10-14's.
+
+**Size.** One day.
+
+### 15. `verify --json` carries the finding and not the move
+
+**Intent.** `bind` and `verify` reports end with `next:` lines (2026-10-14), and
+both `--json` forms carry none of it, by design for `bind`, whose `--json` is
+the record's own bytes. `verify --json` is not the record: it is a
+`verify-v1` object an agent reads instead of the report, and that agent — the
+one running the artifact skill, or a CI step that posts an audit — gets the
+`kind` of each finding and has to rediscover what to do about it from the
+skill. The move is the part a parser most needs and the part the wording-churn
+argument for `--json` was about.
+
+**Shape.** `verify --json` gains a top-level `next` array, one object per kind of
+finding present, `{kind, move}`, in table order — the same strings the report
+prints, from the same `next_moves` call, so there is one owner and one ordering.
+Additive under `verify-v1`'s unknown-keys rule, which 2026-10-14's `ledger` key
+already relied on; the row says so. `bind --json` stays the record, and the row
+says why its caller reads the move from `verify --json` or the report instead of
+from a record field. If "`verify`'s `next: not_shown` tells an auditor to mint
+into the author's session" has landed, the array carries verify's own wording.
+
+**Acceptance.** `verify --json` on the demo artifact carries exactly one `next`
+entry, `kind: "unresolved"`, whose `move` equals the report's `next:` line after
+its `next: unresolved — ` prefix; an artifact with an edited receipt carries a
+`receipt` entry first; a clean artifact carries `next: []`. Every other key of
+the object is byte-identical, pinned against the existing JSON tests. SPEC
+§ CLI's `verify-v1` paragraph, `spec/artifact.md` if it documents the object,
+`site/llms.txt` and the artifact skill name the key.
+
+**Size.** One day.
+
+### 16. A search hit on a long page points at the whole page
+
+**Intent.** Every search result block closes with `[Read the page: backdraft
+read <slug> p<n>]`, and `show` does the same. On a 57-chunk web page that is
+three windows starting at the navigation menu, when the agent wanted the
+paragraph around one hit — which is exactly what the week's chunk selector
+(`p1.c9-c14`, 2026-10-14) exists for and what nothing yet points at. The
+walkthrough's own `search "renter-occupied"` hit is `p1.c24`, and the hint
+sends the reader to `p1` from the top.
+
+**Shape.** `gate/searcher.py` (the `seen` list behind the hint) and the
+matching hint in `gate/reader.py`'s `show`. On a `page`-kind page with more
+chunks than fit one default read window, the hint names the chunk range around
+each hit — the hit's ordinal plus `READ_AROUND_CHUNKS` either side, clipped to
+the page, merged where two hits' ranges touch — as `[Read around it: backdraft
+read <slug> p1.c23-c25]`, carrying `--session` as today. A page that fits one
+window keeps `[Read the page: …]` byte for byte, so every documented search on
+the PDF and the workbook is unchanged; a sheet never gets the chunk form. The
+hint is advice and mints nothing; the read it names mints what it prints, as
+any chunk read does. Name the constant's value and the "fits one window" test in
+the DESIGN row.
+
+**Acceptance.** In a copy of `demo/`'s registry, `backdraft search
+"renter-occupied"` closes with a `Read around it` hint naming a range that
+contains `p1.c24`, and running that hint prints `p1.c24` and does not print
+`p1.c1`. `backdraft search "24850000"` and every search block in
+`demo/walkthrough.md` on `t12-summary` or `underwriting-model` is byte-identical.
+`show bd:franklin-county:p1.c24:5678` names the same range. The walkthrough's
+franklin-county search blocks are regenerated in a scratch copy, not
+hand-edited, and `skills/backdraft/SKILL.md`'s long-page paragraph names the
+hint. DESIGN row.
+
+**Size.** One day.
+
+### 17. A web page saved by hand ingests as a file and loses the address it came from
+
+**Intent.** The 2026-08-05 row made a URL provenance, not identity: a fetched
+page is identified by its snapshot and named everywhere by its URL. An agent
+whose sandbox cannot reach the site, a page behind a login the user can open in
+their own browser, and the walkthrough's own Wikipedia source — whose pinned
+revision fetched on 2026-10-16 came back at 33,841 characters against the
+34,141 the walkthrough documents, because the site's chrome moved around an
+unchanged article — all have the same answer available: the user saves the
+page, and `backdraft ingest saved.html` cites it as `saved.html`. The URL the
+reader of the artifact needs is gone, and nothing can put it back, since no
+command renames a source.
+
+**Shape.** `ingest <file> --origin <url>` in `cli.py`, one source only (as
+`--slug`), for a file the `html` extractor handles. Identity is the file's
+bytes, exactly as for any file; `document_meta` records the `url` as the fetch
+path does, with `saved_at` in place of `fetched_at` and an `asserted: true`
+flag, because the tool did not fetch it and must not say it did. Every surface
+that names a fetched source by its URL (`source_name`, `ls`, the gate's list,
+`## References`) names this one by it too, and the artifact's source line says
+"saved copy of <url>" rather than "fetched", so a reader can tell the two
+provenances apart. The slug comes from the URL as the fetch path derives it,
+unless `--slug` is given. Re-ingesting the same bytes with the same origin is
+`unchanged`; a different origin on an ingested source is refused in
+`--slug not applied`'s shape, since provenance is set once. If the artifact
+format must carry `asserted`, that is a format change to `spec/artifact.md`,
+and the row says whether it is additive under `artifact-v1`.
+
+**Acceptance.** Fetch nothing: ingest a checked-in HTML fixture with `--origin
+https://example.org/report`, and `ls`, `read`, `bind --bound`'s References and
+the rendered artifact all name the URL, the artifact saying it is a saved copy.
+The same fixture without `--origin` ingests exactly as today. `--origin` on a
+PDF, on two sources, or with an `ftp://` value exits 1 naming why. Tokens minted
+from the fixture are identical with and without `--origin`, diffed. SPEC
+§ CLI, `spec/registry.md` for the meta key, README's web-page section,
+`site/llms.txt` and the writing skill's sandbox paragraph follow. DESIGN row.
+
+**Size.** Two to three days.
+
 ## Parked
 
 Deliberately not queued, each with the reason, so picking one up starts from
