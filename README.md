@@ -203,11 +203,11 @@ enough to write this yet?", asked before the draft exists rather than after
 $ backdraft session show
 session s-bridgeview  (from BACKDRAFT_SESSION)
 
-78 anchors shown across 3 documents
+83 anchors shown across 3 documents
 
   t12-summary          8
   underwriting-model  68
-  franklin-county      2
+  franklin-county      7
 
 [Read more: backdraft read <slug> <page>]
 ```

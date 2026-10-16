@@ -397,8 +397,12 @@ reason attached.
   withdrawn. `backdraft ls --withdrawn` lists every source withdrawn here, with
   its date, so you can tell the user what else went in one message rather than
   discovering it one citation at a time.
-- `not_shown` — a real anchor you were never shown. `show` it (or read or search
-  it) and re-bind: showing is minting, so that alone clears the status.
+- `not_shown` — a real anchor you were never shown, so the claim was written
+  without its evidence. `show` it (or read or search it): showing is minting,
+  which is what clears the status on a re-bind — so read the snippet it prints
+  first, and keep the citation only where it says what the claim says. Where it
+  does not, cite what does or leave the claim uncited; re-binding a citation
+  you only displayed launders the one check that says you read it.
 - `drifted` — the source changed after you wrote. Run `backdraft locate
   <doc.md>` first. A paragraph inserted above the one you cited leaves your
   words untouched and moves their address, and `locate` finds the exact text you

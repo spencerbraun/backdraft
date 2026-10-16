@@ -317,7 +317,8 @@ NEXT_MOVES: dict[str, str] = {
     ),
     CitationStatus.NOT_SHOWN: (
         "the anchor is real and this session never read it. `backdraft show "
-        "<token>{session}` puts it in the ledger, which alone clears it; then re-bind."
+        "<token>{session}` prints it and puts it in the ledger; keep the citation only "
+        "where that snippet says what the claim says, then re-bind."
     ),
     CitationStatus.DRIFTED: (
         "the source changed under the citation. `backdraft locate {doc}{session}` finds "
