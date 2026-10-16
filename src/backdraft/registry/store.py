@@ -56,6 +56,8 @@ __all__ = [
     "DIRECTORY",
     "EXPORT_FORMAT",
     "GENERATION",
+    "MATCH_CLOSE",
+    "MATCH_OPEN",
     "UNCHANGED",
     "Ingested",
     "Naming",
@@ -252,10 +254,12 @@ class SearchResults(list[SearchHit]):
         self.total = len(self) if total is None else total
 
 
-_MATCH_OPEN = "\x01"
-_MATCH_CLOSE = "\x02"
-"""The `highlight()` markers `_search` asks FTS5 for: control characters no
-extracted snippet carries, so every one in the result is FTS5's."""
+MATCH_OPEN = "\x01"
+MATCH_CLOSE = "\x02"
+"""The span markers: what `_search` asks FTS5's `highlight()` to write, and what
+the gate puts back in to carry those spans through `normalize`. Control
+characters no extracted snippet carries, so every one in a marked string is a
+marker; one pair, owned here, so the two readers of `unmark` cannot drift."""
 
 
 def _match_spans(marked: str | None, snippet: str) -> tuple[tuple[int, int], ...]:
@@ -268,11 +272,13 @@ def _match_spans(marked: str | None, snippet: str) -> tuple[tuple[int, int], ...
     """
     if not marked:
         return ()
-    plain, spans = unmark(marked, _MATCH_OPEN, _MATCH_CLOSE)
+    plain, spans = unmark(marked)
     return tuple(spans) if plain == snippet else ()
 
 
-def unmark(marked: str, opener: str, closer: str) -> tuple[str, list[tuple[int, int]]]:
+def unmark(
+    marked: str, opener: str = MATCH_OPEN, closer: str = MATCH_CLOSE
+) -> tuple[str, list[tuple[int, int]]]:
     """`marked` with its marker characters taken out, and the spans they enclosed.
 
     Shared by the registry, reading FTS5's `highlight()`, and the gate, carrying
@@ -979,7 +985,7 @@ class Registry:
             f"{match} ORDER BY rank LIMIT ?"
         )
         rows = self._connection.execute(
-            sql, [_MATCH_OPEN, _MATCH_CLOSE, query, *parameters, limit]
+            sql, [MATCH_OPEN, MATCH_CLOSE, query, *parameters, limit]
         ).fetchall()
         hits = []
         for row in rows:

@@ -14,7 +14,8 @@ from pathlib import Path
 from backdraft.gate.reader import EXCERPT_CHARS, excerpt
 from backdraft.gate.searcher import PHRASE_FALLBACK_NOTE, search
 from backdraft.kernel.hashing import normalize
-from backdraft.registry import Registry
+from backdraft.registry import MATCH_CLOSE, MATCH_OPEN, Registry, unmark
+from backdraft.registry.store import _match_spans
 
 _OPENING = (
     "Capital expenditures were incurred outside the operating statement and are not "
@@ -117,3 +118,18 @@ def test_the_window_holds_the_most_matches() -> None:
     shown = excerpt(text, spans)
     assert "beta gamma beta" in shown
     assert "alpha" not in shown
+
+
+def test_unmark_drops_an_empty_or_unclosed_span() -> None:
+    """A marker pair around nothing, and an opener never closed, mark no span;
+    the text still comes out whole."""
+    plain, spans = unmark(f"a{MATCH_OPEN}{MATCH_CLOSE}b{MATCH_OPEN}cd{MATCH_CLOSE}e{MATCH_OPEN}f")
+    assert plain == "abcdef"
+    assert spans == [(2, 4)]
+
+
+def test_marked_text_that_disagrees_with_the_snippet_gives_no_spans() -> None:
+    """Offsets into a different string would mislabel this one; none is better."""
+    assert _match_spans(f"{MATCH_OPEN}rent{MATCH_CLOSE} roll", "rent roll") == ((0, 4),)
+    assert _match_spans(f"{MATCH_OPEN}rent{MATCH_CLOSE} rolls", "rent roll") == ()
+    assert _match_spans(None, "rent roll") == ()

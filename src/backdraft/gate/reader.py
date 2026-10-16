@@ -31,7 +31,7 @@ from ..kernel.errors import BackdraftError
 from ..kernel.hashing import normalize
 from ..kernel.model import CitationStatus, source_name, source_origin
 from ..kernel.tokens import CellLocator, ChunkLocator, format_locator, parse as parse_token
-from ..registry import current_at, unmark, withdrawn_reason
+from ..registry import MATCH_CLOSE, MATCH_OPEN, current_at, unmark, withdrawn_reason
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -492,10 +492,6 @@ def excerpt(snippet: str, matches: Sequence[tuple[int, int]] = ()) -> str:
     return (_ELLIPSIS if start else "") + text[start:end] + (_ELLIPSIS if end < len(text) else "")
 
 
-_SPAN_OPEN = "\x01"
-_SPAN_CLOSE = "\x02"
-
-
 def _normalized_spans(
     snippet: str, matches: Sequence[tuple[int, int]]
 ) -> tuple[str, list[tuple[int, int]]]:
@@ -509,12 +505,12 @@ def _normalized_spans(
     edges: dict[int, str] = {}
     for start, end in matches:
         if 0 <= start < end <= len(snippet):
-            edges[start] = edges.get(start, "") + _SPAN_OPEN
-            edges[end] = _SPAN_CLOSE + edges.get(end, "")
+            edges[start] = edges.get(start, "") + MATCH_OPEN
+            edges[end] = MATCH_CLOSE + edges.get(end, "")
     if not edges:
         return normalize(snippet), []
     marked = "".join(edges.get(i, "") + c for i, c in enumerate(snippet)) + edges.get(len(snippet), "")
-    return unmark(normalize(marked), _SPAN_OPEN, _SPAN_CLOSE)
+    return unmark(normalize(marked))
 
 
 def _window_start(text: str, match_start: int) -> int:

@@ -513,6 +513,13 @@ def test_page_with_no_anchors_says_so() -> None:
     )
 
 
+def test_a_chunk_selector_on_a_page_with_no_chunks_says_so() -> None:
+    registry = FakeDocumentRegistry().add(pdf_document("blank", "blank.pdf", [[]]))
+    with pytest.raises(GateError, match=r"^no such chunk: 'p1\.c1'; p1 has no chunks$"):
+        read(registry, "blank", "p1.c1", session="s")
+    assert registry.shown_tokens("s") == set()
+
+
 def test_sheet_read(fake_gate_registry: FakeDocumentRegistry) -> None:
     assert read(fake_gate_registry, "rent-model", "p1", session="s") == SHEET
 
