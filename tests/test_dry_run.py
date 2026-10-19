@@ -19,11 +19,17 @@ import pytest
 from typer.testing import CliRunner
 
 from backdraft import cli, fetch
+from backdraft.extract import vlm
 from backdraft.registry import Registry
 
 runner = CliRunner()
 
 pytest_plugins = ["test_fetch"]  # the `serve` fixture and its handler
+
+T12 = Path(__file__).resolve().parents[1] / "demo" / "sources" / "t12-summary.pdf"
+
+CANARY = "sk-dry-run-canary-7731"
+"""A key value distinctive enough that finding it anywhere in output means it leaked."""
 
 WIKI = "https://en.wikipedia.org/w/index.php?title=Franklin_County,_Ohio&oldid=1367935775"
 
@@ -85,6 +91,19 @@ def network():
     net.close()
 
 
+def _extractor(line: str) -> str:
+    """The extractor a dry run's line names: the last word of its trailing mark."""
+    return line.rsplit(" ", 1)[1]
+
+
+def _recorded(root: Path, slug: str) -> str:
+    """The extractor the ingest recorded for `slug`'s current generation."""
+    with Registry.open(root) as registry:
+        [document] = [d for d in registry.export_json()["documents"] if d["slug"] == slug]
+    [current] = [e for e in document["extractions"] if e["is_current"]]
+    return current["extractor"]
+
+
 def _state(root: Path) -> dict:
     """What a dry run must leave exactly as it found it: the whole registry."""
     with Registry.open(root) as registry:
@@ -104,6 +123,7 @@ def test_the_slug_a_file_is_told_it_would_take_is_the_one_it_takes(
     ingested = runner.invoke(cli.app, ["ingest", str(note)])
     assert ingested.exit_code == 0
     assert ingested.stdout.split()[0] == slug
+    assert _recorded(project, slug) == _extractor(predicted.stdout.splitlines()[0])
 
 
 def test_the_slug_a_url_is_told_it_would_take_is_the_one_it_takes(
@@ -121,6 +141,7 @@ def test_the_slug_a_url_is_told_it_would_take_is_the_one_it_takes(
     assert ingested.exit_code == 0
     assert ingested.stdout.split()[0] == slug
     assert ingested.stdout.split()[2] == media_type
+    assert _recorded(project, slug) == _extractor(predicted.stdout.splitlines()[0])
 
 
 def test_a_generic_url_segment_earns_the_host_in_front_of_it(project: Path) -> None:
@@ -135,7 +156,7 @@ def test_a_file_is_named_by_its_stem_and_typed_by_its_suffix(
     project: Path, note: Path
 ) -> None:
     line = runner.invoke(cli.app, ["ingest", str(note), "--dry-run"]).stdout.splitlines()[0]
-    assert line.split() == ["quarterly-notes", str(note), "text"]
+    assert line == f"quarterly-notes  {note}  text  would extract with text"
 
 
 # ---- nothing happens --------------------------------------------------------
@@ -205,7 +226,7 @@ def test_a_source_already_ingested_says_so_and_names_the_slug_it_has(
     runner.invoke(cli.app, ["ingest", str(note), "--slug", "t12-audit"])
     line = runner.invoke(cli.app, ["ingest", str(note), "--dry-run"]).stdout.splitlines()[0]
     assert line.startswith("t12-audit  ")
-    assert line.endswith("already ingested")
+    assert line.endswith("already ingested, extracted with text")
 
 
 def test_a_url_already_ingested_is_matched_on_the_url(
@@ -246,7 +267,7 @@ def test_a_name_another_document_took_is_reported_as_taken(
     twin.write_text("Different words entirely, on the same filename.", encoding="utf-8")
     line = runner.invoke(cli.app, ["ingest", str(twin), "--dry-run"]).stdout.splitlines()[0]
     assert line.startswith("quarterly-notes-2  ")
-    assert line.endswith("quarterly-notes is taken")
+    assert line.endswith("quarterly-notes is taken, would extract with text")
 
 
 def test_a_copy_of_an_ingested_file_is_that_document_not_a_new_one(
@@ -267,7 +288,7 @@ def test_a_withdrawn_source_says_it_is_withdrawn(project: Path, note: Path) -> N
     runner.invoke(cli.app, ["ingest", str(note)])
     runner.invoke(cli.app, ["forget", "quarterly-notes", "--yes"])
     line = runner.invoke(cli.app, ["ingest", str(note), "--dry-run"]).stdout.splitlines()[0]
-    assert line.endswith("already ingested, withdrawn")
+    assert line.endswith("already ingested, withdrawn, extracted with text")
 
 
 def test_slug_on_an_ingested_source_says_it_would_not_rename_it(
@@ -280,14 +301,14 @@ def test_slug_on_an_ingested_source_says_it_would_not_rename_it(
         cli.app, ["ingest", str(note), "--dry-run", "--slug", "something-else"]
     ).stdout.splitlines()[0]
     assert line.startswith("quarterly-notes  ")
-    assert line.endswith("--slug would not rename it")
+    assert line.endswith("--slug would not rename it, extracted with text")
 
 
 def test_a_free_requested_slug_is_reported_plainly(project: Path, note: Path) -> None:
     line = runner.invoke(
         cli.app, ["ingest", str(note), "--dry-run", "--slug", "t12-audit"]
     ).stdout.splitlines()[0]
-    assert line.split() == ["t12-audit", str(note), "text"]
+    assert line == f"t12-audit  {note}  text  would extract with text"
 
 
 def test_a_requested_slug_already_taken_fails_and_says_how_to_check(
@@ -381,3 +402,125 @@ def test_a_dry_run_without_a_registry_says_to_init(tmp_path: Path, monkeypatch) 
     result = runner.invoke(cli.app, ["ingest", "x.pdf", "--dry-run"])
     assert result.exit_code == cli.EXIT_USAGE
     assert "backdraft init" in result.stderr
+
+
+# ---- which extractor runs, and whether it spends ----------------------------
+
+
+@pytest.fixture
+def no_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The vision model, unreachable: a dry run that calls it fails loudly.
+
+    The same structural block `network` puts on `fetch.fetch`. Naming `vlm` is
+    the dry run's job; reaching it is not.
+    """
+
+    def refuse(*_: object, **__: object):
+        raise AssertionError("--dry-run called the vision model")
+
+    monkeypatch.setattr(vlm.VlmExtractor, "extract", refuse)
+
+
+def test_a_pdf_without_a_key_would_be_read_from_its_text_layer(
+    project: Path, monkeypatch: pytest.MonkeyPatch, no_model
+) -> None:
+    monkeypatch.delenv("BACKDRAFT_VLM_API_KEY", raising=False)
+    result = runner.invoke(cli.app, ["ingest", str(T12), "--dry-run"])
+    assert result.exit_code == 0
+    assert result.stdout.splitlines()[0] == (
+        f"t12-summary  {T12}  pdf  would extract with pdf-text"
+    )
+
+
+def test_a_pdf_with_a_key_would_go_to_the_vision_model_and_the_key_stays_put(
+    project: Path, monkeypatch: pytest.MonkeyPatch, no_model
+) -> None:
+    """`auto` prefers `vlm` once a backdraft-scoped key exists, and that is the
+    one choice that spends — so it is the one the dry run must name. Presence
+    is all it reads; the value never reaches the output."""
+    monkeypatch.setenv("BACKDRAFT_VLM_API_KEY", CANARY)
+    result = runner.invoke(cli.app, ["ingest", str(T12), "--dry-run"])
+    assert result.exit_code == 0
+    assert result.stdout.splitlines()[0].endswith("would extract with vlm")
+    assert "model call per page" in result.stdout
+    assert CANARY not in result.stdout + result.stderr
+    assert _state(project)["documents"] == []
+
+
+def test_a_pdf_bound_for_the_text_layer_is_not_told_about_model_calls(
+    project: Path, monkeypatch: pytest.MonkeyPatch, note: Path
+) -> None:
+    monkeypatch.delenv("BACKDRAFT_VLM_API_KEY", raising=False)
+    result = runner.invoke(cli.app, ["ingest", str(T12), str(note), "--dry-run"])
+    assert "model call" not in result.stdout
+
+
+def test_the_extractor_the_dry_run_names_for_a_pdf_is_the_one_ingest_records(
+    project: Path, monkeypatch: pytest.MonkeyPatch, no_model
+) -> None:
+    monkeypatch.delenv("BACKDRAFT_VLM_API_KEY", raising=False)
+    predicted = runner.invoke(cli.app, ["ingest", str(T12), "--dry-run"])
+    ingested = runner.invoke(cli.app, ["ingest", str(T12)])
+    assert ingested.exit_code == 0
+    assert _recorded(project, "t12-summary") == _extractor(predicted.stdout.splitlines()[0])
+
+
+def test_an_ingested_source_names_its_generations_extractor(
+    project: Path, monkeypatch: pytest.MonkeyPatch, no_model
+) -> None:
+    """Re-ingesting with what made it is a no-op; with anything else it is a new
+    generation, and the line says which extractor that one would be."""
+    monkeypatch.delenv("BACKDRAFT_VLM_API_KEY", raising=False)
+    runner.invoke(cli.app, ["ingest", str(T12)])
+    same = runner.invoke(cli.app, ["ingest", str(T12), "--dry-run"]).stdout.splitlines()[0]
+    assert same.endswith("already ingested, extracted with pdf-text")
+
+    monkeypatch.setenv("BACKDRAFT_VLM_API_KEY", CANARY)
+    moved = runner.invoke(cli.app, ["ingest", str(T12), "--dry-run"]).stdout.splitlines()[0]
+    assert moved.endswith("already ingested, extracted with pdf-text, would re-extract with vlm")
+
+
+def test_an_explicit_extractor_is_named_as_given(
+    project: Path, monkeypatch: pytest.MonkeyPatch, no_model
+) -> None:
+    monkeypatch.delenv("BACKDRAFT_VLM_API_KEY", raising=False)
+    line = runner.invoke(
+        cli.app, ["ingest", str(T12), "--dry-run", "--extractor", "vlm"]
+    ).stdout.splitlines()[0]
+    assert line.endswith("would extract with vlm")
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [
+        ["--extractor", "bogus"],
+        ["--config", "nonsense=1"],
+        ["--extractor", "text", "--config", "dpi=300"],
+    ],
+    ids=["unknown-extractor", "unknown-key", "key-the-chosen-one-never-reads"],
+)
+def test_what_the_ingest_would_refuse_the_dry_run_refuses_in_its_words(
+    project: Path, note: Path, flags: list[str], ingest_failure_reason
+) -> None:
+    """Exit 0 on a command that fails would be a prediction worse than none.
+
+    Compared against the real ingest's `!` line rather than against a string,
+    so the two cannot drift apart in wording either.
+    """
+    predicted = runner.invoke(cli.app, ["ingest", str(note), "--dry-run", *flags])
+    assert predicted.exit_code == cli.EXIT_USAGE
+    assert predicted.stdout == ""
+    ingested = runner.invoke(cli.app, ["ingest", str(note), *flags])
+    assert ingested.exit_code == cli.EXIT_USAGE
+    assert ingest_failure_reason(predicted, str(note)) == ingest_failure_reason(
+        ingested, str(note)
+    )
+    assert _state(project)["documents"] == []
+
+
+def test_a_url_says_its_extractor_is_as_provisional_as_its_media_type(
+    project: Path,
+) -> None:
+    result = runner.invoke(cli.app, ["ingest", WIKI, "--dry-run"])
+    assert result.stdout.splitlines()[0].endswith("html  would extract with html")
+    assert "the extractor each implies" in result.stdout

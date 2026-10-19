@@ -150,6 +150,10 @@ class Naming:
     stem: str
     media_type: MediaType
     ingested: bool
+    extractor: str
+    """The extractor `ingest` would run, chosen by the method `ingest` itself calls."""
+    extracted_with: str | None = None
+    """Already here: the extractor its current generation came from. None otherwise."""
     withdrawn: bool = False
     """Already here, and `forget` has withdrawn it — so ingesting restores it."""
 
@@ -586,16 +590,9 @@ class Registry:
 
         sha256 = content_hash(data)
         media_type = media_type_for(path)
-        chosen = (
-            extract_base.select(path, media_type, config)
-            if extractor in (None, "auto")
-            else extract_base.get(extractor)
-        )
         settings = dict(config or {})
-        # After selection, never before: `auto` picks per file, so only the
-        # chosen extractor can say whether `dpi` is a setting or a typo. Before
-        # the no-op check, so a misspelled key fails on a re-ingest too.
-        extract_base.check_config(chosen, settings)
+        # Before the no-op check, so a misspelled key fails on a re-ingest too.
+        chosen = self._choose_extractor(path, media_type, extractor, settings)
         settings_hash = config_hash(settings)
 
         existing = self._find_document(sha256=sha256, path=path, url=url)
@@ -637,9 +634,15 @@ class Registry:
         )
 
     def naming(
-        self, path: Path, *, slug: str | None = None, url: str | None = None
+        self,
+        path: Path,
+        *,
+        extractor: str | None = None,
+        slug: str | None = None,
+        config: dict | None = None,
+        url: str | None = None,
     ) -> Naming:
-        """The slug and media type `ingest` would hand this source, without ingesting it.
+        """What `ingest` would call this source and run on it, without ingesting it.
 
         Takes what `ingest` takes and answers the part of the answer that is
         settled before an extractor runs: a file by its path, a fetched source
@@ -658,8 +661,17 @@ class Registry:
         A requested `slug` is treated as `ingest` treats it: taken raises, and a
         source already in the registry keeps the slug it has, since a slug is
         stable once assigned and `--slug` cannot rename one.
+
+        `extractor` and `config` are chosen and checked by `_choose_extractor`,
+        the method `ingest` calls, so an unknown extractor or a key the chosen
+        one never reads raises the same `ExtractionError` here as there. The
+        choice needs no bytes — `auto` reads the media type and `vlm_ready` —
+        so whether a PDF goes to the vision model is answered without asking
+        it anything. For a URL the media type is the address's implication,
+        and the extractor inherits that: the fetch settles both.
         """
         path = Path(path)
+        settings = dict(config or {})
         # No bytes without a fetch, and no stored digest is empty — so for a URL
         # the byte arm of the lookup simply cannot fire, and the URL arm answers.
         sha256 = "" if url is not None else content_hash(_read_source(path))
@@ -669,18 +681,24 @@ class Registry:
             # Its media type is recorded, not predicted: a fetched document was
             # typed by the content type its server actually sent, which is the
             # one thing about a URL a dry run otherwise cannot know.
+            chosen = self._choose_extractor(path, existing.media_type, extractor, settings)
             return Naming(
                 slug=existing.slug,
                 stem=stem,
                 media_type=existing.media_type,
                 ingested=True,
+                extractor=chosen.name,
+                extracted_with=self._current_extractor(existing.id),
                 withdrawn=existing.withdrawn_at is not None,
             )
+        media_type = media_type_for(path)
+        chosen = self._choose_extractor(path, media_type, extractor, settings)
         return Naming(
             slug=self._assign_slug(slug, path.name),
             stem=stem,
-            media_type=media_type_for(path),
+            media_type=media_type,
             ingested=False,
+            extractor=chosen.name,
         )
 
     def forget(self, slug: str) -> Document:
@@ -1250,6 +1268,37 @@ class Registry:
         with self._connection:
             self._save_meta(document.id, meta)  # type: ignore[arg-type]
         return replace(document, meta=meta)
+
+    def _choose_extractor(
+        self, path: Path, media_type: str, extractor: str | None, settings: dict
+    ) -> Any:
+        """Which extractor runs on this source, with these settings checked against it.
+
+        The one owner of that answer, shared by `ingest` and `naming` for the
+        reason `_find_document` is: a dry run that chose its extractor any other
+        way could promise the free text layer and then spend on the vision model.
+        `None` or `"auto"` lets `select` pick from the media type and
+        `vlm_ready`; a name is taken as given. The config check follows the
+        choice, never precedes it: `auto` picks per file, so only the chosen
+        extractor can say whether `dpi` is a setting or a typo. Raises
+        `ExtractionError` for an unknown or unavailable extractor, for a file
+        nothing handles, and for a key the chosen extractor does not declare.
+        """
+        chosen = (
+            extract_base.select(path, media_type, settings)
+            if extractor in (None, "auto")
+            else extract_base.get(extractor)
+        )
+        extract_base.check_config(chosen, settings)
+        return chosen
+
+    def _current_extractor(self, document_id: int | None) -> str | None:
+        """The extractor that produced this document's current generation."""
+        row = self._connection.execute(
+            "SELECT extractor FROM extractions WHERE document_id = ? AND is_current = 1",
+            (document_id,),
+        ).fetchone()
+        return row["extractor"] if row else None
 
     def _is_noop(
         self, document: Document, sha256: str, extractor: Any, settings_hash: str

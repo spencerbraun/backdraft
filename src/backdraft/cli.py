@@ -400,8 +400,9 @@ def ingest(
         typer.Option(
             "--dry-run",
             help=(
-                "Print the slug and media type each source would take, then stop. "
-                "Fetches nothing, writes nothing, mints nothing."
+                "Print the slug, media type and extractor each source would take, "
+                "then stop. Fetches nothing, writes nothing, mints nothing, and "
+                "calls no model."
             ),
         ),
     ] = False,
@@ -441,7 +442,12 @@ def ingest(
     A slug is permanent once a token carries it, so this is how to see the
     default before `--slug` has to overrule it. A source already in the registry
     says so and names the slug it already has; a name another document has taken
-    says that too, with the numbered slug it would land on instead.
+    says that too, with the numbered slug it would land on instead. Each line
+    also ends `would extract with <extractor>`, chosen exactly as the ingest
+    would choose it — so a PDF says before the batch whether it goes to `vlm`, a
+    vision-model call per page, or to `pdf-text`, which is free. An unknown
+    `--extractor`, or a `--config` key the chosen one never reads, fails the dry
+    run with the reason the ingest would give.
 
     `--config` keys are checked against the extractor that was chosen, which for
     `auto` is per file. Both PDF paths (`pdf-text`, `vlm`) take `dpi`; every path
@@ -467,7 +473,7 @@ def ingest(
         # on a command that cannot start would be a prediction worse than none.
         settings = _parse_config(config or [])
         if dry_run:
-            _report_naming(sources, slug)
+            _report_naming(sources, extractor, slug, settings)
             return
         with opened_registry() as registry:
             for source in sources:
@@ -613,7 +619,9 @@ def ingest(
         )
 
 
-def _report_naming(sources: list[str], slug: str | None) -> None:
+def _report_naming(
+    sources: list[str], extractor: str, slug: str | None, settings: dict[str, str]
+) -> None:
     """`ingest --dry-run`: what each source would be called, before that is permanent.
 
     Called from inside `ingest`'s own guard, so it opens the registry the long
@@ -624,7 +632,9 @@ def _report_naming(sources: list[str], slug: str | None) -> None:
     thing predicted read alike. A source that cannot be read is a line in the
     failure report instead, the way it is under a real ingest: a dry run is
     most often somebody checking a name they are unsure of, and a confident
-    slug for a path that does not exist is the worst answer available.
+    slug for a path that does not exist is the worst answer available. An
+    extractor that cannot be chosen, or a key it would reject, is that same
+    failure line, with the reason the ingest's own `!` line would carry.
     """
     named: list[tuple[str, Naming]] = []
     unread: list[tuple[str, str]] = []
@@ -632,7 +642,7 @@ def _report_naming(sources: list[str], slug: str | None) -> None:
     try:
         for source in sources:
             try:
-                named.append((source, _naming(registry, source, slug)))
+                named.append((source, _naming(registry, source, extractor, slug, settings)))
             except BackdraftError as error:
                 unread.append((source, str(error)))
     finally:
@@ -655,7 +665,13 @@ def _report_naming(sources: list[str], slug: str | None) -> None:
         )
 
 
-def _naming(registry: Registry, source: str, slug: str | None) -> Naming:
+def _naming(
+    registry: Registry,
+    source: str,
+    extractor: str,
+    slug: str | None,
+    settings: dict[str, str],
+) -> Naming:
     """What `source` would be called, asked of the registry the same way `ingest` asks.
 
     The split is `_staged`'s, minus the network: a path is itself, and a URL
@@ -664,35 +680,51 @@ def _naming(registry: Registry, source: str, slug: str | None) -> Naming:
     reason this command can exist — `fetch.filename_for` settles the stem from
     the address, and only the suffix waits on the content type the server sends.
     """
+    asked = {"extractor": extractor, "slug": slug, "config": settings}
     if not fetch.is_url(source):
-        return registry.naming(Path(source), slug=slug)
+        return registry.naming(Path(source), **asked)
     fetch.require_web(source)
-    return registry.naming(Path(fetch.filename_for(source)), slug=slug, url=source)
+    return registry.naming(Path(fetch.filename_for(source)), url=source, **asked)
 
 
 def _naming_note(naming: Naming, requested: str | None) -> str:
-    """Why this slug is not simply the source's own name. A fresh one says nothing.
+    """Why this slug is not simply the source's own name, then which extractor runs.
 
     `_outcome_note`'s shape, for the same reason: the common case is a source
     nothing here has an opinion about, and a mark on every line would bury the
-    two that matter.
+    two that matter. The extractor is the exception and trails every line,
+    because it is the one thing on it that can cost money: `vlm` is a model
+    call per page and `pdf-text` is free, and before the batch is the moment to
+    know. A trailing mark rather than a fourth column, because `ingest`'s own
+    line names no extractor and the two are meant to read alike.
     """
+    marks: list[str] = []
     if naming.ingested:
-        marks = ["already ingested"]
+        marks.append("already ingested")
         if naming.withdrawn:
             marks.append("withdrawn")
         if requested is not None and requested != naming.slug:
             # `--slug` is honoured only for a new document, so saying nothing
             # here would let a caller believe it was about to be renamed.
             marks.append("--slug would not rename it")
-        return "  " + ", ".join(marks)
-    if naming.deduped:
-        return f"  {naming.stem} is taken"
-    return ""
+        marks.append(f"extracted with {naming.extracted_with}")
+        if naming.extractor != naming.extracted_with:
+            # A different extractor is never a no-op: the ingest would make a
+            # new generation with it, which is the run worth a dry run.
+            marks.append(f"would re-extract with {naming.extractor}")
+    else:
+        if naming.deduped:
+            marks.append(f"{naming.stem} is taken")
+        marks.append(f"would extract with {naming.extractor}")
+    return "  " + ", ".join(marks)
+
+
+VISION_EXTRACTORS = frozenset({"vlm", "image"})
+"""The extractors that send pages off this machine to a model, one call per page."""
 
 
 def _naming_notes(named: list[tuple[str, Naming]], requested: str | None) -> list[str]:
-    """The two things the lines above cannot say for themselves.
+    """The things the lines above cannot say for themselves.
 
     The web note is the honest gap: a slug comes from the address, so it is
     settled here, but a media type comes from the content type the server sends
@@ -702,8 +734,28 @@ def _naming_notes(named: list[tuple[str, Naming]], requested: str | None) -> lis
     The `--slug` note fires only where it still applies — a source already
     ingested has its name, and telling its caller to choose one would be advice
     that cannot be taken.
+
+    The vision note fires only for a source the run would send to the model:
+    a fresh one, or one whose new extractor means a new generation. Naming
+    `vlm` says which path; this says what that path costs, once per run.
     """
     notes: list[str] = []
+    spends = sorted(
+        {
+            naming.extractor
+            for _, naming in named
+            if naming.extractor in VISION_EXTRACTORS
+            and naming.extractor != naming.extracted_with
+        }
+    )
+    if spends:
+        notes.append(
+            f"note: {' and '.join(spends)} {'sends' if len(spends) == 1 else 'send'} "
+            "each page to the vision model — a "
+            "model call per page, spent against BACKDRAFT_VLM_API_KEY. Every other "
+            "extractor reads the file on this machine; `--extractor pdf-text` reads "
+            "a PDF's embedded text layer instead, for free."
+        )
     # Only for a web source nothing here has met: one already ingested was typed
     # by the content type its server sent, so its media type is a record rather
     # than a guess and warning about it would be warning about nothing.
@@ -711,8 +763,9 @@ def _naming_notes(named: list[tuple[str, Naming]], requested: str | None) -> lis
         notes.append(
             "note: nothing was fetched. A slug comes from the address alone, so "
             "the ones above are what ingest would use; a media type comes from "
-            "the content type the server sends, so the ones above are what the "
-            "address implies and the fetch settles."
+            "the content type the server sends, so the ones above, and the "
+            "extractor each implies, are what the address implies and the "
+            "fetch settles."
         )
     fresh = [naming.slug for _, naming in named if not naming.ingested]
     if fresh and requested is None:

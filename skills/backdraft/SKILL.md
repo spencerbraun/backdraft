@@ -143,9 +143,9 @@ page — `/index.php`, `/view`, a bare number — the host goes in front of it
 instead, so you get `en-wikipedia-org-index` rather than `index`. That names the
 site and still not the page, and a slug is permanent once your tokens carry it.
 You do not have to guess which case you are in: `backdraft ingest <url>
---dry-run` prints the slug and media type that URL would take and stops there,
-fetching nothing and writing nothing, so ask it first and pass `--slug` when
-the answer names the site rather than the page. It also tells you when the
+--dry-run` prints the slug, media type and extractor that URL would take and
+stops there, fetching nothing, writing nothing and calling no model, so ask it
+first and pass `--slug` when the answer names the site rather than the page. It also tells you when the
 source is already ingested — under which slug, and that `--slug` would not
 rename it — and when the name it wants is taken by another document. Choose
 before the first ingest, because there is no second chance: `--slug` on a

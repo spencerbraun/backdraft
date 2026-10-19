@@ -32,55 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. `ingest --dry-run` names the source and not the run
-
-**Intent.** The dry run (2026-09-10) answers what a source would be called, and
-`tests/test_dry_run.py` pins that the prediction equals the outcome — for the
-name. The rest of the command it predicts is unchecked:
-`backdraft ingest report.pdf --dry-run --extractor bogus` and
-`--config nonsense=1` both exit 0 with a clean line, while the real ingest fails
-that source on the unknown extractor or on a key the chosen extractor never
-reads. And the dry run is silent on the fact an agent most needs before a PDF
-batch: whether `auto` will send the pages to the vision model, which spends
-against `BACKDRAFT_VLM_API_KEY`, or read the text layer for free. That choice is
-`extract_base.select`'s, made from the media type and `vlm_ready` with no bytes
-and no network, so it is as knowable in advance as the slug.
-
-**Shape.** One owner for "which extractor, with which settings", shared by
-`Registry.ingest` and `Registry.naming`: lift the `select`/`get` and
-`check_config` lines at the top of `ingest` into one registry method both call,
-so the prediction cannot drift from the run — the argument that already put
-`_find_document` behind both. `Naming` gains the extractor's name. A failure to
-choose, or a rejected key, becomes that source's `!` line in the existing
-failure report exactly as under the real ingest, and the dry run exits 1 for it.
-Where the extractor goes on the line is the decision to write down:
-`_report_naming` promises the dry run's line reads like `ingest`'s, and
-`ingest`'s line does not name its extractor. Prefer a trailing mark in
-`_naming_note`'s shape (`would extract with vlm`) over widening both lines,
-which would move every documented ingest block. For a URL the media type is
-provisional, so the extractor is too, and the existing note says both rather
-than adding a note. A source already ingested reports its current generation's
-extractor. `vlm_ready` answers presence and nothing else; no key value reaches
-output. Not the ground of `backdraft doctor`, which reports the machine; this
-reports what one command will do to one source. `demo/walkthrough.md`'s dry-run block moves and is regenerated, not
-hand-edited.
-
-**Acceptance.** `backdraft ingest demo/sources/t12-summary.pdf --dry-run` names
-`pdf-text` with no key configured and `vlm` with `BACKDRAFT_VLM_API_KEY=fake`
-set, with no model call and no network request in either case — blocked
-structurally, the way `tests/test_dry_run.py` already blocks `fetch.fetch`. The
-fake key's value appears nowhere in the output, pinned by a test that greps for
-it. `--extractor bogus` and `--config nonsense=1` fail the dry run with the same
-reason text the real ingest's `!` line gives, asserted by comparing the two. For
-every source in the prediction-equals-outcome tests, the extractor the dry run
-names is the one the ingest records in its extraction. `README.md`,
-`site/docs.html`, `site/llms.txt` and `skills/backdraft/SKILL.md` say the dry run
-shows which extractor will run, and that `vlm` is a model call per page. DESIGN
-row.
-
-**Size.** Two days.
-
-### 2. `session show` counts what was read and cannot say what was not
+### 1. `session show` counts what was read and cannot say what was not
 
 **Intent.** `session show` (2026-08-31) answers "have I read enough to write
 this yet?" with a count per document. Since the page-read budget (2026-09-08) a
@@ -124,7 +76,7 @@ ask it after a context loss rather than re-reading from the top. DESIGN row.
 
 **Size.** Two days.
 
-### 3. An artifact word-diffs a drifted citation against whatever now stands at its old address
+### 2. An artifact word-diffs a drifted citation against whatever now stands at its old address
 
 **Intent.** The artifact's drift block (`render/html/text.py`'s `_drift_block`)
 shows `as cited` and `now`, word-diffed with `<del>` and `<ins>`, where `now` is
@@ -176,7 +128,7 @@ DESIGN row.
 
 **Size.** Three days.
 
-### 4. `locate` leaves the fix to hand edits of tokens, which the skill forbids
+### 3. `locate` leaves the fix to hand edits of tokens, which the skill forbids
 
 **Intent.** `locate` prints `moved: <old> — now at <new>` and closes by telling
 the writer to put each moved token in place of the old one, while the writing
@@ -221,7 +173,7 @@ pins for the plain run. DESIGN row.
 
 **Size.** Two days.
 
-### 5. `locate` calls intact words `gone` when an insertion merged or split their chunk
+### 4. `locate` calls intact words `gone` when an insertion merged or split their chunk
 
 **Intent.** `locate` matches the cited snippet's hash exactly, and the 2026-09-17
 row named the price: "a chunk that an insertion under 200 characters merged into"
@@ -269,7 +221,7 @@ every existing `tests/test_locate.py` expectation is unchanged. SPEC Addendum B'
 
 **Size.** Two days.
 
-### 6. A draft outside its project is told there is no registry, about the wrong directory
+### 5. A draft outside its project is told there is no registry, about the wrong directory
 
 **Intent.** `bind` and `locate` find the registry from the document's directory
 (SPEC § CLI), and when that walk finds nothing `cli_context.open_registry`
@@ -308,7 +260,7 @@ must live under its project or name it with `BACKDRAFT_HOME`. DESIGN row.
 
 **Size.** One day.
 
-### 7. After a re-ingest, nothing says which drafts cite the source that moved
+### 6. After a re-ingest, nothing says which drafts cite the source that moved
 
 **Intent.** `ingest`'s new-generation note says citations "may now report
 `drifted`", that `bind` on a document citing the source says which, and names
@@ -349,7 +301,7 @@ the note names the drafts. DESIGN row.
 
 **Size.** Two days.
 
-### 8. `render` ships a draft edited after `bind` as if the record had judged it
+### 7. `render` ships a draft edited after `bind` as if the record had judged it
 
 **Intent.** `render` reads two files, the draft and the record `bind` wrote for
 it, and never checks that they still describe the same text. Checked on
@@ -384,7 +336,7 @@ refuses a draft edited since bind. DESIGN row.
 
 **Size.** One to two days.
 
-### 9. An older backdraft reads a newer registry as if what it does not know were not there
+### 8. An older backdraft reads a newer registry as if what it does not know were not there
 
 **Intent.** The registry travels with the project folder — the documented answer
 to a sandbox that cannot reach the vision model is to ingest locally and hand the
@@ -419,7 +371,7 @@ DESIGN row.
 
 **Size.** One to two days.
 
-### 10. `ingest` reports per source in columns an agent has to scrape
+### 9. `ingest` reports per source in columns an agent has to scrape
 
 **Intent.** `bind` and `verify` gained `--json` (2026-09-14) because their output
 is read by agents and every wording fix silently broke a parser. `ingest` is the
@@ -453,7 +405,7 @@ is byte-identical, pinned. `site/llms.txt`, `skills/backdraft/SKILL.md`,
 
 **Size.** Two days.
 
-### 11. `forget` asks for confirmation without saying which drafts it will break
+### 10. `forget` asks for confirmation without saying which drafts it will break
 
 **Intent.** `forget` is the one command that takes something away, so it asks
 first, and what it says is general: a token already written into a draft still
@@ -487,7 +439,7 @@ the drafts.
 
 **Size.** One day, two if it lands the records reader.
 
-### 12. `doctor` is read by agents and prints only columns
+### 11. `doctor` is read by agents and prints only columns
 
 **Intent.** The writing skill's first instruction is now "Run `backdraft doctor`
 before you promise anything" and plan from its `missing` lines. An agent does
@@ -515,7 +467,7 @@ name the flag.
 
 **Size.** One day.
 
-### 13. A `not_shown` cleared by `show` after `bind` reads like a citation read before writing
+### 12. A `not_shown` cleared by `show` after `bind` reads like a citation read before writing
 
 **Intent.** `not_shown` is the one status that says the author cited a passage
 they never read, and it clears by being shown: `bind` flags it, the agent runs
@@ -557,7 +509,7 @@ and says to re-judge each claim it lists. DESIGN row.
 
 **Size.** One to two days.
 
-### 14. `verify`'s `next: not_shown` tells an auditor to mint into the author's session
+### 13. `verify`'s `next: not_shown` tells an auditor to mint into the author's session
 
 **Intent.** Since 2026-10-14 `verify` re-checks `not_shown` against the session
 the record names, and its report closes with `cli_context.NEXT_MOVES`' line for
@@ -590,7 +542,7 @@ than running them" for this case. DESIGN row amending 2026-10-14's.
 
 **Size.** One day.
 
-### 15. `verify --json` carries the finding and not the move
+### 14. `verify --json` carries the finding and not the move
 
 **Intent.** `bind` and `verify` reports end with `next:` lines (2026-10-14), and
 both `--json` forms carry none of it, by design for `bind`, whose `--json` is
@@ -620,7 +572,7 @@ the object is byte-identical, pinned against the existing JSON tests. SPEC
 
 **Size.** One day.
 
-### 16. A search hit on a long page points at the whole page
+### 15. A search hit on a long page points at the whole page
 
 **Intent.** Every search result block closes with `[Read the page: backdraft
 read <slug> p<n>]`, and `show` does the same. On a 57-chunk web page that is
@@ -654,7 +606,7 @@ hint. DESIGN row.
 
 **Size.** One day.
 
-### 17. A web page saved by hand ingests as a file and loses the address it came from
+### 16. A web page saved by hand ingests as a file and loses the address it came from
 
 **Intent.** The 2026-08-05 row made a URL provenance, not identity: a fetched
 page is identified by its snapshot and named everywhere by its URL. An agent

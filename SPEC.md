@@ -307,8 +307,10 @@ All switches **default off** (`--check` opts in). Verdicts are recorded evidence
 backdraft init                      # create .backdraft/, print status
 backdraft ingest <sources...> [--extractor auto] [--slug S] [--config k=v] [--dry-run]
                                     # a source is a path or an http(s) URL
-                                    # --dry-run: the slug and media type each source
-                                    # would take, fetching and writing nothing
+                                    # --dry-run: the slug, media type and extractor
+                                    # each source would take, fetching, writing and
+                                    # calling no model; a bad --extractor or --config
+                                    # fails it as it fails the ingest
                                     # --slug names a new document only; on one already
                                     # ingested the line says `--slug not applied`
 backdraft forget <slug> [--yes]      # withdraw a source; citations keep resolving
@@ -388,10 +390,10 @@ class Registry:
         # fetch by URL rather than by the temporary file. Identity stays the bytes.
         # The registry never fetches; `fetch.py` does, and the CLI calls it.
 
-    def naming(self, path: Path, *, slug: str | None = None,
-               url: str | None = None) -> Naming: ...
+    def naming(self, path: Path, *, extractor: str | None = None, slug: str | None = None,
+               config: dict | None = None, url: str | None = None) -> Naming: ...
         # What `ingest` would call this source, without ingesting it: Naming(slug, stem,
-        # media_type, ingested, withdrawn), where `stem` is the name the source's own
+        # media_type, ingested, extractor, extracted_with, withdrawn), where `stem` is the name the source's own
         # address suggests and `slug` is what this registry would hand it — different
         # where the source is already here, or where `_dedupe` numbered a taken name.
         # Takes ingest's arguments and matches identity through the same `_find_document`,
@@ -399,7 +401,12 @@ class Registry:
         # (identity is the bytes); for a URL there are none yet, so continuity rests on
         # the URL, which is what a re-fetch matches on. Writes nothing, mints nothing,
         # opens no socket. A slug is permanent once a token carries it, and this is what
-        # `ingest --dry-run` asks so the choice can be seen before it is made.
+        # `ingest --dry-run` asks so the choice can be seen before it is made. Takes
+        # ingest's `extractor` and `config` too, and chooses through the same
+        # `_choose_extractor`: `extractor` is what would run (for `auto`, from the media
+        # type and `vlm_ready` — so whether a PDF spends on the vision model is known
+        # without a call), `extracted_with` the current generation's, and an unknown
+        # extractor or undeclared key raises the ExtractionError ingest would.
 
     def forget(self, slug: str) -> Document: ...
         # Withdraw a document: out of the readable set, nothing removed. Idempotent,

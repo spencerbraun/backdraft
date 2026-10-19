@@ -73,10 +73,14 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # it — a URL ending /index.php, /view or a bare id falls back to a slug built
 # from the host, which names the site and still not the page, and a slug is
 # permanent once tokens carry it. `backdraft ingest <source> --dry-run` prints
-# the slug and media type each source would take and stops there — nothing
-# fetched, nothing written, no anchor minted — so ask it before you commit to a
-# name rather than after: it also says when a source is already ingested (and
-# under which slug) and when the name it wants is taken. --slug only names a new
+# the slug, media type and extractor each source would take and stops there —
+# nothing fetched, nothing written, no anchor minted, no model called — so ask
+# it before you commit to a name rather than after. Each line ends `would
+# extract with <extractor>`: for a PDF, `vlm` is a vision-model call per page
+# against BACKDRAFT_VLM_API_KEY and `pdf-text` is the free text layer, and an
+# unknown --extractor or --config key fails the dry run as it fails the ingest.
+# It also says when a source is already ingested (and under which slug) and
+# when the name it wants is taken. --slug only names a new
 # document: on one already ingested the line ends `--slug not applied` and a
 # note names the slug it keeps — cite it by that one. Nothing renames a
 # document, `forget` then a re-ingest included: it comes back under the old

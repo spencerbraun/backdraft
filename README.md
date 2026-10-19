@@ -63,10 +63,14 @@ sentence would no longer be the sentence there.
 `en-wikipedia-org-index` — its last segment is `/index.php`, a handler rather
 than a page, so the host stands in — and a slug is permanent once tokens carry
 it. `backdraft ingest <source> --dry-run` is how to see that before choosing:
-it prints the slug and media type each source would take and stops, fetching
-nothing and writing nothing, and it says when a source is already ingested or
-when the name it wants is taken. Permanent means `--slug` only ever names a new
-document: on a source already ingested the line says `--slug not applied` and a
+it prints the slug, media type and extractor each source would take and
+stops, fetching nothing, writing nothing and calling no model, and it says when
+a source is already ingested or when the name it wants is taken. The extractor
+is the line to read before a PDF batch: `vlm` is a vision-model call per page,
+spent against `BACKDRAFT_VLM_API_KEY`, and `pdf-text` reads the text layer for
+free. An unknown `--extractor` or a `--config` key the chosen one never reads
+fails the dry run the way it would fail the ingest. Permanent means `--slug`
+only ever names a new document: on a source already ingested the line says `--slug not applied` and a
 note names the slug it keeps — and `forget` then a re-ingest brings back that
 same slug rather than a new one, since identity is the bytes, not the name.
 

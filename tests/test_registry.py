@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from backdraft.extract.base import ExtractedPage
+from backdraft.extract.base import ExtractedPage, ExtractionError
 from backdraft.kernel.model import CitationStatus
 from backdraft.kernel.tokens import parse as parse_token
 from backdraft.registry import (
@@ -725,3 +725,23 @@ def test_a_phrase_retry_matches_the_phrase_that_ran(registry: Registry, note: Pa
         snippet = hit.anchor.receipt.snippet
         start, end = hit.matches[0][0], hit.matches[-1][1]
         assert snippet[start:end] == "1.42x"
+
+
+def test_naming_names_the_extractor_ingest_then_records(registry: Registry, note: Path) -> None:
+    named = registry.naming(note)
+    assert (named.extractor, named.extracted_with) == ("text", None)
+    registry.ingest(note)
+    again = registry.naming(note)
+    assert (again.extractor, again.extracted_with) == ("text", "text")
+
+
+def test_naming_refuses_what_ingest_refuses_with_the_same_error(
+    registry: Registry, note: Path
+) -> None:
+    """One owner, `_choose_extractor`, so the two raise the one message."""
+    for asked in ({"extractor": "bogus"}, {"config": {"dpi": "300"}}):
+        with pytest.raises(ExtractionError) as predicted:
+            registry.naming(note, **asked)
+        with pytest.raises(ExtractionError) as ingested:
+            registry.ingest(note, **asked)
+        assert str(predicted.value) == str(ingested.value)
