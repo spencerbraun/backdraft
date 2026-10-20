@@ -34,7 +34,7 @@ from ..cli_context import (
 from .reader import DEFAULT_BUDGET, DEFAULT_SESSION_NOTE
 from .reader import cells as mint_cells
 from .reader import read as read_pages
-from .reader import render_session
+from .reader import render_coverage, render_session
 from .reader import show as show_tokens
 from .searcher import search as run_search
 
@@ -224,7 +224,16 @@ def session_start(
 
 
 @session_app.command("show")
-def session_show(session: _InspectedSession = None) -> None:
+def session_show(
+    session: _InspectedSession = None,
+    in_: Annotated[
+        str | None,
+        typer.Option(
+            "--in",
+            help="One document slug: which chunks were shown and which were not, by page.",
+        ),
+    ] = None,
+) -> None:
     """What this session holds: which one it is, and what it has been shown.
 
     The ledger read back before the draft exists. Per document a slug and a
@@ -232,24 +241,35 @@ def session_show(session: _InspectedSession = None) -> None:
     to write this yet?", which was otherwise only reachable by binding a draft
     and counting `not_shown`.
 
+    With `--in <slug>`, that document by locator instead: per page the chunks
+    shown and not shown, as ranges, closing with the read that covers the first
+    range not shown. Ask it after losing context mid-document, rather than
+    re-reading from the top.
+
     The default session says at exit 0 that it accumulates across every run in
     the registry, because that is what makes `not_shown` weaker than it reads.
     """
     resolved = resolve_session(session)
+    # Keyed on the id rather than on which rule supplied it: an explicit
+    # `--session default` lands in the same shared ledger and costs the same thing.
+    note = DEFAULT_SESSION_NOTE.format(env=SESSION_ENV) if resolved == DEFAULT_SESSION else None
     with opened_registry() as registry:
-        typer.echo(
-            render_session(
+        session_id = registry.ensure_session(resolved)
+        if in_ is not None:
+            rendered = render_coverage(
                 registry,
-                registry.ensure_session(resolved),
+                session_id,
+                in_,
                 source=_session_source(session),
                 session_flag=_typed(session),
-                # Keyed on the id rather than on which rule supplied it: an
-                # explicit `--session default` lands in the same shared ledger
-                # and costs the same thing.
-                note=(
-                    DEFAULT_SESSION_NOTE.format(env=SESSION_ENV)
-                    if resolved == DEFAULT_SESSION
-                    else None
-                ),
+                note=note,
             )
-        )
+        else:
+            rendered = render_session(
+                registry,
+                session_id,
+                source=_session_source(session),
+                session_flag=_typed(session),
+                note=note,
+            )
+        typer.echo(rendered)

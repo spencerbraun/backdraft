@@ -30,7 +30,13 @@ from ..kernel.claims import parse_citation
 from ..kernel.errors import BackdraftError
 from ..kernel.hashing import normalize
 from ..kernel.model import CitationStatus, source_name, source_origin
-from ..kernel.tokens import CellLocator, ChunkLocator, format_locator, parse as parse_token
+from ..kernel.tokens import (
+    CellLocator,
+    ChunkLocator,
+    PageLocator,
+    format_locator,
+    parse as parse_token,
+)
 from ..registry import MATCH_CLOSE, MATCH_OPEN, current_at, unmark, withdrawn_reason
 
 if TYPE_CHECKING:
@@ -49,6 +55,7 @@ __all__ = [
     "DEFAULT_BUDGET",
     "DEFAULT_SESSION_NOTE",
     "DRIFT_HINT",
+    "EARLIER_GENERATION_NOTE",
     "EXCERPT_CHARS",
     "GRAMMAR_HINT",
     "LIST_HINT",
@@ -62,6 +69,7 @@ __all__ = [
     "extracted_chars",
     "read",
     "render_documents",
+    "render_coverage",
     "render_session",
     "render_toc",
     "render_page_read",
@@ -1417,6 +1425,140 @@ def render_session(
     if note:
         lines += ["", note]
     return _block(lines)
+
+
+EARLIER_GENERATION_NOTE = (
+    "{count} more shown from an earlier extraction, and no longer at any current "
+    "locator: the text changed at a re-ingest, so that reading is not coverage of "
+    "what stands there now"
+)
+"""Why `--in` can list fewer than the count `session show` prints for the slug.
+
+Both match by token. A span that survived a re-ingest is the same token at its
+new row, so it is listed as shown; one whose text changed is a token the
+current generation does not hold, and it has no address to list it under. The
+difference is said rather than left for the caller to subtract."""
+
+
+def render_coverage(
+    registry: Registry,
+    session_id: str,
+    slug: str,
+    *,
+    source: str,
+    note: str | None = None,
+    session_flag: str | None = None,
+) -> str:
+    """What the session was shown of one document, by locator, and what is left.
+
+    `render_session` counts, which is coverage for a report; a writer who lost
+    its context mid-document needs coverage it can take a next step from. Per
+    page of the current extraction: the chunk locators shown and not shown,
+    folded into ranges. A sheet's citable unit is the cell, so a sheet says
+    whether its page anchor was shown and how many of its cells were, and
+    enumerates none. The closing hint is the read that covers the first range
+    not shown — the whole page when none of it was, the chunk selector when
+    part was — carrying a typed `--session`.
+
+    Emits no tokens, like `render_session`: locators are addresses, the stance
+    `render_toc`'s chunk list takes. Refuses a withdrawn or unknown slug in
+    `require_document`'s words, as `search --in` does.
+    """
+    require_document(registry, slug)
+    pages = registry.pages(slug)
+    shown = registry.shown_in_current(session_id, slug)
+    counted = dict(registry.shown_by_document(session_id)).get(slug, 0)
+    carried = session_argument(session_flag)
+
+    label_width = max((len(f"p{page.number}") for page in pages), default=0)
+    rows: list[str] = []
+    first_unshown: str | None = None
+    for page in pages:
+        anchors = registry.anchors_for_page(slug, page.number)
+        label = f"p{page.number}".ljust(label_width)
+        if page.kind == "sheet":
+            row, unshown = _sheet_coverage(page, anchors, shown)
+        else:
+            row, unshown = _page_coverage(page, anchors, shown)
+        rows.append(f"  {label}  {row}")
+        if first_unshown is None and unshown is not None:
+            first_unshown = unshown
+
+    lines = [
+        f"session {session_id}  (from {source})",
+        "",
+        f"{slug}  {_plural(len(shown), 'anchor')} shown of the current extraction",
+        "",
+        *rows,
+    ]
+    if counted > len(shown):
+        lines += ["", EARLIER_GENERATION_NOTE.format(count=counted - len(shown))]
+    if first_unshown is not None:
+        lines += ["", f"[Read what is not shown: backdraft read {slug} {first_unshown}{carried}]"]
+    else:
+        lines += ["", f"everything {slug} holds now has been shown in this session"]
+    if note:
+        lines += ["", note]
+    return _block(lines)
+
+
+def _page_coverage(
+    page: Page, anchors: Sequence[Anchor], shown: set[int]
+) -> tuple[str, str | None]:
+    """`shown c1-c25  not shown c26-c57`, and the selector for the first gap.
+
+    The selector is the page itself when nothing on it was shown — `p3` reads
+    what `p3.c1-c4` would — and the chunk form for the first unshown run
+    otherwise, since that is the read that starts where the writer stopped.
+    """
+    chunks = _chunks(anchors)
+    if not chunks:
+        return "no chunks", None
+    seen = [a.locator.ordinal for a in chunks if a.id in shown]  # type: ignore[union-attr]
+    unseen = [a.locator.ordinal for a in chunks if a.id not in shown]  # type: ignore[union-attr]
+    parts = []
+    if seen:
+        parts.append(f"shown {_ranges(seen)}")
+    if unseen:
+        parts.append(f"not shown {_ranges(unseen)}")
+    if not unseen:
+        return "  ".join(parts), None
+    if not seen:
+        return "  ".join(parts), f"p{page.number}"
+    first, last = _runs(unseen)[0]
+    span = f"c{first}" if first == last else f"c{first}-c{last}"
+    return "  ".join(parts), f"p{page.number}.{span}"
+
+
+def _sheet_coverage(
+    page: Page, anchors: Sequence[Anchor], shown: set[int]
+) -> tuple[str, str | None]:
+    """`rent-roll  page shown  12 of 340 cells shown`, and the sheet's read."""
+    name = f"{page.name}  " if page.name else ""
+    whole = any(isinstance(a.locator, PageLocator) and a.id in shown for a in anchors)
+    cells = [a for a in anchors if isinstance(a.locator, CellLocator)]
+    count = sum(1 for a in cells if a.id in shown)
+    status = "page shown" if whole else "page not shown"
+    row = f"{name}{status}  {count} of {_plural(len(cells), 'cell')} shown"
+    return row, None if whole else f"p{page.number}"
+
+
+def _runs(ordinals: Sequence[int]) -> list[tuple[int, int]]:
+    """Consecutive ordinals folded into `(first, last)` runs, in order."""
+    runs: list[tuple[int, int]] = []
+    for ordinal in sorted(ordinals):
+        if runs and ordinal == runs[-1][1] + 1:
+            runs[-1] = (runs[-1][0], ordinal)
+        else:
+            runs.append((ordinal, ordinal))
+    return runs
+
+
+def _ranges(ordinals: Sequence[int]) -> str:
+    """`c1-c3, c7` — chunk ordinals in the locator form the table of contents prints."""
+    return ", ".join(
+        f"c{first}" if first == last else f"c{first}-c{last}" for first, last in _runs(ordinals)
+    )
 
 
 def _withdrawn_mark(registry: Registry, slug: str) -> str:

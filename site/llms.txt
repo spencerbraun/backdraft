@@ -213,6 +213,13 @@ backdraft session show                      # coverage, before you write: which
                                             # the row that is missing. Mints
                                             # nothing. Says at exit 0 when you
                                             # are in the shared default session.
+backdraft session show --in <slug>          # after a context loss: per page,
+                                            # which chunks were shown and which
+                                            # not (p1  shown c1-c25  not shown
+                                            # c26-c57), closing with the read
+                                            # that covers the first gap. Mints
+                                            # nothing. Ask it instead of
+                                            # re-reading from the top.
 
 Write claims as links; multiple tokens are ;-separated in one href:
   [net operating income of $1,429,600](bd:t12:p1.c3:f10b)

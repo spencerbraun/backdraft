@@ -224,6 +224,23 @@ exit 0 when you are in it, `bind` names the session on its first line and
 closes with the same note when it judged against the default, and `backdraft
 session start --id s-<name>` is the one command that fixes it.
 
+A count says how much; after a context loss halfway down a long page you need
+*where*. `session show --in <slug>` lists, per page, the chunks this session was
+shown and the ones it was not, and names the read that picks up at the first
+gap — ask it rather than re-reading from the top. After one `backdraft read
+franklin-county p1`, which stops a third of the way down the article:
+
+```console
+$ backdraft session show --in franklin-county
+session s-bridgeview  (from BACKDRAFT_SESSION)
+
+franklin-county  25 anchors shown of the current extraction
+
+  p1  shown c1-c25  not shown c26-c57
+
+[Read what is not shown: backdraft read franklin-county p1.c26-c57]
+```
+
 **Cite** by writing the token as the href of a markdown link on the claim span.
 Multiple citations are `;`-separated in one href.
 

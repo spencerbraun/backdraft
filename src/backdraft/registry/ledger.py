@@ -20,6 +20,7 @@ __all__ = [
     "record_shown",
     "sessions",
     "shown_by_document",
+    "shown_in_current",
     "was_shown",
 ]
 
@@ -114,6 +115,30 @@ def shown_by_document(connection: sqlite3.Connection, session_id: str) -> list[t
             (session_id,),
         )
     ]
+
+
+def shown_in_current(
+    connection: sqlite3.Connection, session_id: str, extraction_id: int
+) -> set[int]:
+    """The ids of the anchors in one extraction that this session was shown.
+
+    `shown_by_document` turned into addresses: the same ledger, asked which of
+    the current generation's anchors it covers rather than how many. Matched by
+    token, as `was_shown` and `shown_by_document` match — an anchor counts as
+    shown when *any* anchor with its token was, so a span that survived a
+    re-ingest is still shown at its new row, and one whose text changed is not,
+    because what the writer saw is no longer what stands there.
+    """
+    return {
+        int(row["id"])
+        for row in connection.execute(
+            "SELECT current.id AS id FROM anchors AS current "
+            "WHERE current.extraction_id = ? AND EXISTS ("
+            "SELECT 1 FROM ledger JOIN anchors AS seen ON seen.id = ledger.anchor_id "
+            "WHERE ledger.session_id = ? AND seen.token = current.token)",
+            (extraction_id, session_id),
+        )
+    }
 
 
 def sessions(connection: sqlite3.Connection) -> list[dict]:

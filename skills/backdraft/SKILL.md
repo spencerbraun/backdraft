@@ -210,6 +210,13 @@ Everything counted there binds `resolved`; everything else in the registry binds
 finding that out here costs one command — finding it out from `bind` costs the
 draft. `nothing shown yet` means no citation you write can bind cleanly.
 
+**After a context loss, ask where you stopped instead of re-reading from the
+top.** `backdraft session show --in <slug>` lists, per page, the chunks you were
+shown and the ones you were not (`p1  shown c1-c25  not shown c26-c57`) and
+closes with the read that covers the first gap — run that line. It mints
+nothing, so asking costs no coverage. A sheet reports whether its page was shown
+and how many of its cells were; mint the cells you need with `backdraft cell`.
+
 Search shows 20 results by default. When the count line reads `2 of 56 results`,
 `--limit` cut the rest and the last line names the command that shows them —
 run it rather than picking the best of what you were shown, because relevance

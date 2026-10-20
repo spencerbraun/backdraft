@@ -1049,6 +1049,18 @@ class Registry:
         """
         return ledger_module.shown_by_document(self._connection, session_id)
 
+    def shown_in_current(self, session_id: str, slug: str) -> set[int]:
+        """Which anchors of `slug`'s current generation this session was shown, by id.
+
+        `shown_by_document` counts; this says where, so a caller can set it
+        against `anchors_for_page` and name what is left. Empty for a slug with
+        no current generation. Matched by token — see the ledger module.
+        """
+        extraction_id = self._current_extraction_for_slug(slug)
+        if extraction_id is None:
+            return set()
+        return ledger_module.shown_in_current(self._connection, session_id, extraction_id)
+
     # ---- bind persistence ---------------------------------------------------
 
     def save_binding(

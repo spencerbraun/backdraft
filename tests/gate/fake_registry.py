@@ -195,6 +195,19 @@ class FakeDocumentRegistry:
                 rows.append((slug, len(tokens)))
         return rows
 
+    def shown_in_current(self, session_id: str, slug: str) -> set[int]:
+        """Ids of `slug`'s anchors the session was shown; one generation here."""
+        loaded = self._docs.get(slug)
+        if loaded is None:
+            return set()
+        shown = self._ledger.get(session_id, set())
+        return {
+            anchor.id
+            for anchors in loaded.anchors.values()
+            for anchor in anchors
+            if anchor.id in shown
+        }
+
     def close(self) -> None:
         self.closed = True
 

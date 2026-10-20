@@ -32,51 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. `session show` counts what was read and cannot say what was not
-
-**Intent.** `session show` (2026-08-31) answers "have I read enough to write
-this yet?" with a count per document. Since the page-read budget (2026-09-08) a
-long page arrives in windows, and an agent that read the first window of a
-57-chunk article, lost its context to compaction and came back has
-`franklin-county  25` and nothing else: it cannot tell whether those 25 are the
-navigation menu or the demographics section, and the only way to find what is
-left is to re-read from the top, re-spending the context the budget was meant to
-save. The ledger holds exactly the answer — which anchors this session was shown
-— and no surface prints it by locator. A count is coverage for a report; a
-writer needs coverage it can take a next step from.
-
-**Shape.** `session show --in <slug>`, the flag `search` already uses to mean one
-document. Under it, per page of the current extraction, the chunk locators
-shown and not shown, compressed into ranges (`p1  shown c1-c25  not shown
-c26-c57`); a sheet page reports whether its page anchor was shown and a count of
-cells shown rather than enumerating cells. It emits no tokens and mints nothing
-— locators are addresses, the stance `render_toc`'s chunk list already takes —
-so it stays the one gate command that takes `--session` without minting into
-it. Read it in `registry/ledger.py` beside `shown_by_document`, as one query
-joining the ledger to the current extraction's anchors; anchors shown from a
-superseded generation count the way `shown_by_document` counts them, and the
-DESIGN row says which way that is. The closing hint names the read that covers
-the first unshown range — in the chunk-selector form if "A chunk the table of
-contents lists is a chunk no read can ask for" has landed, otherwise as the page
-read with its `--offset` — carrying a typed `--session` through
-`gate.reader.session_argument`. A withdrawn or unknown slug is refused in
-`require_document`'s words, as `search --in` refuses it. Without `--in`,
-`session show` is byte-identical, pinned.
-
-**Acceptance.** In a copy of `demo/`'s registry, under a fresh session,
-`backdraft read franklin-county p1` then `backdraft session show --in
-franklin-county` reports `c1-c25` shown and `c26-c57` not shown, and its hint,
-run, shows `c26` first. After `backdraft read t12-summary p1`, `--in
-t12-summary` reports `p1` wholly shown, `p2` shown `c1` — the chunk that read
-names across the page break (2026-09-16) — and not shown `c2-c7`, and `p3` not
-shown. The ledger's row count is identical before and after the command.
-`session show` with no `--in` prints exactly what `demo/walkthrough.md` shows.
-`README.md`, `site/llms.txt` and `skills/backdraft/SKILL.md` tell the agent to
-ask it after a context loss rather than re-reading from the top. DESIGN row.
-
-**Size.** Two days.
-
-### 2. An artifact word-diffs a drifted citation against whatever now stands at its old address
+### 1. An artifact word-diffs a drifted citation against whatever now stands at its old address
 
 **Intent.** The artifact's drift block (`render/html/text.py`'s `_drift_block`)
 shows `as cited` and `now`, word-diffed with `<del>` and `<ins>`, where `now` is
@@ -128,7 +84,7 @@ DESIGN row.
 
 **Size.** Three days.
 
-### 3. `locate` leaves the fix to hand edits of tokens, which the skill forbids
+### 2. `locate` leaves the fix to hand edits of tokens, which the skill forbids
 
 **Intent.** `locate` prints `moved: <old> — now at <new>` and closes by telling
 the writer to put each moved token in place of the old one, while the writing
@@ -173,7 +129,7 @@ pins for the plain run. DESIGN row.
 
 **Size.** Two days.
 
-### 4. `locate` calls intact words `gone` when an insertion merged or split their chunk
+### 3. `locate` calls intact words `gone` when an insertion merged or split their chunk
 
 **Intent.** `locate` matches the cited snippet's hash exactly, and the 2026-09-17
 row named the price: "a chunk that an insertion under 200 characters merged into"
@@ -221,7 +177,7 @@ every existing `tests/test_locate.py` expectation is unchanged. SPEC Addendum B'
 
 **Size.** Two days.
 
-### 5. A draft outside its project is told there is no registry, about the wrong directory
+### 4. A draft outside its project is told there is no registry, about the wrong directory
 
 **Intent.** `bind` and `locate` find the registry from the document's directory
 (SPEC § CLI), and when that walk finds nothing `cli_context.open_registry`
@@ -260,7 +216,7 @@ must live under its project or name it with `BACKDRAFT_HOME`. DESIGN row.
 
 **Size.** One day.
 
-### 6. After a re-ingest, nothing says which drafts cite the source that moved
+### 5. After a re-ingest, nothing says which drafts cite the source that moved
 
 **Intent.** `ingest`'s new-generation note says citations "may now report
 `drifted`", that `bind` on a document citing the source says which, and names
@@ -301,7 +257,7 @@ the note names the drafts. DESIGN row.
 
 **Size.** Two days.
 
-### 7. `render` ships a draft edited after `bind` as if the record had judged it
+### 6. `render` ships a draft edited after `bind` as if the record had judged it
 
 **Intent.** `render` reads two files, the draft and the record `bind` wrote for
 it, and never checks that they still describe the same text. Checked on
@@ -336,7 +292,7 @@ refuses a draft edited since bind. DESIGN row.
 
 **Size.** One to two days.
 
-### 8. An older backdraft reads a newer registry as if what it does not know were not there
+### 7. An older backdraft reads a newer registry as if what it does not know were not there
 
 **Intent.** The registry travels with the project folder — the documented answer
 to a sandbox that cannot reach the vision model is to ingest locally and hand the
@@ -371,7 +327,7 @@ DESIGN row.
 
 **Size.** One to two days.
 
-### 9. `ingest` reports per source in columns an agent has to scrape
+### 8. `ingest` reports per source in columns an agent has to scrape
 
 **Intent.** `bind` and `verify` gained `--json` (2026-09-14) because their output
 is read by agents and every wording fix silently broke a parser. `ingest` is the
@@ -405,7 +361,7 @@ is byte-identical, pinned. `site/llms.txt`, `skills/backdraft/SKILL.md`,
 
 **Size.** Two days.
 
-### 10. `forget` asks for confirmation without saying which drafts it will break
+### 9. `forget` asks for confirmation without saying which drafts it will break
 
 **Intent.** `forget` is the one command that takes something away, so it asks
 first, and what it says is general: a token already written into a draft still
@@ -439,7 +395,7 @@ the drafts.
 
 **Size.** One day, two if it lands the records reader.
 
-### 11. `doctor` is read by agents and prints only columns
+### 10. `doctor` is read by agents and prints only columns
 
 **Intent.** The writing skill's first instruction is now "Run `backdraft doctor`
 before you promise anything" and plan from its `missing` lines. An agent does
@@ -467,7 +423,7 @@ name the flag.
 
 **Size.** One day.
 
-### 12. A `not_shown` cleared by `show` after `bind` reads like a citation read before writing
+### 11. A `not_shown` cleared by `show` after `bind` reads like a citation read before writing
 
 **Intent.** `not_shown` is the one status that says the author cited a passage
 they never read, and it clears by being shown: `bind` flags it, the agent runs
@@ -509,7 +465,7 @@ and says to re-judge each claim it lists. DESIGN row.
 
 **Size.** One to two days.
 
-### 13. `verify`'s `next: not_shown` tells an auditor to mint into the author's session
+### 12. `verify`'s `next: not_shown` tells an auditor to mint into the author's session
 
 **Intent.** Since 2026-10-14 `verify` re-checks `not_shown` against the session
 the record names, and its report closes with `cli_context.NEXT_MOVES`' line for
@@ -542,7 +498,7 @@ than running them" for this case. DESIGN row amending 2026-10-14's.
 
 **Size.** One day.
 
-### 14. `verify --json` carries the finding and not the move
+### 13. `verify --json` carries the finding and not the move
 
 **Intent.** `bind` and `verify` reports end with `next:` lines (2026-10-14), and
 both `--json` forms carry none of it, by design for `bind`, whose `--json` is
@@ -572,7 +528,7 @@ the object is byte-identical, pinned against the existing JSON tests. SPEC
 
 **Size.** One day.
 
-### 15. A search hit on a long page points at the whole page
+### 14. A search hit on a long page points at the whole page
 
 **Intent.** Every search result block closes with `[Read the page: backdraft
 read <slug> p<n>]`, and `show` does the same. On a 57-chunk web page that is
@@ -606,7 +562,7 @@ hint. DESIGN row.
 
 **Size.** One day.
 
-### 16. A web page saved by hand ingests as a file and loses the address it came from
+### 15. A web page saved by hand ingests as a file and loses the address it came from
 
 **Intent.** The 2026-08-05 row made a URL provenance, not identity: a fetched
 page is identified by its snapshot and named everywhere by its URL. An agent
