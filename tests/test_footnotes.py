@@ -59,6 +59,34 @@ def test_drift_carries_both_snippets(demo_doc: str, demo: BindReport) -> None:
     assert "is 1.42x," in text
 
 
+def moved(report: BindReport, token: str = "bd:t12-audit:p9.c4:0000") -> BindReport:
+    """The report with its drifted citation's words standing unchanged at `token`."""
+    return dataclasses.replace(
+        report,
+        claims=tuple(
+            dataclasses.replace(
+                claim,
+                citations=tuple(
+                    dataclasses.replace(citation, moved_to=token)
+                    if citation.status is CitationStatus.DRIFTED
+                    else citation
+                    for citation in claim.citations
+                ),
+            )
+            for claim in report.claims
+        ),
+    )
+
+
+def test_moved_drift_says_where_the_words_stand_instead_of_as_cited_before(
+    demo_doc: str, demo: BindReport
+) -> None:
+    text = footnotes.render(demo_doc, moved(demo))
+    assert "As cited, before the source changed:" not in text
+    assert "these words stand unchanged at `bd:t12-audit:p9.c4:0000`" in text
+    assert "is 1.31x," in text
+
+
 def test_unresolved_section_lists_every_failure(demo_doc: str, demo: BindReport) -> None:
     section = footnotes.render(demo_doc, demo).split("## Unresolved")[1]
     for citation in demo.unresolved:

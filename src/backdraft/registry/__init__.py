@@ -13,12 +13,16 @@ belongs here.
 from __future__ import annotations
 
 from .store import (
+    AMBIGUOUS,
     CREATED,
     DIRECTORY,
     EXPORT_FORMAT,
     GENERATION,
+    GONE,
     MATCH_CLOSE,
     MATCH_OPEN,
+    MOVED,
+    PROSE_KINDS,
     UNCHANGED,
     Ingested,
     Naming,
@@ -31,6 +35,7 @@ from .store import (
     current_at,
     current_with,
     media_type_for,
+    relocated,
     sanitize_sheet_name,
     slug_for,
     unmark,
@@ -38,12 +43,16 @@ from .store import (
 )
 
 __all__ = [
+    "AMBIGUOUS",
     "CREATED",
     "DIRECTORY",
     "EXPORT_FORMAT",
     "GENERATION",
+    "GONE",
     "MATCH_CLOSE",
     "MATCH_OPEN",
+    "MOVED",
+    "PROSE_KINDS",
     "UNCHANGED",
     "Ingested",
     "Naming",
@@ -56,6 +65,7 @@ __all__ = [
     "current_at",
     "current_with",
     "media_type_for",
+    "relocated",
     "sanitize_sheet_name",
     "slug_for",
     "unmark",

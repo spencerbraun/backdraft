@@ -176,6 +176,21 @@ def test_drift_renders_both_snippets_as_a_diff(demo_doc: str, demo: BindReport) 
     assert "<ins>1.42x,</ins>" in page
 
 
+def test_moved_drift_quotes_the_cited_words_once_and_names_where_they_stand(
+    demo_doc: str, demo: BindReport
+) -> None:
+    """Diffing against what took over the address would strike every cited word."""
+    from test_footnotes import moved
+
+    page = html.render(demo_doc, moved(demo))
+    assert "<del>" not in page and "<ins>" not in page
+    assert (
+        '<p class="drift-moved">The cited words stand unchanged at '
+        "<code>bd:t12-audit:p9.c4:0000</code>"
+    ) in page
+    assert "is 1.31x," in page
+
+
 # ---- failures speak; success is silent --------------------------------------
 
 

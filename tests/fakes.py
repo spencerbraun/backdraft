@@ -116,6 +116,16 @@ class FakeAnchorRegistry:
             and resolution.anchor.page_number == number
         ]
 
+    def anchors_with_snippet(self, slug: str, snippet_sha256: str) -> list[Anchor]:
+        """Current-generation anchors in one document whose snippet hashes the same."""
+        return [
+            resolution.anchor
+            for resolution in self._anchors.values()
+            if resolution.current
+            and resolution.anchor.slug == slug
+            and resolution.anchor.receipt.snippet_sha256 == snippet_sha256
+        ]
+
     def document(self, slug: str) -> Document | None:
         return self._documents.get(slug)
 

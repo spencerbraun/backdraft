@@ -278,7 +278,7 @@ BindReport (kernel/model.py; serialized into sidecar and `bindings.report_json`)
 BindReport { doc_path, mode, session_id?, bound_at,
              claims: [ { text, start, end,
                          citations: [ { token, status, anchor?: {slug, locator, snippet, snippet_sha256},
-                                        drifted_from?: snippet,
+                                        drifted_from?: snippet, moved_to?: token,
                                         verdicts: [ {method, status: pass|fail|partial|skip, detail} ] } ] } ],
              summary: { claims, citations, by_status: {…}, by_method: {…} } }
 ```

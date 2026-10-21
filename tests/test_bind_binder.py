@@ -98,6 +98,32 @@ def test_drift_swaps_in_the_current_generations_snippet(tmp_path, fake_bind_regi
     assert citation.anchor.receipt.snippet == current.receipt.snippet
 
 
+def test_drifted_words_standing_unchanged_at_one_new_place_carry_moved_to(
+    tmp_path, fake_bind_registry
+) -> None:
+    """`relocated`'s rule on the record, and through the verifiers' rebuild too."""
+    cited = token(fake_bind_registry, "t12-audit", "p9.c1")
+    fake_bind_registry.add_anchor("t12-audit", "p9.c1", "A paragraph inserted above.", page_number=9)
+    moved = fake_bind_registry.add_anchor("t12-audit", "p9.c2", DRIFTED_SNIPPET, page_number=9)
+    doc = write(tmp_path, f"NOI was [$3.98M]({cited}).\n")
+    report = bind(doc, fake_bind_registry, checks=["value-trace"], bound=True)
+    (citation,) = report.claims[0].citations
+    assert citation.status is CitationStatus.DRIFTED
+    assert citation.moved_to == moved.token
+    assert citation.verdicts
+    assert citation.to_dict()["moved_to"] == moved.token
+
+
+def test_drift_with_the_cited_words_nowhere_carries_no_moved_to(
+    tmp_path, fake_bind_registry
+) -> None:
+    cited = token(fake_bind_registry, "t12-audit", "p9.c1")
+    doc = write(tmp_path, f"NOI was [$3.98M]({cited}).\n")
+    (citation,) = bind(doc, fake_bind_registry, bound=True).claims[0].citations
+    assert citation.moved_to is None
+    assert "moved_to" not in citation.to_dict()
+
+
 def test_a_valid_anchor_absent_from_the_ledger_is_not_shown(tmp_path, fake_bind_registry) -> None:
     resolved = token(fake_bind_registry, "t12-audit", "p8.c3")
     doc = write(tmp_path, f"NOI was [$4.12M]({resolved}).\n")

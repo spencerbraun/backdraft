@@ -10,6 +10,7 @@ for.
 
 from __future__ import annotations
 
+import json
 import shlex
 import sqlite3
 from pathlib import Path
@@ -18,8 +19,10 @@ import pytest
 from typer.testing import CliRunner
 
 from backdraft import cli
+from backdraft.kernel.artifact import ARTIFACT_SUFFIX
 from backdraft.kernel.claims import parse_claims
 from backdraft.registry import DIRECTORY, Registry
+from backdraft.render import sidecar
 
 runner = CliRunner()
 
@@ -488,3 +491,89 @@ def test_the_registry_is_found_from_the_documents_directory(
 
 def test_the_top_level_help_lists_locate() -> None:
     assert "locate" in invoke("--help").stdout
+
+
+# ---- the record: bind carries `moved_to`, and the artifact reads it ---------
+
+
+def record_citations(memo: Path) -> list[dict]:
+    """Every citation entry of the memo's record, in document order."""
+    path = sidecar.find_sidecar(memo)
+    assert path is not None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return [citation for claim in payload["claims"] for citation in claim["citations"]]
+
+
+def rendered(memo: Path) -> str:
+    result = invoke("render", str(memo.name), "--to", "html")
+    assert result.exit_code == 0, result.output
+    return memo.with_name(memo.stem + ARTIFACT_SUFFIX).read_text(encoding="utf-8")
+
+
+def test_a_rebound_record_names_where_moved_words_stand_and_the_card_says_so(
+    project: Path,
+) -> None:
+    memo, cited = bound_under_s1(project, OCCUPANCY, COVERAGE, TAXES)
+    ingest(write_source(project, LOBBY, OCCUPANCY, COVERAGE, TAXES))
+    located = invoke("locate", "memo.md").stdout.splitlines()
+    proposed = [line.split(" — now at ")[1].split(" — ")[0] for line in located[2:5]]
+
+    rebound = invoke("bind", "memo.md", "--session", "s1")
+
+    assert rebound.exit_code != 0
+    citations = record_citations(memo)
+    assert [citation["status"] for citation in citations] == ["drifted"] * 3
+    assert [citation["moved_to"] for citation in citations] == proposed
+    assert proposed == chunk_tokens(project)[1:]
+    page = rendered(memo)
+    assert "<del>" not in page and "<ins>" not in page
+    for token in proposed:
+        assert f"The cited words stand unchanged at <code>{token}</code>" in page
+    # The passage that took over the old address is not quoted as the evidence.
+    assert "lobby refresh" not in page.split('<script type="application/json"')[0]
+    # The receipts still hold: the token hashes against `drifted_from`, as before.
+    # Drift exits 2 as it always did, and every receipt holds: `moved_to` is not
+    # part of the check, and the token still hashes against `drifted_from`.
+    verified = invoke("verify", memo.stem + ARTIFACT_SUFFIX)
+    assert verified.exit_code == 2
+    assert "  receipts: 3 of 3 hold" in verified.stdout.splitlines()
+
+
+def test_a_sentence_edited_in_place_keeps_the_word_diff_and_carries_no_moved_to(
+    project: Path,
+) -> None:
+    memo, _ = bound_under_s1(project, OCCUPANCY, COVERAGE, TAXES)
+    ingest(write_source(project, OCCUPANCY, COVERAGE.replace("1.42x", "1.43x"), TAXES))
+
+    invoke("bind", "memo.md", "--session", "s1")
+
+    drifted = [c for c in record_citations(memo) if c["status"] == "drifted"]
+    assert len(drifted) == 1 and "moved_to" not in drifted[0]
+    page = rendered(memo)
+    assert "<del>1.42x</del>" in page and "<ins>1.43x</ins>" in page
+    assert 'class="drift-moved"' not in page
+
+
+def test_text_standing_in_two_places_carries_no_moved_to(project: Path) -> None:
+    memo, _ = bound_under_s1(project, OCCUPANCY, COVERAGE, TAXES)
+    ingest(write_source(project, COVERAGE, OCCUPANCY, TAXES, COVERAGE))
+
+    invoke("bind", "memo.md", "--session", "s1")
+
+    by_status = {c["token"]: c for c in record_citations(memo) if c["status"] == "drifted"}
+    coverage = next(c for c in by_status.values() if c["drifted_from"] == COVERAGE)
+    occupancy = next(c for c in by_status.values() if c["drifted_from"] == OCCUPANCY)
+    assert "moved_to" not in coverage
+    assert occupancy["moved_to"] == chunk_tokens(project)[1]
+
+
+def test_a_cell_citation_never_carries_moved_to(project: Path, rates) -> None:
+    ingest(rates(("Going-in cap", 0.0625), ("Exit cap", 0.0675)))
+    memo = write_memo(project, [cell_token(project, "B2")], claims=["a cap rate of 6.25%"])
+    ingest(rates(("Vacancy", 0.05), ("Going-in cap", 0.0625), ("Exit cap", 0.0675)))
+
+    invoke("bind", "memo.md")
+
+    (citation,) = record_citations(memo)
+    assert citation["status"] == "drifted"
+    assert "moved_to" not in citation

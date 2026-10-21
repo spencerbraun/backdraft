@@ -172,7 +172,8 @@ LEGEND: dict[str, Any] = {
         "whole markdown construct the author wrote.",
         "Each entry in a claim's `citations` names one anchor by its `token` and "
         "carries what binding found: a `status`, an `anchor` when one was found, "
-        "`drifted_from` when the source moved, `error` when the token did not parse, "
+        "`drifted_from` when the source moved, `moved_to` when the cited words still "
+        "stand unchanged at one new place, `error` when the token did not parse, "
         "and `verdicts` from whichever verification methods were switched on.",
         "An `anchor` is the receipt: `slug` names the source document, `locator` "
         "names the place inside it, `snippet` is the verbatim text that was quoted, "
@@ -209,7 +210,9 @@ LEGEND: dict[str, Any] = {
             "the anchor was found only in a superseded extraction — the source changed "
             "after the claim was written. `drifted_from` is the snippet the author saw; "
             "`anchor.snippet` is what stands there now. Compare them before trusting "
-            "the claim"
+            "the claim — unless `moved_to` is present: then the cited words stand "
+            "unchanged at the token it names, the source changed around them, and "
+            "`anchor.snippet` is an unrelated passage that took over their address"
         ),
         "not_shown": (
             "a real anchor, but it was never shown to the writer in the recorded "

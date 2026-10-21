@@ -60,14 +60,19 @@ from .kernel.claims import parse_claims
 from .kernel.errors import BackdraftError
 from .kernel.model import Anchor, CitationStatus, Claim, Document, Page, source_name
 from .registry import (
+    AMBIGUOUS,
     DIRECTORY,
     GENERATION,
+    GONE,
+    MOVED,
+    PROSE_KINDS,
     UNCHANGED,
     Ingested,
     Naming,
     Registry,
     citation_for,
     current_with,
+    relocated,
     withdrawn_reason,
 )
 
@@ -778,22 +783,9 @@ def _naming_notes(named: list[tuple[str, Naming]], requested: str | None) -> lis
     return notes
 
 
-MOVED = "moved"
-"""`locate` outcome: the cited text stands, exactly, at one new place — a token proposed."""
-
-AMBIGUOUS = "ambiguous"
-"""`locate` outcome: the cited text stands somewhere, and that is not evidence enough to
-propose one token — several places hold it, or it is a cell's value."""
-
-GONE = "gone"
-"""`locate` outcome: the cited text stands nowhere in the current generation."""
-
 PLACES_NAMED = 3
 """How many places an `ambiguous` line names. A value like `0` can stand in hundreds
 of cells, and a line naming every one stops being a line."""
-
-_PROSE = frozenset({"page", "chunk"})
-"""Anchor kinds whose snippet is words, which identify a passage. A cell's is a value."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -808,18 +800,8 @@ class _Located:
 
     @property
     def outcome(self) -> str:
-        """Moved only on one exact match of words; the rest is not a proposal.
-
-        Several matches are a choice this command has no way to make, and a cell
-        is a value — an equal value at another address is as often a second fact
-        that happens to agree (two rates of 6.25%) as the same cell after a row
-        was inserted, and proposing it would rewrite provenance.
-        """
-        if not self.found:
-            return GONE
-        if len(self.found) == 1 and self.cited.kind in _PROSE:
-            return MOVED
-        return AMBIGUOUS
+        """`registry.relocated`'s rule, the one bind writes `moved_to` by."""
+        return relocated(self.cited, self.found)
 
 
 @app.command()
@@ -916,7 +898,7 @@ def _located_line(item: _Located) -> str:
     if outcome == MOVED:
         detail = f" — now at {item.found[0].token}"
     elif outcome == AMBIGUOUS:
-        what = "text" if item.cited.kind in _PROSE else "value"
+        what = "text" if item.cited.kind in PROSE_KINDS else "value"
         named = ", ".join(anchor.token for anchor in item.found[:PLACES_NAMED])
         if len(item.found) == 1:
             detail = (

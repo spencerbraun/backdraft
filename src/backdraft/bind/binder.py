@@ -469,6 +469,7 @@ def _verify_citation(
         drifted_from=citation.drifted_from,
         verdicts=verdicts,
         error=citation.error,
+        moved_to=citation.moved_to,
     )
 
 

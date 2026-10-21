@@ -129,6 +129,7 @@ MUST fall back to locating the claim by its `text`.
 | `status` | string | one of the five statuses below |
 | `anchor` | object | present when an anchor was found |
 | `drifted_from` | string | present when `status` is `drifted`: the snippet as cited |
+| `moved_to` | string | OPTIONAL, only beside `drifted_from`: the token of the one place in the current extraction where the cited words stand unchanged |
 | `error` | string | why the status happened, where the status alone does not say: a `malformed` token's parse failure, or an `unresolved` one whose source was withdrawn |
 | `verdicts` | array | one entry per verification method that ran; always present, may be empty |
 
@@ -183,6 +184,19 @@ first-class line item that a renderer MUST show:
 For `drifted`, `drifted_from` is the snippet **as cited** — what the author saw
 — and `anchor.snippet` is what stands at that locator **now**. A renderer shows
 both; the difference is the finding.
+
+`moved_to` refines that. A producer writes it on a `drifted` citation of a page
+or a chunk when the cited snippet's normalized hash matches exactly one anchor
+of the same kind in the source's current extraction, and it is that anchor's
+token: the words did not change, their address did — a passage inserted or
+removed above them renumbered the chunks. `anchor.snippet` is then an unrelated
+passage that took over the old address, and a renderer MUST NOT present it as
+an edit of the cited words; it says where they stand and shows `drifted_from`
+once. Several matches, no match, and every cell citation (a value at another
+address is not evidence the cell moved) carry no `moved_to`. The status stays
+`drifted`, because the token still names a superseded snippet, and the receipt
+checks below are unchanged — `moved_to` is not part of them. A consumer that
+does not know the key ignores it, under *Versioning*.
 
 `unresolved` covers two cases and `error` separates them. Where it is absent, the
 token names no anchor anywhere and the citation carries none. Where it names a
@@ -268,7 +282,8 @@ means, and each is testable:
 5. **Every receipt.** Each citation's verbatim evidence is reachable: the
    quote (or the cell grid / page evidence that carries it), the source, and —
    in a disclosure layer — its token, its `snippet_sha256`, and each verdict
-   in plain language. A `drifted` citation renders both snippets as a diff.
+   in plain language. A `drifted` citation renders both snippets as a diff,
+   or, carrying `moved_to`, the cited snippet once and the token where it stands.
 6. **Success is silent; failure speaks in place.** A fully-resolved artifact
    says nothing about citations on its face. When a citation is not `resolved`
    or a claim is `unmatched`, the claim carrying it MUST be visibly marked

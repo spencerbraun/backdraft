@@ -242,6 +242,9 @@ class Citation:
     `token` is the text exactly as authored, so a malformed citation can still be
     reported verbatim. `error` explains a `MALFORMED` status — including the
     reserved `bd:calc(...)` derivation form, which is recognized but unsupported.
+    `moved_to` rides on a `drifted` citation whose cited words stand unchanged
+    at exactly one place in the current extraction, and names that place's
+    token; written only when present, so no other record changes by a byte.
     """
 
     token: str
@@ -250,6 +253,7 @@ class Citation:
     drifted_from: str | None = None
     verdicts: tuple[Verdict, ...] = ()
     error: str | None = None
+    moved_to: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {"token": self.token, "status": str(self.status)}
@@ -257,6 +261,8 @@ class Citation:
             out["anchor"] = self.anchor.to_dict()
         if self.drifted_from is not None:
             out["drifted_from"] = self.drifted_from
+        if self.moved_to is not None:
+            out["moved_to"] = self.moved_to
         if self.error is not None:
             out["error"] = self.error
         out["verdicts"] = [verdict.to_dict() for verdict in self.verdicts]

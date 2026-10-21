@@ -463,6 +463,13 @@ never shown to your session, so swap the moved tokens in, run the `show` the
 closing line names (and read that the text is what you cited), then re-bind.
 Exit 0 whatever it finds: `bind` is the check.
 
+The record learns the same thing without anyone running `locate`. When `bind`
+finds a drifted citation's words standing unchanged at one place, it writes that
+token on the citation as `moved_to`, and the artifact's card says the cited
+words stand unchanged there instead of word-diffing them against whatever
+paragraph took over their old address. The status is still `drifted` — the
+token still names a superseded snapshot — so the swap is still yours to make.
+
 ## Forgetting a source
 
 Ingest is otherwise one-way, and an unattended folder ingest picks up what it

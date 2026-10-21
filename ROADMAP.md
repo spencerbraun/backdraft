@@ -32,59 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. An artifact word-diffs a drifted citation against whatever now stands at its old address
-
-**Intent.** The artifact's drift block (`render/html/text.py`'s `_drift_block`)
-shows `as cited` and `now`, word-diffed with `<del>` and `<ins>`, where `now` is
-`anchor.snippet`: what stands at the cited locator in the current generation.
-The 2026-09-17 row established that after a paragraph is inserted above, that is
-a *different* paragraph, and the cited words stand unchanged one chunk down. So
-the person the artifact is for sees every word of the cited sentence struck
-through and an unrelated paragraph marked as inserted, which reads as "the source
-rewrote this passage" and is false. `locate` knows better, but only a writer
-holding the draft and the registry ever runs it; the artifact goes out with the
-misleading diff, and since this Friday the artifact skill has had to tell a
-recipient to spot "unrelated text" by eye. The footnotes projection quotes the
-same two snippets side by side and has the same blind spot.
-
-**Shape.** Bind already has what it needs: it resolves every token against the
-registry at bind time, and `registry.current_with` answers where the cited text
-stands now. Move `locate`'s outcome rule (`cli._Located.outcome`, `_PROSE`,
-`MOVED`/`AMBIGUOUS`/`GONE`) down beside `current_with` in `registry/store.py` so
-bind and `locate` share one owner, since bind may not import `cli`. When a
-citation comes back `drifted` and the rule says `moved`, the record carries an
-optional citation key (`moved_to`, say) naming the token that now holds the
-text. `Citation.to_dict` writes it only when present, so every record without
-drift is byte-identical. The status stays `drifted`: the set is closed, and a
-moved citation still names a superseded snippet, which is what drift means.
-`spec/artifact.md`'s citation table gains the key and the legend's `drifted`
-sentence says what it means; the format string stays `artifact-v1`, which
-§ Versioning's unknown-key rule and the 2026-09-07 `title` precedent both allow,
-and the DESIGN row says so rather than leaving it implied. When `moved_to` is
-present, the drift block says the cited words stand unchanged at that token and
-shows them once, instead of diffing them against the paragraph now at the old
-address; without it, today's diff. The footnotes projection says the same.
-`verify`'s receipt checks are untouched, since the token still hashes against
-`drifted_from`. A legend change regenerates the goldens, and
-`demo/memo.backdraft.html` and `site/demo.html` together; the demo has no
-drifted citation, so only the legend string and `bound_at` should move, checked
-structurally. If "`locate` calls intact words `gone` when an insertion merged or
-split their chunk" has landed, bind reads the rule it widened.
-
-**Acceptance.** In a scratch project modelled on `tests/test_locate.py`'s
-fixtures, bind a memo citing three paragraphs, insert one above them, re-ingest
-and re-bind: all three citations are `drifted` and carry a `moved_to` equal to
-the token `backdraft locate` prints for each, and the rendered cards say the text
-stands unchanged at those tokens and contain no `<del>`. A sentence edited in
-place still renders today's word diff. A citation whose text stands in two places
-carries no `moved_to`, and a cell citation never does. `backdraft verify` on the
-new artifact exits as before, every receipt holding. A record with no drifted
-citation is byte-identical to today apart from the legend, pinned by the golden.
-DESIGN row.
-
-**Size.** Three days.
-
-### 2. `locate` leaves the fix to hand edits of tokens, which the skill forbids
+### 1. `locate` leaves the fix to hand edits of tokens, which the skill forbids
 
 **Intent.** `locate` prints `moved: <old> — now at <new>` and closes by telling
 the writer to put each moved token in place of the old one, while the writing
@@ -129,7 +77,7 @@ pins for the plain run. DESIGN row.
 
 **Size.** Two days.
 
-### 3. `locate` calls intact words `gone` when an insertion merged or split their chunk
+### 2. `locate` calls intact words `gone` when an insertion merged or split their chunk
 
 **Intent.** `locate` matches the cited snippet's hash exactly, and the 2026-09-17
 row named the price: "a chunk that an insertion under 200 characters merged into"
@@ -159,10 +107,11 @@ that now holds more, or across two — rather than calling it `moved` silently,
 and the DESIGN row decides whether that is `moved` with a qualifier or a fourth
 outcome; the outcome set is `locate`'s own and not the artifact's, so either is
 a display change. Several containing places stay `ambiguous`. Cells never match
-this way: a value found inside a longer string proves nothing. If "An artifact
-word-diffs a drifted citation against whatever now stands at its old address"
-has landed, the rule lives in `registry`, bind reads the widened rule too, and
-the row says whether a contained match records `moved_to`.
+this way: a value found inside a longer string proves nothing. The rule lives
+in `registry.relocated` (2026-10-21), and `citation_for` writes a citation's
+`moved_to` from it, so bind reads the widened rule too: the row says whether a
+contained match records `moved_to`, and if it does, a span of two chunks needs a
+form the single-token key does not have.
 
 **Acceptance.** In a scratch project, cite three paragraphs of over 200
 characters each, insert a 60-character heading line directly above the second,
@@ -177,7 +126,7 @@ every existing `tests/test_locate.py` expectation is unchanged. SPEC Addendum B'
 
 **Size.** Two days.
 
-### 4. A draft outside its project is told there is no registry, about the wrong directory
+### 3. A draft outside its project is told there is no registry, about the wrong directory
 
 **Intent.** `bind` and `locate` find the registry from the document's directory
 (SPEC § CLI), and when that walk finds nothing `cli_context.open_registry`
@@ -216,7 +165,7 @@ must live under its project or name it with `BACKDRAFT_HOME`. DESIGN row.
 
 **Size.** One day.
 
-### 5. After a re-ingest, nothing says which drafts cite the source that moved
+### 4. After a re-ingest, nothing says which drafts cite the source that moved
 
 **Intent.** `ingest`'s new-generation note says citations "may now report
 `drifted`", that `bind` on a document citing the source says which, and names
@@ -257,7 +206,7 @@ the note names the drafts. DESIGN row.
 
 **Size.** Two days.
 
-### 6. `render` ships a draft edited after `bind` as if the record had judged it
+### 5. `render` ships a draft edited after `bind` as if the record had judged it
 
 **Intent.** `render` reads two files, the draft and the record `bind` wrote for
 it, and never checks that they still describe the same text. Checked on
@@ -292,7 +241,7 @@ refuses a draft edited since bind. DESIGN row.
 
 **Size.** One to two days.
 
-### 7. An older backdraft reads a newer registry as if what it does not know were not there
+### 6. An older backdraft reads a newer registry as if what it does not know were not there
 
 **Intent.** The registry travels with the project folder — the documented answer
 to a sandbox that cannot reach the vision model is to ingest locally and hand the
@@ -327,7 +276,7 @@ DESIGN row.
 
 **Size.** One to two days.
 
-### 8. `ingest` reports per source in columns an agent has to scrape
+### 7. `ingest` reports per source in columns an agent has to scrape
 
 **Intent.** `bind` and `verify` gained `--json` (2026-09-14) because their output
 is read by agents and every wording fix silently broke a parser. `ingest` is the
@@ -361,7 +310,7 @@ is byte-identical, pinned. `site/llms.txt`, `skills/backdraft/SKILL.md`,
 
 **Size.** Two days.
 
-### 9. `forget` asks for confirmation without saying which drafts it will break
+### 8. `forget` asks for confirmation without saying which drafts it will break
 
 **Intent.** `forget` is the one command that takes something away, so it asks
 first, and what it says is general: a token already written into a draft still
@@ -395,7 +344,7 @@ the drafts.
 
 **Size.** One day, two if it lands the records reader.
 
-### 10. `doctor` is read by agents and prints only columns
+### 9. `doctor` is read by agents and prints only columns
 
 **Intent.** The writing skill's first instruction is now "Run `backdraft doctor`
 before you promise anything" and plan from its `missing` lines. An agent does
@@ -423,7 +372,7 @@ name the flag.
 
 **Size.** One day.
 
-### 11. A `not_shown` cleared by `show` after `bind` reads like a citation read before writing
+### 10. A `not_shown` cleared by `show` after `bind` reads like a citation read before writing
 
 **Intent.** `not_shown` is the one status that says the author cited a passage
 they never read, and it clears by being shown: `bind` flags it, the agent runs
@@ -465,7 +414,7 @@ and says to re-judge each claim it lists. DESIGN row.
 
 **Size.** One to two days.
 
-### 12. `verify`'s `next: not_shown` tells an auditor to mint into the author's session
+### 11. `verify`'s `next: not_shown` tells an auditor to mint into the author's session
 
 **Intent.** Since 2026-10-14 `verify` re-checks `not_shown` against the session
 the record names, and its report closes with `cli_context.NEXT_MOVES`' line for
@@ -498,7 +447,7 @@ than running them" for this case. DESIGN row amending 2026-10-14's.
 
 **Size.** One day.
 
-### 13. `verify --json` carries the finding and not the move
+### 12. `verify --json` carries the finding and not the move
 
 **Intent.** `bind` and `verify` reports end with `next:` lines (2026-10-14), and
 both `--json` forms carry none of it, by design for `bind`, whose `--json` is
@@ -528,7 +477,7 @@ the object is byte-identical, pinned against the existing JSON tests. SPEC
 
 **Size.** One day.
 
-### 14. A search hit on a long page points at the whole page
+### 13. A search hit on a long page points at the whole page
 
 **Intent.** Every search result block closes with `[Read the page: backdraft
 read <slug> p<n>]`, and `show` does the same. On a 57-chunk web page that is
@@ -562,7 +511,7 @@ hint. DESIGN row.
 
 **Size.** One day.
 
-### 15. A web page saved by hand ingests as a file and loses the address it came from
+### 14. A web page saved by hand ingests as a file and loses the address it came from
 
 **Intent.** The 2026-08-05 row made a URL provenance, not identity: a fetched
 page is identified by its snapshot and named everywhere by its URL. An agent

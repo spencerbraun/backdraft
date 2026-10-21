@@ -247,7 +247,10 @@ the registry deleted and the sources gone.</p>
 <p>Re-ingesting identical bytes yields identical tokens. When a source
 changes, citations into it resolve against the superseded snapshot and report
 <code>drifted</code>. The artifact shows what was cited and what stands now,
-as a word-diff.</p>
+as a word-diff — unless the cited words stand unchanged somewhere else, in
+which case the record carries that token as <code>moved_to</code> and the card
+says where they stand rather than diffing them against an unrelated
+paragraph.</p>
 <p>Often the cited words did not change at all — a paragraph inserted above them
 shifted every chunk ordinal below it, so the text is untouched and its address
 moved. <code>backdraft locate memo.md</code> looks for the exact text each

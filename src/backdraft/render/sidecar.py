@@ -200,6 +200,7 @@ def _citation(entry: dict[str, Any]) -> Citation:
         status=CitationStatus(entry["status"]),
         anchor=_anchor(anchor, token) if anchor is not None else None,
         drifted_from=entry.get("drifted_from"),
+        moved_to=entry.get("moved_to"),
         error=entry.get("error"),
         verdicts=tuple(_verdict(item) for item in entry.get("verdicts", ())),
     )

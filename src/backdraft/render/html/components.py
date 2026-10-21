@@ -182,7 +182,10 @@ def _citation(
             parts.append(raw)
     elif page_m and not is_sheet_doc:
         heavy = table_heavy(anchor.receipt.snippet)
-        if not heavy:
+        # A moved citation's anchor is the passage that took over the cited
+        # address; quoting it as the evidence is the misreading the drift block
+        # just corrected, and that block already quotes the cited words.
+        if not heavy and citation.moved_to is None:
             parts.append(
                 f'<blockquote class="quote">{md_html(anchor.receipt.snippet)}</blockquote>'
             )
@@ -286,7 +289,7 @@ def _note(placement: Placement, docs: dict) -> str:
             continue
         snippet = citation.anchor.receipt.snippet
         quote_html = ""
-        if not table_heavy(snippet):
+        if not table_heavy(snippet) and citation.moved_to is None:
             short = snippet if len(snippet) <= 360 else snippet[:360].rsplit(" ", 1)[0] + " …"
             short = short.replace("**", "").replace("*", "")
             quote_html = f'<blockquote class="quote">{md_html(short)}</blockquote>'

@@ -275,8 +275,26 @@ def _word_diff(before: str, after: str) -> tuple[str, str]:
 
 
 def _drift_block(citation: Citation) -> str:
+    """The two snippets word-diffed, or the cited words once when they only moved.
+
+    A citation carrying `moved_to` names words that stand unchanged at another
+    address, and what took over the old one is an unrelated passage: diffing
+    against it would strike every cited word and mark that passage inserted,
+    which reads as the source rewriting what was cited — the opposite of what
+    happened. So the block says where the words stand and quotes them once.
+    """
     if citation.drifted_from is None:
         return ""
+    if citation.moved_to is not None:
+        return (
+            '<div class="drift">'
+            '<p class="drift-moved">The cited words stand unchanged at '
+            f"<code>{html_module.escape(citation.moved_to)}</code>; the source changed "
+            "around them, which moved their address.</p>"
+            '<div class="drift-row"><span>as cited</span>'
+            f"<p>{html_module.escape(citation.drifted_from)}</p></div>"
+            "</div>"
+        )
     now = citation.anchor.receipt.snippet if citation.anchor else ""
     old_html, new_html = _word_diff(citation.drifted_from, now)
     return (

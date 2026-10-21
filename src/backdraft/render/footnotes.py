@@ -100,7 +100,18 @@ def _note(citation: Citation, placement: Placement, docs: dict) -> list[str]:
         ]
     else:
         groups = [[f"unanchored · {citation.status}"], [f"Token `{citation.token}`"]]
-    if citation.drifted_from is not None:
+    if citation.moved_to is not None:
+        # The quote above is what took over the cited address, not an edit of
+        # the cited words, which stand unchanged where `moved_to` names.
+        groups.append(
+            [
+                f"As cited — these words stand unchanged at `{citation.moved_to}`; "
+                "the source changed around them, and the quote above is what took "
+                "over their old address:"
+            ]
+        )
+        groups.append(_quote(citation.drifted_from or ""))
+    elif citation.drifted_from is not None:
         groups.append(["As cited, before the source changed:"])
         groups.append(_quote(citation.drifted_from))
     if citation.error:

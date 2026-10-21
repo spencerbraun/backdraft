@@ -147,6 +147,17 @@ def test_round_trip_preserves_the_record(demo: BindReport) -> None:
         assert after.anchor.slug == before.anchor.slug
 
 
+def test_round_trip_keeps_moved_to_and_writes_it_only_where_present(
+    demo: BindReport,
+) -> None:
+    from test_footnotes import moved
+
+    assert "moved_to" not in json.dumps(sidecar.sidecar(demo)["claims"])
+    read = sidecar.to_report(sidecar.sidecar(moved(demo)))
+    tokens = [c.moved_to for claim in read.claims for c in claim.citations if c.moved_to]
+    assert tokens == ["bd:t12-audit:p9.c4:0000"]
+
+
 def test_round_trip_keeps_unmatched_claims(backfill: BindReport) -> None:
     rebuilt = sidecar.to_report(sidecar.sidecar(backfill))
     assert [claim.unmatched for claim in rebuilt.claims] == [False, True]

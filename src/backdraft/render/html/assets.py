@@ -272,6 +272,9 @@ a.origin:hover{color:var(--ink);text-decoration-color:var(--ink)}
 .drift del{text-decoration:line-through;text-decoration-thickness:1px;
   color:var(--alarm);background:rgba(166,58,46,.08)}
 .drift ins{text-decoration:none;color:var(--sel);background:var(--sel-soft)}
+.drift-moved{margin:0 0 .3rem;font-family:var(--sans);font-size:.74rem;color:var(--faint)}
+.drift-moved code{font-family:var(--mono);font-size:.68rem;color:var(--ink);
+  overflow-wrap:anywhere}
 
 /* view toggle */
 .evidence{margin:.4rem 0 .3rem}

@@ -52,12 +52,16 @@ from ..kernel.tokens import parse_locator
 from . import ledger as ledger_module
 
 __all__ = [
+    "AMBIGUOUS",
     "CREATED",
     "DIRECTORY",
     "EXPORT_FORMAT",
     "GENERATION",
+    "GONE",
     "MATCH_CLOSE",
     "MATCH_OPEN",
+    "MOVED",
+    "PROSE_KINDS",
     "UNCHANGED",
     "Ingested",
     "Naming",
@@ -70,6 +74,7 @@ __all__ = [
     "current_at",
     "current_with",
     "media_type_for",
+    "relocated",
     "sanitize_sheet_name",
     "slug_for",
     "unmark",
@@ -394,6 +399,41 @@ def current_with(registry: "Registry", anchor: Anchor) -> list[Anchor]:
     ]
 
 
+MOVED = "moved"
+"""`relocated` outcome: the cited text stands, exactly, at one new place — a token proposed."""
+
+AMBIGUOUS = "ambiguous"
+"""`relocated` outcome: the cited text stands somewhere, and that is not evidence enough to
+propose one token — several places hold it, or it is a cell's value."""
+
+GONE = "gone"
+"""`relocated` outcome: the cited text stands nowhere in the current generation."""
+
+PROSE_KINDS = frozenset({"page", "chunk"})
+"""Anchor kinds whose snippet is words, which identify a passage. A cell's is a value."""
+
+
+def relocated(cited: Anchor, found: Sequence[Anchor]) -> str:
+    """What `current_with`'s answer for a drifted anchor amounts to: moved, ambiguous, gone.
+
+    Moved only on one exact match of words; the rest is not a proposal. Several
+    matches are a choice nothing here has a way to make, and a cell is a value —
+    an equal value at another address is as often a second fact that happens to
+    agree (two rates of 6.25%) as the same cell after a row was inserted, and
+    proposing it would rewrite provenance.
+
+    One owner for two readers: `locate` prints the outcome as advice, and
+    `citation_for` puts a moved citation's new token on the record as
+    `moved_to`, so the artifact and the command can never disagree about
+    whether a drifted citation's words still stand.
+    """
+    if not found:
+        return GONE
+    if len(found) == 1 and cited.kind in PROSE_KINDS:
+        return MOVED
+    return AMBIGUOUS
+
+
 def withdrawn_reason(document: Document) -> str:
     """One clause naming a document's withdrawal and its date.
 
@@ -430,7 +470,9 @@ def citation_for(
     the reserved `bd:calc(...)` form lands identically everywhere; `drifted`
     carries the superseded snippet in `drifted_from` and the anchor standing at
     that locator now (or, when the locator itself is gone, the cited one, so the
-    two sides of the diff agree). `not_shown` is the fifth, and only with a
+    two sides of the diff agree), plus `moved_to` when `relocated` says the cited
+    words stand unchanged at one new place, so the diff is not drawn against a
+    paragraph that merely took over their address. `not_shown` is the fifth, and only with a
     `session_id`: a `resolved` token that session was never shown comes back
     `not_shown` with the same anchor. It is a fact about a ledger session rather
     than the registry, so the caller decides whether there is one — `bind`
@@ -474,11 +516,13 @@ def citation_for(
         if session_id is not None and not registry.was_shown(session_id, token):
             return Citation(token=token, status=CitationStatus.NOT_SHOWN, anchor=anchor)
         return Citation(token=token, status=CitationStatus.RESOLVED, anchor=anchor)
+    found = current_with(registry, anchor)
     return Citation(
         token=token,
         status=CitationStatus.DRIFTED,
         anchor=current_at(registry, anchor) or anchor,
         drifted_from=anchor.receipt.snippet,
+        moved_to=found[0].token if relocated(anchor, found) == MOVED else None,
     )
 
 
