@@ -224,7 +224,7 @@ Re-ingest semantics (the drift contract):
 1. New extraction row; old one keeps its anchors.
 2. For each new anchor, if an anchor with the same locator and same snippet_sha256 exists in the prior current extraction, it carries the **same token** (hash identical by construction).
 3. Old extraction's `is_current` → 0. Bind resolves tokens against all generations: hit on current = `resolved`; hit only on non-current = `drifted` (report carries both snippets); no hit = `unresolved`.
-4. A `drifted` citation's text may be unchanged at another locator — a paragraph inserted above it shifts every ordinal below. `current_with` (Addendum A) finds it by snippet hash in the document's current generation, same anchor kind only, and `backdraft locate` reports it (Addendum B). Exact match only; nothing is rewritten and no token is carried over by it.
+4. A `drifted` citation's text may be unchanged at another locator — a paragraph inserted above it shifts every ordinal below. `current_with` (Addendum A) finds it by snippet hash in the document's current generation, same anchor kind only, and `backdraft locate` reports it (Addendum B). Exact match only; no token is carried over by it, and the registry is not written. `locate --apply` rewrites the authored document's hrefs for `moved` outcomes and nothing else.
 
 ## Extractor protocol (extract/base.py)
 
@@ -324,9 +324,10 @@ backdraft search "<query>" [--in slug] [--limit N]
 backdraft show <token>...           # gate: what does this token say?
 backdraft bind <doc.md> [--session S] [--check ...] [--mode ...] [--json]
                                     # --json: the record on stdout, not the report
-backdraft locate <doc.md> [--session S]
+backdraft locate <doc.md> [--session S] [--apply]
                                     # after a re-ingest: where each drifted citation's
-                                    # exact text stands now. Proposes, never rewrites
+                                    # exact text stands now. Proposes; --apply writes
+                                    # the moved tokens into the document's hrefs
 backdraft render <doc.md> [--to html|footnotes|json] [-o out] [--theme name|file]
 backdraft verify <artifact> [--against PROJECT] [--json]
                                     # check a record: receipts, then the sources

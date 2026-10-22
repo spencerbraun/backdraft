@@ -18,12 +18,14 @@ non-resolved citations (so a hook can gate on it).
 from __future__ import annotations
 
 import json
+import os
 import shlex
+import shutil
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Annotated, Iterable, Iterator
 
 import typer
@@ -817,6 +819,16 @@ def locate(
             ),
         ),
     ] = None,
+    apply: Annotated[
+        bool,
+        typer.Option(
+            "--apply",
+            help=(
+                "Rewrite each moved citation's old token to its new one in the document. "
+                "Ambiguous and gone citations, and every other byte, are left alone."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Find where a re-ingest moved the text a document's citations quote.
 
@@ -829,18 +841,25 @@ def locate(
     or when the citation is a cell, whose value alone does not say it moved; or
     `gone`, when the text was edited or removed and nothing stands in for it.
 
-    It proposes and never rewrites: nothing in the document, the registry or the
-    ledger changes, and a new token is not minted by being printed here. Put
-    each moved token in place of the old one, then `backdraft show` it so the
-    session you bind under has seen it — the closing line names the command —
-    and re-bind. Exact text only: a sentence edited by one word is `gone`, and
-    `show` on its old token prints what was cited, which is what to search for.
+    By default it proposes and never rewrites: nothing in the document, the
+    registry or the ledger changes, and a new token is not minted by being
+    printed here. `--apply` makes the swap itself, in the document only: each
+    `moved` citation's old token becomes its new one inside that claim's link,
+    and an `applied` line takes the place of its `moved` line. `ambiguous` and
+    `gone` citations are never touched, nor is any byte outside those links.
+    Either way, `backdraft show` the new tokens so the session you bind under
+    has seen them — the closing line names the command — and re-bind. Exact
+    text only: a sentence edited by one word is `gone`, and `show` on its old
+    token prints what was cited, which is what to search for.
 
     Exit 0 whatever it finds; `bind` is the check, and this is the advice. Exit 1
-    when the document is missing or unreadable, or there is no registry.
+    when the document is missing or unreadable, or there is no registry, or —
+    with `--apply` — the document changed while this was reading it, in which
+    case nothing was written.
     """
     with guard():
         source = authored_text(doc)
+        original = doc.read_bytes() if apply else b""
     session_id = resolve_session(session)
     with opened_registry(doc.resolve().parent) as registry:
         claims = parse_claims(source)
@@ -852,15 +871,119 @@ def locate(
             )
             if not registry.was_shown(session_id, token)
         ]
+    session_flag = session_argument(session)
+    applied = apply and any(item.outcome == MOVED for item in located)
+    if applied:
+        with guard():
+            _apply_moves(doc, original, claims, located, session_flag)
     citations = sum(len(claim.citations) for claim in claims)
     typer.echo(f"{citations} citation(s) in {doc}, {len(located)} drifted")
     outcomes = [item.outcome for item in located]
     for outcome in sorted(set(outcomes)):
         typer.echo(f"  {outcome}: {outcomes.count(outcome)}")
     for item in located:
-        typer.echo(_located_line(item))
-    for line in _locate_hints(doc, located, unseen, session_argument(session)):
+        swapped = applied and item.outcome == MOVED
+        typer.echo(_applied_line(item) if swapped else _located_line(item))
+    for line in _locate_hints(doc, located, unseen, session_flag, applied=applied):
         typer.echo(line)
+
+
+def _apply_moves(
+    doc: Path, original: bytes, claims: list[Claim], located: list[_Located], session_flag: str
+) -> None:
+    """Write each `moved` citation's new token over its old one, inside its claim's href.
+
+    The spans are `parse_claims`' own, taken from the document's bytes as they
+    stand on disk rather than from the newline-normalized text the report's
+    offsets count in, so a CRLF document keeps its line endings; the two parses
+    see the same links in the same order, which is checked rather than assumed.
+    Inside an href the token is replaced only where it is a whole `;`-separated
+    piece, so a token that also stands in prose, or that is a prefix of another,
+    is left alone.
+
+    Refuses, writing nothing, when the document's bytes are not what they were
+    when it was parsed: the swap was computed against those bytes, and an edit
+    made since — by the author, or another agent — would be overwritten by a
+    document neither of them wrote. The write goes through a temporary file in
+    the same directory and a rename, so an interrupted run leaves the old
+    document whole.
+    """
+    raw = original.decode("utf-8")
+    raw_claims = parse_claims(raw)
+    if [claim.citations for claim in raw_claims] != [claim.citations for claim in claims]:
+        raise _changed_while_reading(doc, session_flag)  # pragma: no cover - same bytes
+    index_of = {id(claim): index for index, claim in enumerate(claims)}
+    moves: dict[int, dict[str, str]] = {}
+    for item in located:
+        if item.outcome == MOVED:
+            moves.setdefault(index_of[id(item.claim)], {})[item.cited.token] = item.found[0].token
+    edits: list[tuple[int, int, str]] = []
+    for index, swaps in moves.items():
+        claim = raw_claims[index]
+        href_start = claim.start + 1 + len(claim.text) + 2  # past `[`, the text, and `](`
+        href_end = claim.end - 1  # before the closing `)`
+        for old, new in swaps.items():
+            edits.extend(_token_spans(raw, href_start, href_end, old, new))
+    rewritten = raw
+    for start, end, new in sorted(edits, reverse=True):
+        rewritten = rewritten[:start] + new + rewritten[end:]
+    if doc.read_bytes() != original:
+        raise _changed_while_reading(doc, session_flag)
+    try:
+        _replace_atomically(doc, rewritten.encode("utf-8"))
+    except OSError as error:
+        raise UsageError(
+            f"cannot write {doc}: {error.strerror or error}, so nothing was written; "
+            "make its directory writable and run the same command again"
+        ) from error
+
+
+_PIECE_EDGES = frozenset(";<> \t\n\r\"'")
+"""What may stand on either side of a token inside an href: the `;` between
+citations, the angle brackets and link title `parse_claims` strips, whitespace,
+or the href's own ends. Anything else is a longer token or other text."""
+
+
+def _token_spans(
+    raw: str, start: int, end: int, old: str, new: str
+) -> Iterator[tuple[int, int, str]]:
+    """`(start, end, new)` for every whole-piece occurrence of `old` in `raw[start:end]`."""
+    at = raw.find(old, start, end)
+    while at != -1:
+        after = at + len(old)
+        if (at == start or raw[at - 1] in _PIECE_EDGES) and (
+            after == end or raw[after] in _PIECE_EDGES
+        ):
+            yield at, after, new
+        at = raw.find(old, after, end)
+
+
+def _changed_while_reading(doc: Path, session_flag: str) -> UsageError:
+    return UsageError(
+        f"{doc} changed while locate was reading it, so nothing was written; run "
+        f"`backdraft locate {shlex.quote(str(doc))} --apply{session_flag}` again"
+    )
+
+
+def _replace_atomically(path: Path, data: bytes) -> None:
+    """Write `data` to `path` through a sibling temporary file and a rename, keeping its mode."""
+    with NamedTemporaryFile(
+        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False
+    ) as handle:
+        temporary = Path(handle.name)
+        try:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        except BaseException:
+            temporary.unlink(missing_ok=True)
+            raise
+    try:
+        shutil.copymode(path, temporary)
+        os.replace(temporary, path)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 def _drifted(registry: Registry, claims: list[Claim]) -> list[_Located]:
@@ -917,20 +1040,46 @@ def _located_line(item: _Located) -> str:
     )
 
 
+def _applied_line(item: _Located) -> str:
+    """A `moved` line once `--apply` has made its swap: `applied: <old> → <new> — <claim> @<offset>`."""
+    return (
+        f"  applied: {item.cited.token} → {item.found[0].token} — "
+        f"{claim_words(item.claim.text)} @{item.claim.start}"
+    )
+
+
 def _locate_hints(
-    doc: Path, located: list[_Located], unseen: list[str], session_flag: str
+    doc: Path,
+    located: list[_Located],
+    unseen: list[str],
+    session_flag: str,
+    *,
+    applied: bool = False,
 ) -> list[str]:
     """What to do about each outcome present, as a closing line apiece.
 
     One line per outcome rather than per citation: the move is the same for
     every citation sharing an outcome, and the tokens are already on their own
     line items. A clean document prints none, which is how "nothing moved" stays
-    one line.
+    one line. After `--apply` the moved line names the same `show` or `bind`,
+    since writing a token into the document is not showing it either.
     """
     outcomes = {item.outcome for item in located}
     typed = shlex.quote(str(doc))
     hints: list[str] = []
-    if MOVED in outcomes:
+    if MOVED in outcomes and applied:
+        if unseen:
+            hints.append(
+                f"[The moved tokens were written into {doc}. Show the new ones, which this "
+                f"session has not seen, and re-bind: backdraft show {' '.join(unseen)}"
+                f"{session_flag}]"
+            )
+        else:
+            hints.append(
+                f"[The moved tokens were written into {doc}. Re-bind: "
+                f"backdraft bind {typed}{session_flag}]"
+            )
+    elif MOVED in outcomes:
         if unseen:
             # Printing a token is not showing it: the ledger is the gate's, and a
             # moved token the session never saw binds `not_shown` until it is.

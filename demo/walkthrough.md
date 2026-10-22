@@ -932,7 +932,8 @@ would have come back `drifted` with their words untouched, because a chunk's
 ordinal is its address. `locate` is the command the note names for that: it
 looks for the exact text each drifted citation quotes in the new snapshot and
 names the token that holds it now, or says the text stands in several places
-or nowhere. It rewrites nothing either way, and here there is nothing to find:
+or nowhere. `--apply` would write the moved tokens into the memo's links
+itself; here there is nothing to find:
 
 ```bash
 backdraft locate memo.md

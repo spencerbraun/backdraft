@@ -414,9 +414,12 @@ reason attached.
   <doc.md>` first. A paragraph inserted above the one you cited leaves your
   words untouched and moves their address, and `locate` finds the exact text you
   cited in the new snapshot: a `moved` line names the token that holds it now.
-  Put that token in place of the old one, run the `backdraft show` its closing
-  line names — printing a token is not showing it, so skipping this re-binds as
-  `not_shown` — and re-bind. `ambiguous` means the text stands in several places,
+  Do not swap tokens by hand: run `backdraft locate <doc.md> --apply` (with the
+  same `--session`), which writes each moved token over its old one inside that
+  claim's link and touches nothing else. Then run the `backdraft show` its
+  closing line names — printing or writing a token is not showing it, so
+  skipping this re-binds as `not_shown` — and re-bind. If `--apply` exits 1
+  because the document changed while it ran, run it again. `ambiguous` means the text stands in several places,
   or the citation is a cell, whose value alone does not prove it moved: read the
   places the line names and cite the one the claim is about. `gone` means the
   text was edited or removed. For those, `show` the old token: it prints the

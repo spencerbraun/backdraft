@@ -97,8 +97,9 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # cited one moves its text without changing it, and locate finds the exact
 # cited text in the new snapshot — `moved` names the token that now holds it,
 # `ambiguous` names several places (or a cell, whose value alone proves no
-# move), `gone` proposes nothing. It rewrites nothing and mints nothing: swap
-# the moved tokens in, run the `backdraft show` its closing line names, re-bind.
+# move), `gone` proposes nothing. It mints nothing; `--apply` writes the
+# moved tokens into the document's links (never by hand), and nothing else —
+# then run the `backdraft show` its closing line names, and re-bind.
 # A source that came back thin (a scan with no text layer, a login
 # wall, a deck whose slides are all images) gets a `note: little text
 # extracted` line naming the cause at exit 0; that note is the signal a source
@@ -234,8 +235,11 @@ backdraft locate memo.md                    # after a re-ingest, where each
                                             # drifted citation's exact text
                                             # stands now: moved (new token),
                                             # ambiguous (several places, or a
-                                            # cell), gone. Read-only, mints
-                                            # nothing; exit 0 whatever it finds.
+                                            # cell), gone. Mints nothing;
+                                            # exit 0 whatever it finds.
+backdraft locate memo.md --apply            # write the moved tokens into
+                                            # memo.md's links; then the show
+                                            # its closing line names, re-bind.
 backdraft render memo.md --to html          # -> memo.backdraft.html
 backdraft verify memo.backdraft.html        # check a record you were handed:
                                             # snippets rehashed, tokens checked

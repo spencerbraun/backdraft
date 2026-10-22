@@ -32,52 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. `locate` leaves the fix to hand edits of tokens, which the skill forbids
-
-**Intent.** `locate` prints `moved: <old> — now at <new>` and closes by telling
-the writer to put each moved token in place of the old one, while the writing
-skill's first rule for tokens is "Never construct, guess, or edit a token by
-hand. Copy it from the output that produced it." Three citations is a careful
-paste. A thirty-citation memo, after a source gained a paragraph on page 1, is
-thirty find-and-replace edits made with an agent's own text tools, and one wrong
-paste — the new token dropped into the wrong claim, a hash truncated — is a
-citation that binds `resolved` to the wrong text or `unresolved` for no reason.
-`locate` already knows every replacement exactly, by claim and by offset.
-
-**Shape.** `locate --apply` rewrites hrefs for `moved` lines only: each old token
-replaced by its new one inside the claims `locate` reported, located by
-`kernel.claims.parse_claims`' spans rather than by string search, so a token that
-also appears outside a link is left alone and every byte outside those hrefs is
-unchanged. `ambiguous` and `gone` lines are never touched. The 2026-09-17 row
-made `locate` read-only, and the objection must be answered rather than
-overridden: its reason was the ledger — "a command that proposes should not write
-the ledger it proposes against" — and `--apply` still writes no ledger row, no
-session and no record. The tokens it writes are still unshown, so its closing
-line is the same `backdraft show … --session` the plain run names, and `bind`
-still judges them. What it writes is the author's document, which is why it is a
-flag and never the default, why it refuses a document whose bytes changed
-between the parse and the write, and why it writes through a temporary file and
-a rename so an interrupted run leaves the old document whole. It reports in
-`locate`'s line shape (`applied: <old> → <new> — <claim> @<offset>`) so the
-report stays one list. The skill's `drifted` bullet and `site/llms.txt` change
-the next step from "put each moved token in place" to `--apply` and then the
-named `show`.
-
-**Acceptance.** In `tests/test_locate.py`'s scenario of three citations pushed
-down by a new paragraph, `locate --apply --session s1` rewrites exactly the three
-hrefs, a diff of the document before and after touches nothing else, and
-following the closing line's `show` and re-binding exits 0. A copy of an old
-token written in the document's prose outside any link is unchanged, as are the
-tokens on `ambiguous` and `gone` lines. Without `--apply`, output and document
-are byte-identical to today. A document edited between the parse and the write
-(simulate it by patching the write step) is refused at exit 1 and left
-unchanged. Ledger, session and bindings counts are identical before and after,
-as `test_nothing_is_written_to_the_registry_the_ledger_or_the_record` already
-pins for the plain run. DESIGN row.
-
-**Size.** Two days.
-
-### 2. `locate` calls intact words `gone` when an insertion merged or split their chunk
+### 1. `locate` calls intact words `gone` when an insertion merged or split their chunk
 
 **Intent.** `locate` matches the cited snippet's hash exactly, and the 2026-09-17
 row named the price: "a chunk that an insertion under 200 characters merged into"
@@ -126,7 +81,7 @@ every existing `tests/test_locate.py` expectation is unchanged. SPEC Addendum B'
 
 **Size.** Two days.
 
-### 3. A draft outside its project is told there is no registry, about the wrong directory
+### 2. A draft outside its project is told there is no registry, about the wrong directory
 
 **Intent.** `bind` and `locate` find the registry from the document's directory
 (SPEC § CLI), and when that walk finds nothing `cli_context.open_registry`
@@ -165,7 +120,7 @@ must live under its project or name it with `BACKDRAFT_HOME`. DESIGN row.
 
 **Size.** One day.
 
-### 4. After a re-ingest, nothing says which drafts cite the source that moved
+### 3. After a re-ingest, nothing says which drafts cite the source that moved
 
 **Intent.** `ingest`'s new-generation note says citations "may now report
 `drifted`", that `bind` on a document citing the source says which, and names
@@ -206,7 +161,7 @@ the note names the drafts. DESIGN row.
 
 **Size.** Two days.
 
-### 5. `render` ships a draft edited after `bind` as if the record had judged it
+### 4. `render` ships a draft edited after `bind` as if the record had judged it
 
 **Intent.** `render` reads two files, the draft and the record `bind` wrote for
 it, and never checks that they still describe the same text. Checked on
@@ -241,7 +196,7 @@ refuses a draft edited since bind. DESIGN row.
 
 **Size.** One to two days.
 
-### 6. An older backdraft reads a newer registry as if what it does not know were not there
+### 5. An older backdraft reads a newer registry as if what it does not know were not there
 
 **Intent.** The registry travels with the project folder — the documented answer
 to a sandbox that cannot reach the vision model is to ingest locally and hand the
@@ -276,7 +231,7 @@ DESIGN row.
 
 **Size.** One to two days.
 
-### 7. `ingest` reports per source in columns an agent has to scrape
+### 6. `ingest` reports per source in columns an agent has to scrape
 
 **Intent.** `bind` and `verify` gained `--json` (2026-09-14) because their output
 is read by agents and every wording fix silently broke a parser. `ingest` is the
@@ -310,7 +265,7 @@ is byte-identical, pinned. `site/llms.txt`, `skills/backdraft/SKILL.md`,
 
 **Size.** Two days.
 
-### 8. `forget` asks for confirmation without saying which drafts it will break
+### 7. `forget` asks for confirmation without saying which drafts it will break
 
 **Intent.** `forget` is the one command that takes something away, so it asks
 first, and what it says is general: a token already written into a draft still
@@ -344,7 +299,7 @@ the drafts.
 
 **Size.** One day, two if it lands the records reader.
 
-### 9. `doctor` is read by agents and prints only columns
+### 8. `doctor` is read by agents and prints only columns
 
 **Intent.** The writing skill's first instruction is now "Run `backdraft doctor`
 before you promise anything" and plan from its `missing` lines. An agent does
@@ -372,7 +327,7 @@ name the flag.
 
 **Size.** One day.
 
-### 10. A `not_shown` cleared by `show` after `bind` reads like a citation read before writing
+### 9. A `not_shown` cleared by `show` after `bind` reads like a citation read before writing
 
 **Intent.** `not_shown` is the one status that says the author cited a passage
 they never read, and it clears by being shown: `bind` flags it, the agent runs
@@ -414,7 +369,7 @@ and says to re-judge each claim it lists. DESIGN row.
 
 **Size.** One to two days.
 
-### 11. `verify`'s `next: not_shown` tells an auditor to mint into the author's session
+### 10. `verify`'s `next: not_shown` tells an auditor to mint into the author's session
 
 **Intent.** Since 2026-10-14 `verify` re-checks `not_shown` against the session
 the record names, and its report closes with `cli_context.NEXT_MOVES`' line for
@@ -447,7 +402,7 @@ than running them" for this case. DESIGN row amending 2026-10-14's.
 
 **Size.** One day.
 
-### 12. `verify --json` carries the finding and not the move
+### 11. `verify --json` carries the finding and not the move
 
 **Intent.** `bind` and `verify` reports end with `next:` lines (2026-10-14), and
 both `--json` forms carry none of it, by design for `bind`, whose `--json` is
@@ -477,7 +432,7 @@ the object is byte-identical, pinned against the existing JSON tests. SPEC
 
 **Size.** One day.
 
-### 13. A search hit on a long page points at the whole page
+### 12. A search hit on a long page points at the whole page
 
 **Intent.** Every search result block closes with `[Read the page: backdraft
 read <slug> p<n>]`, and `show` does the same. On a 57-chunk web page that is
@@ -511,7 +466,7 @@ hint. DESIGN row.
 
 **Size.** One day.
 
-### 14. A web page saved by hand ingests as a file and loses the address it came from
+### 13. A web page saved by hand ingests as a file and loses the address it came from
 
 **Intent.** The 2026-08-05 row made a URL provenance, not identity: a fetched
 page is identified by its snapshot and named everywhere by its URL. An agent

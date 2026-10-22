@@ -447,6 +447,163 @@ def test_a_malformed_or_unknown_token_is_not_looked_for(project: Path) -> None:
     assert result.stdout == "2 citation(s) in memo.md, 0 drifted\n"
 
 
+# ---- --apply ----------------------------------------------------------------
+
+
+def registry_counts(project: Path) -> dict[str, int]:
+    tables = ("documents", "extractions", "anchors", "ledger", "sessions", "bindings")
+    with sqlite3.connect(project / DIRECTORY / "registry.db") as connection:
+        return {
+            table: connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            for table in tables
+        }
+
+
+def test_apply_rewrites_exactly_the_moved_hrefs_and_the_closing_line_binds_clean(
+    project: Path,
+) -> None:
+    memo, cited = bound_under_s1(project, OCCUPANCY, COVERAGE, TAXES)
+    # The old token quoted in prose, outside any link, is not a citation to swap.
+    memo.write_text(
+        memo.read_text(encoding="utf-8") + f"\nThe first figure was `{cited[0]}`.\n",
+        encoding="utf-8",
+    )
+    before = memo.read_text(encoding="utf-8")
+    starts = offsets(memo)
+    ingest(write_source(project, LOBBY, OCCUPANCY, COVERAGE, TAXES))
+    now = chunk_tokens(project)[1:]
+    counts = registry_counts(project)
+
+    result = invoke("locate", "memo.md", "--apply", "--session", "s1")
+
+    assert result.exit_code == 0, result.output
+    lines = result.stdout.splitlines()
+    assert lines[:2] == ["3 citation(s) in memo.md, 3 drifted", "  moved: 3"]
+    assert lines[2:5] == [
+        f"  applied: {old} → {new} — {claim} @{start}"
+        for old, new, claim, start in zip(cited, now, CLAIMS, starts)
+    ]
+    assert lines[5] == (
+        "[The moved tokens were written into memo.md. Show the new ones, which this "
+        f"session has not seen, and re-bind: backdraft show {' '.join(now)} --session s1]"
+    )
+    assert len(lines) == 6
+
+    expected = "# Memo\n\n" + " ".join(
+        f"[{claim}]({token})." for claim, token in zip(CLAIMS, now)
+    ) + f"\n\nThe first figure was `{cited[0]}`.\n"
+    assert before != expected
+    assert memo.read_text(encoding="utf-8") == expected
+    assert sorted(path.name for path in project.glob(".memo.md.*")) == []
+    # Writing the document is all it writes: no ledger row, session or binding.
+    assert registry_counts(project) == counts
+
+    shown = invoke(*closing_command(lines[-1]))
+    assert shown.exit_code == 0, shown.output
+    rebound = invoke("bind", "memo.md", "--session", "s1")
+    assert rebound.exit_code == 0, rebound.output
+    assert "  resolved: 3" in rebound.stdout.splitlines()
+
+
+def test_apply_leaves_ambiguous_and_gone_citations_as_they_were(project: Path) -> None:
+    memo, cited = bound_under_s1(project, OCCUPANCY, COVERAGE, TAXES)
+    ingest(write_source(project, COVERAGE, OCCUPANCY, COVERAGE))
+    now = chunk_tokens(project)
+    before = memo.read_text(encoding="utf-8")
+
+    result = invoke("locate", "memo.md", "--apply")
+
+    assert result.exit_code == 0, result.output
+    lines = result.stdout.splitlines()
+    assert lines[:4] == [
+        "3 citation(s) in memo.md, 3 drifted",
+        "  ambiguous: 1",
+        "  gone: 1",
+        "  moved: 1",
+    ]
+    assert lines[4].startswith(f"  applied: {cited[0]} → {now[1]} — ")
+    assert lines[5].startswith(f"  ! ambiguous: {cited[1]} — ")
+    assert lines[6].startswith(f"  ! gone: {cited[2]} — ")
+    assert memo.read_text(encoding="utf-8") == before.replace(
+        f"]({cited[0]})", f"]({now[1]})"
+    )
+
+
+def test_apply_swaps_one_token_among_several_on_a_claim_and_keeps_crlf(
+    project: Path,
+) -> None:
+    """A `;`-separated href keeps its other pieces, and the bytes keep their line endings."""
+    _, cited = bound_under_s1(project, OCCUPANCY, COVERAGE, TAXES)
+    memo = project / "memo.md"
+    memo.write_bytes(
+        f"# Memo\r\n\r\n[Occupancy and taxes](<{cited[0]}; {cited[0]}x;{cited[2]}>).\r\n".encode()
+    )
+    # Occupancy moves down one; taxes, third before and after, keeps its token.
+    ingest(write_source(project, LOBBY, OCCUPANCY, TAXES))
+    now = chunk_tokens(project)
+
+    result = invoke("locate", "memo.md", "--apply")
+
+    assert result.exit_code == 0, result.output
+    assert memo.read_bytes() == (
+        f"# Memo\r\n\r\n[Occupancy and taxes](<{now[1]}; {cited[0]}x;{cited[2]}>).\r\n".encode()
+    )
+
+
+def test_a_document_edited_between_the_parse_and_the_write_is_refused(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    memo, _ = bound_under_s1(project, OCCUPANCY, COVERAGE, TAXES)
+    ingest(write_source(project, LOBBY, OCCUPANCY, COVERAGE, TAXES))
+    edited = memo.read_text(encoding="utf-8") + "\nA line the author added meanwhile.\n"
+    drifted = cli._drifted
+
+    def drifted_then_edited(registry, claims):
+        located = drifted(registry, claims)
+        memo.write_text(edited, encoding="utf-8")
+        return located
+
+    monkeypatch.setattr(cli, "_drifted", drifted_then_edited)
+
+    result = invoke("locate", "memo.md", "--apply", "--session", "s1")
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+    assert result.stdout == ""
+    assert (
+        "memo.md changed while locate was reading it, so nothing was written; run "
+        "`backdraft locate memo.md --apply --session s1` again"
+    ) in result.stderr
+    assert memo.read_text(encoding="utf-8") == edited
+    assert sorted(path.name for path in project.glob(".memo.md.*")) == []
+
+
+def test_apply_with_nothing_moved_writes_nothing(project: Path) -> None:
+    memo, _ = bound_under_s1(project, OCCUPANCY, COVERAGE, TAXES)
+    ingest(write_source(project, OCCUPANCY))
+    stamp = memo.stat().st_mtime_ns
+
+    result = invoke("locate", "memo.md", "--apply")
+
+    assert result.exit_code == 0, result.output
+    assert "applied:" not in result.stdout
+    assert memo.stat().st_mtime_ns == stamp
+
+
+def test_applied_tokens_the_session_has_seen_close_on_the_bind(project: Path) -> None:
+    bound_under_s1(project, OCCUPANCY, COVERAGE, TAXES)
+    ingest(write_source(project, LOBBY, OCCUPANCY, COVERAGE, TAXES))
+    assert invoke("read", "notes", "p1", "--session", "s1").exit_code == 0
+
+    lines = invoke("locate", "memo.md", "--apply", "--session", "s1").stdout.splitlines()
+
+    assert lines[-1] == (
+        "[The moved tokens were written into memo.md. Re-bind: "
+        "backdraft bind memo.md --session s1]"
+    )
+    assert invoke("bind", "memo.md", "--session", "s1").exit_code == 0
+
+
 # ---- usage ------------------------------------------------------------------
 
 

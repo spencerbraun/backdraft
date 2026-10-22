@@ -457,11 +457,29 @@ edited or removed, here a tax figure revised from $412,300, and nothing is
 proposed for it — matching is exact on purpose, because a near match offered as
 a move would rewrite provenance.
 
-It proposes and never rewrites, and it is read-only: the document, the registry
-and the ledger are untouched. That includes minting — a token printed here was
-never shown to your session, so swap the moved tokens in, run the `show` the
-closing line names (and read that the text is what you cited), then re-bind.
-Exit 0 whatever it finds: `bind` is the check.
+By default it proposes and never rewrites: the document, the registry and the
+ledger are untouched. `--apply` makes the swap for you, in the document only —
+each moved citation's old token becomes its new one inside that claim's link,
+and nothing else changes, not a copy of the token in prose, not an `ambiguous`
+or `gone` citation:
+
+```console
+$ backdraft locate memo.md --apply
+3 citation(s) in memo.md, 3 drifted
+  gone: 1
+  moved: 2
+  applied: bd:q3-letter:p1.c1:afd2 → bd:q3-letter:p1.c2:afd2 — closed Q3 at 92.0% @24
+  applied: bd:q3-letter:p1.c2:d140 → bd:q3-letter:p1.c3:d140 — 1.42x @84
+  ! gone: bd:q3-letter:p1.c3:00ce — taxes of $412,300 @122
+[The moved tokens were written into memo.md. Show the new ones, which this session has not seen, and re-bind: backdraft show bd:q3-letter:p1.c2:afd2 bd:q3-letter:p1.c3:d140]
+[A gone citation's text was edited or removed, so nothing is proposed. Read what it cited, then search for the new wording: backdraft show bd:q3-letter:p1.c3:00ce]
+```
+
+It writes through a temporary file and a rename, and refuses at exit 1 — writing
+nothing — if the document changed while it was reading it. Neither form mints:
+a token printed or written here was never shown to your session, so run the
+`show` the closing line names (and read that the text is what you cited), then
+re-bind. Exit 0 whatever it finds: `bind` is the check.
 
 The record learns the same thing without anyone running `locate`. When `bind`
 finds a drifted citation's words standing unchanged at one place, it writes that
