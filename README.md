@@ -443,7 +443,7 @@ $ backdraft locate memo.md
   ! moved: bd:q3-letter:p1.c1:afd2 — now at bd:q3-letter:p1.c2:afd2 — closed Q3 at 92.0% @24
   ! moved: bd:q3-letter:p1.c2:d140 — now at bd:q3-letter:p1.c3:d140 — 1.42x @84
   ! gone: bd:q3-letter:p1.c3:00ce — taxes of $412,300 @122
-[Nothing was rewritten. Put each moved token in place of the old one in memo.md, then show the new ones, which this session has not seen, and re-bind: backdraft show bd:q3-letter:p1.c2:afd2 bd:q3-letter:p1.c3:d140]
+[Nothing was rewritten. Write the moved tokens in with `backdraft locate memo.md --apply`, then show the new ones, which this session has not seen, and re-bind: backdraft show bd:q3-letter:p1.c2:afd2 bd:q3-letter:p1.c3:d140]
 [A gone citation's text was edited or removed, so nothing is proposed. Read what it cited, then search for the new wording: backdraft show bd:q3-letter:p1.c3:00ce]
 ```
 

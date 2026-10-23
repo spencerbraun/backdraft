@@ -1062,8 +1062,11 @@ def _locate_hints(
     One line per outcome rather than per citation: the move is the same for
     every citation sharing an outcome, and the tokens are already on their own
     line items. A clean document prints none, which is how "nothing moved" stays
-    one line. After `--apply` the moved line names the same `show` or `bind`,
-    since writing a token into the document is not showing it either.
+    one line. The plain run's moved line names `--apply` as the way to write the
+    tokens in — the writing skill forbids editing a token by hand, and a caller
+    reading this line has not necessarily read the skill — and after `--apply`
+    the line names the same `show` or `bind`, since writing a token into the
+    document is not showing it either.
     """
     outcomes = {item.outcome for item in located}
     typed = shlex.quote(str(doc))
@@ -1085,14 +1088,15 @@ def _locate_hints(
             # Printing a token is not showing it: the ledger is the gate's, and a
             # moved token the session never saw binds `not_shown` until it is.
             hints.append(
-                f"[Nothing was rewritten. Put each moved token in place of the old one in "
-                f"{doc}, then show the new ones, which this session has not seen, and "
-                f"re-bind: backdraft show {' '.join(unseen)}{session_flag}]"
+                f"[Nothing was rewritten. Write the moved tokens in with `backdraft locate "
+                f"{typed} --apply{session_flag}`, then show the new ones, which this session "
+                f"has not seen, and re-bind: backdraft show {' '.join(unseen)}{session_flag}]"
             )
         else:
             hints.append(
-                f"[Nothing was rewritten. Put each moved token in place of the old one in "
-                f"{doc}, then re-bind: backdraft bind {typed}{session_flag}]"
+                f"[Nothing was rewritten. Write the moved tokens in with `backdraft locate "
+                f"{typed} --apply{session_flag}`, then re-bind: backdraft bind {typed}"
+                f"{session_flag}]"
             )
     if AMBIGUOUS in outcomes:
         hints.append(

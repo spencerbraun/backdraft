@@ -138,9 +138,9 @@ def test_three_citations_pushed_down_by_a_new_paragraph_are_moved_with_their_new
         for old, new, claim, start in zip(cited, now, CLAIMS, offsets(memo))
     ]
     assert lines[5] == (
-        "[Nothing was rewritten. Put each moved token in place of the old one in memo.md, "
-        "then show the new ones, which this session has not seen, and re-bind: "
-        f"backdraft show {' '.join(now)} --session s1]"
+        "[Nothing was rewritten. Write the moved tokens in with `backdraft locate memo.md "
+        "--apply --session s1`, then show the new ones, which this session has not seen, "
+        f"and re-bind: backdraft show {' '.join(now)} --session s1]"
     )
     assert len(lines) == 6
 
@@ -401,8 +401,8 @@ def test_moved_tokens_the_session_has_seen_close_on_the_bind_itself(project: Pat
     lines = invoke("locate", "memo.md", "--session", "s1").stdout.splitlines()
 
     assert lines[-1] == (
-        "[Nothing was rewritten. Put each moved token in place of the old one in memo.md, "
-        "then re-bind: backdraft bind memo.md --session s1]"
+        "[Nothing was rewritten. Write the moved tokens in with `backdraft locate memo.md "
+        "--apply --session s1`, then re-bind: backdraft bind memo.md --session s1]"
     )
 
 
