@@ -444,15 +444,16 @@ def ingest(
     it carries that slug; its line says `--slug not applied` and a note names
     the slug to cite it by, at exit 0.
 
-    `--dry-run` answers what each source would be *called* and stops there: the
-    slug and the media type, nothing fetched, nothing written, no anchor minted.
-    A slug is permanent once a token carries it, so this is how to see the
-    default before `--slug` has to overrule it. A source already in the registry
-    says so and names the slug it already has; a name another document has taken
-    says that too, with the numbered slug it would land on instead. Each line
-    also ends `would extract with <extractor>`, chosen exactly as the ingest
-    would choose it — so a PDF says before the batch whether it goes to `vlm`, a
-    vision-model call per page, or to `pdf-text`, which is free. An unknown
+    `--dry-run` answers what each source would be *called* and what would run on
+    it, then stops: the slug, the media type and the extractor, nothing fetched,
+    nothing written, no anchor minted, no model called. A slug is permanent once
+    a token carries it, so this is how to see the default before `--slug` has to
+    overrule it. A source already in the registry says so and names the slug it
+    already has; a name another document has taken says that too, with the
+    numbered slug it would land on instead. Each line ends `would extract with
+    <extractor>`, chosen exactly as the ingest would choose it — so a PDF says
+    before the batch whether it goes to `vlm`, a vision-model call per page, or
+    to `pdf-text`, which is free. An unknown
     `--extractor`, or a `--config` key the chosen one never reads, fails the dry
     run with the reason the ingest would give.
 
@@ -1157,8 +1158,6 @@ def skill(
     instead of the home directory. `--all` adds the backfill and
     artifact-reading skills.
     """
-    import shutil
-
     with guard():
         if action != "install":
             raise UsageError(f"unknown action {action!r}; try: backdraft skill install")

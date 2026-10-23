@@ -11,6 +11,7 @@ for.
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import sqlite3
 from pathlib import Path
@@ -588,6 +589,33 @@ def test_apply_with_nothing_moved_writes_nothing(project: Path) -> None:
     assert result.exit_code == 0, result.output
     assert "applied:" not in result.stdout
     assert memo.stat().st_mtime_ns == stamp
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root writes through any permission")
+def test_a_directory_that_cannot_take_the_write_is_refused_with_the_document_whole(
+    project: Path,
+) -> None:
+    """The write goes through a sibling temporary file, so an unwritable directory
+    is the failure — and it must be reported as one, not as a traceback, with the
+    document exactly as it was and no temporary file left beside it."""
+    memo, _ = bound_under_s1(project, OCCUPANCY, COVERAGE, TAXES)
+    ingest(write_source(project, LOBBY, OCCUPANCY, COVERAGE, TAXES))
+    before = memo.read_bytes()
+    project.chmod(0o555)
+    try:
+        result = invoke("locate", "memo.md", "--apply", "--session", "s1")
+    finally:
+        project.chmod(0o755)
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+    assert result.stdout == ""
+    assert (
+        "cannot write memo.md: Permission denied, so nothing was written; "
+        "make its directory writable and run the same command again"
+    ) in result.stderr
+    assert memo.read_bytes() == before
+    assert sorted(path.name for path in project.glob(".memo.md.*")) == []
 
 
 def test_applied_tokens_the_session_has_seen_close_on_the_bind(project: Path) -> None:
