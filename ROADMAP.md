@@ -505,6 +505,206 @@ from the fixture are identical with and without `--origin`, diffed. SPEC
 
 **Size.** Two to three days.
 
+### 14. `show` on a drifted token prints the passage that took over its address as `now`, and never says the cited words only moved
+
+**Intent.** `backdraft show <token>` is the first command an agent reaches for
+when `bind` says `drifted`, and its block prints `cited:` then `now [<token>]:`
+with whatever stands at the old locator in the current extraction — minting
+that token, which reads as "cite this instead" — and closes with `DRIFT_HINT`
+sending the reader to `locate`. Since 2026-10-21 the registry knows the
+difference: `registry.relocated` over `current_with` says when the cited words
+stand unchanged at exactly one new place, `bind` writes it as `moved_to`, and
+the artifact's card stopped diffing the words against the unrelated passage.
+`show` still shows that diff, so the one surface built to answer "what did this
+token say, and what stands there now" is the one that has not learned the
+answer, and the writer is sent to a second command for a fact the first one
+had in hand.
+
+**Shape.** `gate/reader.py`: in `show`'s drifted branch, beside the `current_at`
+lookup `_drift_block` already takes, ask `current_with` and `relocated` (both
+imported from `registry`, as `current_at` is). When the outcome is `moved`, the
+block gains a line between `cited:` and `now`: `moved: the cited words stand
+unchanged at <new token>`, and the `now` label says `now at that address (a
+different passage) [<token>]:` so the second snippet is never read as an edit
+of the first. Mint the moved token as the `now` token is minted: `show` mints
+what it prints, and the snippet printed under `cited:` *is* the moved anchor's
+snippet verbatim, so the session has been shown it — which is what lets a
+writer go `show` → `locate --apply` → `bind` clean with no further `show`. The
+DESIGN row says so, and says why `ambiguous` and `gone` add nothing (several
+places is a choice `locate` lays out; nowhere is today's block exactly). The
+`DRIFT_HINT` keeps its `<doc.md>` placeholder — item 3 in this queue is what
+replaces it — but when every drifted token the run printed carried a move, the
+hint names `locate <doc.md> --apply`. A sentence edited in place, and every
+cell citation, print today's block byte for byte. Exit codes do not move.
+
+**Acceptance.** In a scratch project shaped like `tests/test_locate.py`'s (three
+paragraphs over 200 characters, one inserted above, re-ingest), `show` on the
+second paragraph's old token prints the `moved:` line naming the token that
+`locate` proposes for it, labels the `now` snippet as a different passage, and
+leaves the new token in the session's ledger — asserted by `locate --apply`
+then `bind` under the same session exiting 0 with no `not_shown`. `show` on a
+token whose sentence was edited by one figure prints exactly today's block;
+so does a cell token whose value stands in two cells. SPEC § CLI's `show`
+paragraph, `site/docs.html`'s `show` row and the writing skill's `drifted`
+bullet say what the line means. DESIGN row.
+
+**Size.** One day.
+
+### 15. `bind` knows which drifted citations only moved and reports none of it
+
+**Intent.** Since 2026-10-21 `citation_for` writes `moved_to` on every drifted
+citation whose words stand unchanged at one place, so the record knows, the
+artifact says it, and `verify` carries it. The `bind` report that an agent
+reads in the terminal still prints `! drifted: <token> — <claim> @<offset>` for
+all of them alike, and its `next: drifted` line sends the caller to `backdraft
+locate <doc>`, which recomputes exactly what `bind` just wrote and prints the
+same list in its own shape. Thirty citations after a paragraph went in above
+are thirty `drifted` lines, a `locate` run that says `moved: 30`, and then the
+`--apply` — where the first report could have said the move and named the
+command that makes it.
+
+**Shape.** `bind/cli.py`'s line item, in `locate`'s own words: `! drifted: <old>
+— now at <new> — <claim> @<offset>` when the citation carries `moved_to`, and
+today's line when it does not. The `— now at` fragment has two owners then
+(`cli.py`'s `_located_line` and the bind report) and `bind` may not import
+`cli`, so the fragment moves to `cli_context` and both read it. The `next:`
+line is `cli_context.NEXT_MOVES`' and stays one table: add a display kind
+`drifted:moved` beside `unmatched`, `receipt` and `recount`, which `bind`
+reports in place of `drifted` when *every* drifted citation present carried
+`moved_to`, with the move `backdraft locate <doc> --apply{session}` then the
+`show` the closing line of `locate` will name; a run with one drifted citation
+edited in place keeps today's `next: drifted`. `tests/test_next_moves.py`'s
+totality test gains the kind. `verify`'s source tier prints its line items
+through the same path and gains the `now at` fragment too; its `next:` wording
+is item 10's, not this one's. Display only: the record, `--json`, exit codes
+and the statuses do not move, and a report with no drift is byte-identical.
+
+**Acceptance.** In the scratch project of item 14, `bind` after the re-ingest
+prints three `! drifted` lines each ending `— now at <new token>` before the
+claim, and closes with `next: drifted:moved — … backdraft locate memo.md --apply
+--session s1 …`; running that command and the `show` it names, then re-binding,
+exits 0. Edit one cited sentence in place instead and the report's `next:` line
+is today's `next: drifted` byte for byte, with that line item carrying no `now
+at`. `bind --json` on both is unchanged against the current output, and
+`demo/`'s bind prints exactly what it does. `skills/backdraft/SKILL.md`'s
+`drifted` bullet names the line. DESIGN row amending 2026-10-13.
+
+**Size.** One day.
+
+### 16. `ingest --dry-run` says a PDF would go to the vision model and not how many pages that is
+
+**Intent.** The 2026-10-19 row put the extractor on the dry run's line because
+it is the one fact there that can cost money, and the note says `vlm` is a
+model call per page. The number of pages is the cost, and the line does not
+carry it: a two-page letter and a four-hundred-page appraisal print the same
+`would extract with vlm`. An agent deciding whether to ask the user before
+spending — the writing skill's first rule — has to open the PDF itself to find
+out, and the ingest's own line, which does print the page count, prints it
+after the money is spent. The count is local: `pdf-text` already opens every
+PDF through pdfplumber without a model, and `len(pdf.pages)` costs nothing.
+
+**Shape.** `Naming` (`registry/store.py`) gains `pages: int | None`: for a PDF
+on disk, the count from a new `extract.pdf_text.page_count(path)` that opens
+the file with pdfplumber and reads nothing else; for an image, 1; for a source
+already ingested, its current generation's page count from `pages()`, which is
+also what a re-extraction would send; `None` for every other media type and
+for a URL, whose bytes are not here. A PDF pdfplumber cannot open is what the
+ingest would fail on, so it is the dry run's `!` line with `pdf-text`'s own
+reason, compared against the ingest's in a test as the 2026-10-19 row did. The
+line's mark becomes `would extract with vlm, 12 pages` only where a count
+exists, so every non-PDF line is byte for byte what it was; the vision note
+closes with the sum, `12 pages → 12 model calls`, over the lines that would
+spend. `VISION_EXTRACTORS` stays where it is. No key value can reach the
+output; the existing canary test covers the new lines.
+
+**Acceptance.** In a scratch project, the dry run on the test suite's PDF
+fixture reads `would extract with pdf-text, N pages` with no key present and
+`would extract with vlm, N pages` with a fake one, and the note then ends `N
+pages → N model calls`; the key's value appears nowhere in either output. A
+Markdown source, a workbook and a URL print exactly today's lines. A corrupt
+PDF fixture is a `!` line whose reason equals the ingest's for the same file.
+README's dry-run paragraph, `site/llms.txt`, `site/docs.html`'s `ingest` row
+and the walkthrough's prose after its dry-run block (whose source is HTML, so
+its captured output does not move) say the count is on the line. DESIGN row
+amending 2026-10-19.
+
+**Size.** One day.
+
+### 17. A source re-ingested from where it moved to keeps the registry's old path, and every hint that names the path names a file that is gone
+
+**Intent.** Identity is the bytes (2026-08-05), so re-ingesting an unchanged
+file from a new path is a no-op: `Registry.ingest` finds the document by
+`sha256`, `_is_noop` says nothing would change, and `_touch_meta` records only
+a URL's re-fetch — `documents.path` keeps the old location. Everything that
+names the path then names a file that is not there: `forget`'s and `ls
+--withdrawn`'s way-back hint (`WITHDRAWN_HINT`, `backdraft ingest <old path>`),
+the gate's refusal of a withdrawn slug, and `snapshot-pages`, which says the
+source was not found and to pass `--file`. Renaming `drafts/` to `sources/` is
+an ordinary afternoon in a diligence folder, and the user did the one thing
+the docs say fixes it — ingested again — and was told `unchanged`.
+
+**Shape.** The no-op branch of `Registry.ingest`: when the source is a file and
+its path differs from the stored one, update `path` and `filename` in the same
+transaction, and say so — `Ingested` gains `moved_from: str | None`, and the
+line's mark reads `unchanged, was at <old path>` so a caller who did not know
+the file had moved learns it here. `filename` feeds `source_name`, so `ls`, the
+gate's list and `## References` follow by themselves; the slug does not move,
+so no token does, which the test asserts by diffing tokens minted before and
+after. A URL source is untouched (its stored path is the URL, and `_touch_meta`
+already owns re-fetches). The same bytes present at two paths at once is the
+case to decide and write down: the last ingest wins and the line says what it
+replaced, because two documents for one set of bytes is what 2026-08-05 ruled
+out. `spec/registry.md` says `path` is where the bytes were last ingested from.
+Re-ingesting from the stored path prints exactly today's line.
+
+**Acceptance.** In a scratch project, ingest `a/notes.md`, read it under a
+session, move the file to `b/notes.md` and ingest again: the line says
+`unchanged, was at a/notes.md`; `forget notes --yes`'s closing hint names
+`b/notes.md`; `ls --withdrawn` names it; for a moved PDF, `snapshot-pages`
+finds the file without `--file`. Tokens minted from `b/notes.md` after the move
+equal those minted from `a/notes.md` before it. A re-ingest from the stored
+path, and the demo's re-ingest of its unchanged sources, print byte for byte
+what they print today. README's "Forgetting a source" paragraph says the hint
+names where the file was last seen. DESIGN row.
+
+**Size.** One day.
+
+### 18. `search` and the table of contents never say which hits or chunks this session was already shown
+
+**Intent.** `session show --in` (2026-10-20) answers coverage per document, but
+the moment an agent actually chooses what to read next is a `search` block of
+twenty hits or a fifty-seven-chunk table of contents, and neither marks what
+the session has already been shown. So the agent `show`s a token it already
+holds, or re-reads the chunk it read an hour ago, spending the budget the
+chunk selector exists to save — or asks `session show --in` for every slug in
+the list before every read. The ledger has the answer and the gate holds the
+session: `was_shown` is one query, and both commands mint into that session
+already.
+
+**Shape.** `gate/searcher.py` and `render_toc` in `gate/reader.py`: a hit, and a
+chunk row, whose token the session was shown *before this run* — asked before
+`record_shown`, or the run marks everything it prints — carries a trailing
+`shown` mark in `thin_mark`'s stance: a mark only on the rows that have one, so
+a fresh session, and every documented block captured under one, prints byte
+for byte what it does. Matched by token, as every ledger read is, so a chunk
+that survived a re-ingest is marked and one whose text changed is not. The
+default session marks against the shared ledger, which its existing note
+already explains; the mark adds no note. Display only — minting, tokens, exit
+codes and the hint lines do not move — and `show` is not marked: its caller
+already holds the token.
+
+**Acceptance.** In a copy of `demo/`'s registry under a fresh session,
+`backdraft search "renter-occupied"` and `backdraft read franklin-county` print
+exactly today's blocks; after `backdraft read franklin-county p1` under that
+session, the same search marks its `p1.c24` hit `shown` and the table of
+contents marks `c1`–`c25` and not `c26`–`c57`. The walkthrough's blocks are
+checked in sequence in a scratch copy: a block whose hits an earlier block in
+the walkthrough had shown is re-captured there, not hand-edited, and every
+other block is byte-identical. `skills/backdraft/SKILL.md`'s search paragraph
+says what the mark means. DESIGN row.
+
+**Size.** One to two days.
+
 ## Parked
 
 Deliberately not queued, each with the reason, so picking one up starts from
