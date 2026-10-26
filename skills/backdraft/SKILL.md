@@ -414,6 +414,10 @@ reason attached.
   <doc.md>` first. A paragraph inserted above the one you cited leaves your
   words untouched and moves their address, and `locate` finds the exact text you
   cited in the new snapshot: a `moved` line names the token that holds it now.
+  When it adds `whole inside a chunk that now holds more` or `across two
+  adjoining chunks`, your words are intact but the chunker merged a short
+  heading in or cut through them; the second proposes two tokens, `a;b`, which
+  is the form for a claim spanning two chunks — accept it as written.
   Do not swap tokens by hand: run `backdraft locate <doc.md> --apply` (with the
   same `--session`), which writes each moved token over its old one inside that
   claim's link and touches nothing else. Then run the `backdraft show` its

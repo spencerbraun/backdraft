@@ -15,7 +15,19 @@ import pytest
 from conftest_registry import PAGE_BREAK
 
 from backdraft.extract.base import ExtractedPage
-from backdraft.registry import CREATED, GENERATION, Registry, UNCHANGED, current_at, current_with
+from backdraft.registry import (
+    AMBIGUOUS,
+    CREATED,
+    GENERATION,
+    GONE,
+    MOVED,
+    UNCHANGED,
+    Registry,
+    current_at,
+    current_with,
+    current_within,
+    relocate,
+)
 
 
 def _tokens(registry: Registry, slug: str) -> dict[str, str]:
@@ -287,6 +299,120 @@ def test_current_with_names_every_place_in_document_order(
 
     found = current_with(registry, registry.resolve(token).anchor)
     assert [anchor.locator.format() for anchor in found] == ["p1.c1", "p4.c1"]
+
+
+# `current_within` is `current_with`'s fallback for a hash the chunker changed
+# without touching a word: a short heading merged in (rule 2), or a cut that
+# now runs through the cited words (rule 3, or a page break). `relocate` is the
+# rule over both that `locate` prints and `bind` records.
+
+
+def _cited_chunk(registry: Registry, token: str):
+    cited = registry.resolve(token)
+    assert cited is not None and cited.current is False
+    return cited.anchor
+
+
+def test_words_a_heading_merged_into_stand_whole_inside_that_chunk(
+    registry: Registry, book: Path
+) -> None:
+    registry.ingest(book, extractor="paged")
+    token = _tokens(registry, "quarterly-notes")["p2.c1"]
+
+    _write(book, [PAGE_ONE, f"Coverage\n\n{PAGE_TWO}", PAGE_THREE])
+    registry.ingest(book, extractor="paged")
+
+    cited = _cited_chunk(registry, token)
+    assert current_with(registry, cited) == []
+    within = current_within(registry, cited)
+    assert [[a.locator.format() for a in place] for place in within] == [["p2.c1"]]
+    relocation = relocate(registry, cited)
+    assert (relocation.outcome, relocation.contained) == (MOVED, True)
+    assert relocation.token == _tokens(registry, "quarterly-notes")["p2.c1"]
+
+
+def test_words_a_page_break_now_runs_through_stand_across_the_two_chunks(
+    registry: Registry, book: Path
+) -> None:
+    """Across a break the two chunks always adjoin, the rule the gate's `adjoining` keeps."""
+    registry.ingest(book, extractor="paged")
+    token = _tokens(registry, "quarterly-notes")["p2.c1"]
+    head, tail = PAGE_TWO.split(" coverage ")
+
+    _write(book, [PAGE_ONE, f"{head} coverage", f"ratio {tail.split('ratio ')[1]}", PAGE_THREE])
+    registry.ingest(book, extractor="paged")
+    now = _tokens(registry, "quarterly-notes")
+
+    relocation = relocate(registry, _cited_chunk(registry, token))
+    assert relocation.outcome == MOVED
+    assert [[a.locator.format() for a in place] for place in relocation.places] == [
+        ["p2.c1", "p3.c1"]
+    ]
+    assert relocation.token == f"{now['p2.c1']};{now['p3.c1']}"
+
+
+def test_a_blank_line_between_two_chunks_of_a_page_is_not_a_span(
+    registry: Registry, book: Path
+) -> None:
+    """Two paragraphs are not one: only a rule 3 cut joins chunks on one page."""
+    long = " ".join([PAGE_TWO] * 6)
+    _write(book, [PAGE_ONE, long, PAGE_THREE])
+    registry.ingest(book, extractor="paged")
+    token = _tokens(registry, "quarterly-notes")["p2.c1"]
+    cut = len(long) // 2
+    cut = long.index(" Page two", cut)
+
+    _write(book, [PAGE_ONE, f"{long[:cut]}\n\n{long[cut + 1:]}", PAGE_THREE])
+    registry.ingest(book, extractor="paged")
+
+    assert [k for k in _tokens(registry, "quarterly-notes") if k.startswith("p2.")] == [
+        "p2.c1",
+        "p2.c2",
+    ]
+    assert current_within(registry, _cited_chunk(registry, token)) == []
+
+
+def test_containment_is_exact_and_at_word_edges(registry: Registry, book: Path) -> None:
+    registry.ingest(book, extractor="paged")
+    token = _tokens(registry, "quarterly-notes")["p2.c1"]
+
+    _write(book, [PAGE_ONE, f"Coverage\n\nX{PAGE_TWO}", PAGE_THREE])
+    registry.ingest(book, extractor="paged")
+    assert current_within(registry, _cited_chunk(registry, token)) == []
+
+    _write(book, [PAGE_ONE, f"Coverage\n\n{PAGE_TWO.replace('1.42x', '1.43x')}", PAGE_THREE])
+    registry.ingest(book, extractor="paged")
+    assert relocate(registry, _cited_chunk(registry, token)).outcome == GONE
+
+
+def test_several_chunks_holding_the_words_are_ambiguous(registry: Registry, book: Path) -> None:
+    registry.ingest(book, extractor="paged")
+    token = _tokens(registry, "quarterly-notes")["p2.c1"]
+
+    _write(book, [f"Before\n\n{PAGE_TWO}", PAGE_ONE, f"After\n\n{PAGE_TWO}"])
+    registry.ingest(book, extractor="paged")
+
+    relocation = relocate(registry, _cited_chunk(registry, token))
+    assert (relocation.outcome, relocation.contained, relocation.token) == (AMBIGUOUS, True, None)
+    assert [[a.locator.format() for a in place] for place in relocation.places] == [
+        ["p1.c1"],
+        ["p3.c1"],
+    ]
+
+
+def test_a_page_citation_is_never_looked_for_inside_more_text(
+    registry: Registry, book: Path
+) -> None:
+    """Chunks only: a page's snippet is the whole page, and a cell's is a value."""
+    registry.ingest(book, extractor="paged")
+    token = _tokens(registry, "quarterly-notes")["p2"]
+
+    _write(book, [PAGE_ONE, f"Coverage\n\n{PAGE_TWO}", PAGE_THREE])
+    registry.ingest(book, extractor="paged")
+
+    cited = _cited_chunk(registry, token)
+    assert current_within(registry, cited) == []
+    assert relocate(registry, cited).outcome == GONE
 
 
 def test_the_snippet_lookup_reads_the_current_generation_only(

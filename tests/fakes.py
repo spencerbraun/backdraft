@@ -2,7 +2,7 @@
 
 W1 owns `registry/store.py`; W3 only consumes the surface Addendum A pins. This
 fake implements exactly the names bind touches — `resolve`, `was_shown`,
-`search`, `document`, `ensure_session`, `save_binding`, `close` — with the same
+`search`, `document`, `pages`, `ensure_session`, `save_binding`, `close` — with the same
 return shapes, so a test can put a registry into any state bind must handle
 (drifted generation, missing anchor, empty ledger) without a database.
 """
@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from backdraft.kernel.hashing import snippet_hash, token_hash
-from backdraft.kernel.model import Anchor, Document, Receipt
+from backdraft.kernel.model import Anchor, Document, Page, Receipt
 from backdraft.kernel.tokens import format_token, parse_locator
 
 
@@ -115,6 +115,24 @@ class FakeAnchorRegistry:
             and resolution.anchor.slug == slug
             and resolution.anchor.page_number == number
         ]
+
+    def pages(self, slug: str) -> list[Page]:
+        """One textless page per page number a current anchor of `slug` stands on.
+
+        Enough for `registry.current_within`, which walks a drifted chunk's
+        document by page; with no text, no two chunks are claimed to be one
+        paragraph, so only a page break joins a span here.
+        """
+        numbers = sorted(
+            {
+                resolution.anchor.page_number
+                for resolution in self._anchors.values()
+                if resolution.current
+                and resolution.anchor.slug == slug
+                and resolution.anchor.page_number is not None
+            }
+        )
+        return [Page(number=number, kind="page", text="") for number in numbers]
 
     def anchors_with_snippet(self, slug: str, snippet_sha256: str) -> list[Anchor]:
         """Current-generation anchors in one document whose snippet hashes the same."""

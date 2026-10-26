@@ -48,6 +48,22 @@ LOBBY = (
     "lender asked to see priced before the loan closes this winter."
 )
 CLAIMS = ("Occupancy closed at 92.0%", "NOI covered debt service 1.42x", "Taxes were $412,300")
+HEADING = "Debt service coverage on the in-place loan balance, trailing"
+"""Sixty characters: under the chunker's 200, so rule 2 merges it into the paragraph below."""
+
+
+def rent_roll(sentences: int, *, first: int = 1) -> str:
+    """One paragraph of numbered sentences, each a boundary the chunker may cut at."""
+    return " ".join(
+        f"Unit {n} of the east building renewed at the asking rent for another full year."
+        for n in range(first, first + sentences)
+    )
+
+
+LONG = rent_roll(25)
+"""About 2,000 characters: one chunk, since rule 3 cuts only past 2,400."""
+GROWN = f"{LONG} {rent_roll(7, first=26)}"
+"""Past 2,400 once grown, so rule 3 cuts it near 1,200 — through the cited words."""
 
 
 @pytest.fixture(autouse=True)
@@ -249,6 +265,127 @@ def test_nothing_is_written_to_the_registry_the_ledger_or_the_record(
 
     assert counts() == before
     assert {path: path.read_bytes() for path in files} == files
+
+
+# ---- words that stand whole among more ----------------------------------------
+
+
+def test_a_heading_merged_into_a_cited_paragraph_proposes_the_chunk_that_holds_both(
+    project: Path,
+) -> None:
+    assert len(HEADING) == 60
+    memo, cited = bound_under_s1(project, OCCUPANCY, COVERAGE, TAXES)
+    ingest(write_source(project, OCCUPANCY, f"{HEADING}\n\n{COVERAGE}", TAXES))
+    now = chunk_tokens(project)
+    assert len(now) == 3 and now[0] == cited[0] and now[2] == cited[2]
+
+    result = invoke("locate", "memo.md", "--session", "s1")
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout.splitlines()[:3] == [
+        "3 citation(s) in memo.md, 1 drifted",
+        "  moved: 1",
+        f"  ! moved: {cited[1]} — now at {now[1]}, whole inside a chunk that now holds more"
+        f" — {CLAIMS[1]} @{offsets(memo)[1]}",
+    ]
+
+    applied = invoke("locate", "memo.md", "--apply", "--session", "s1")
+    assert applied.exit_code == 0, applied.output
+    assert (
+        f"  applied: {cited[1]} → {now[1]}, whole inside a chunk that now holds more"
+        f" — {CLAIMS[1]} @{offsets(memo)[1]}"
+    ) in applied.stdout.splitlines()
+    assert invoke(*closing_command(applied.stdout.splitlines()[-1])).exit_code == 0
+    rebound = invoke("bind", "memo.md", "--session", "s1")
+    assert rebound.exit_code == 0, rebound.output
+    assert "  resolved: 3" in rebound.stdout.splitlines()
+
+
+def test_a_paragraph_grown_past_the_cut_proposes_the_two_adjoining_tokens(
+    project: Path,
+) -> None:
+    assert 1900 < len(LONG) < 2400 < len(GROWN)
+    ingest(write_source(project, OCCUPANCY, LONG))
+    assert invoke("read", "notes", "p1", "--session", "s1").exit_code == 0
+    cited = chunk_tokens(project)[1]
+    memo = write_memo(project, [cited], claims=["Unit renewals ran at the asking rent"])
+    ingest(write_source(project, OCCUPANCY, GROWN))
+    with Registry.open(project) as registry:
+        pieces = [a for a in registry.anchors_for_page("notes", 1) if a.kind == "chunk"][1:]
+    assert len(pieces) == 2 and abs(pieces[0].end - pieces[0].start - 1200) < 100
+    span = f"{pieces[0].token};{pieces[1].token}"
+
+    result = invoke("locate", "memo.md", "--session", "s1")
+
+    assert result.stdout.splitlines()[:3] == [
+        "1 citation(s) in memo.md, 1 drifted",
+        "  moved: 1",
+        f"  ! moved: {cited} — now at {span}, across two adjoining chunks"
+        f" — Unit renewals ran at the asking rent @{offsets(memo)[0]}",
+    ]
+    assert result.stdout.splitlines()[-1].endswith(
+        f"backdraft show {pieces[0].token} {pieces[1].token} --session s1]"
+    )
+
+    applied = invoke("locate", "memo.md", "--apply", "--session", "s1")
+    assert applied.exit_code == 0, applied.output
+    assert f"]({span})." in memo.read_text(encoding="utf-8")
+    assert invoke(*closing_command(applied.stdout.splitlines()[-1])).exit_code == 0
+    rebound = invoke("bind", "memo.md", "--session", "s1")
+    assert rebound.exit_code == 0, rebound.output
+    assert "  resolved: 2" in rebound.stdout.splitlines()
+
+
+def test_a_heading_above_a_sentence_edited_by_one_figure_is_still_gone(
+    project: Path,
+) -> None:
+    _, cited = bound_under_s1(project, OCCUPANCY, COVERAGE, TAXES)
+    edited = COVERAGE.replace("1.42x", "1.43x")
+    ingest(write_source(project, OCCUPANCY, f"{HEADING}\n\n{edited}", TAXES))
+
+    lines = invoke("locate", "memo.md").stdout.splitlines()
+
+    assert lines[:3] == [
+        "3 citation(s) in memo.md, 1 drifted",
+        "  gone: 1",
+        f"  ! gone: {cited[1]} — {CLAIMS[1]} @{offsets(Path('memo.md'))[1]}",
+    ]
+
+
+def test_words_standing_whole_inside_two_chunks_are_ambiguous_and_name_both(
+    project: Path,
+) -> None:
+    memo, cited = bound_under_s1(project, OCCUPANCY, COVERAGE, TAXES)
+    ingest(
+        write_source(
+            project, OCCUPANCY, f"{HEADING}\n\n{COVERAGE}", TAXES, f"Restated\n\n{COVERAGE}"
+        )
+    )
+    now = chunk_tokens(project)
+
+    lines = invoke("locate", "memo.md").stdout.splitlines()
+
+    assert lines[:3] == [
+        "3 citation(s) in memo.md, 1 drifted",
+        "  ambiguous: 1",
+        f"  ! ambiguous: {cited[1]} — the cited words stand whole inside more text at 2 "
+        f"places: {now[1]}, {now[3]} — {CLAIMS[1]} @{offsets(memo)[1]}",
+    ]
+
+
+def test_a_cell_whose_value_now_stands_inside_a_longer_one_is_gone(
+    project: Path, rates
+) -> None:
+    """A value found inside a longer string proves nothing, so cells never match this way."""
+    ingest(rates(("Going-in cap", 0.0625), ("Exit cap", 0.0675)))
+    cited = cell_token(project, "B2")
+    write_memo(project, [cited], claims=["a going-in cap rate of 6.25%"])
+    ingest(rates(("Going-in cap", "0.0625 fixed"), ("Exit cap", 0.0675)))
+
+    lines = invoke("locate", "memo.md").stdout.splitlines()
+
+    assert lines[1] == "  gone: 1"
+    assert lines[2].startswith(f"  ! gone: {cited} — ")
 
 
 # ---- what is not proposed ---------------------------------------------------
@@ -762,3 +899,26 @@ def test_a_cell_citation_never_carries_moved_to(project: Path, rates) -> None:
     (citation,) = record_citations(memo)
     assert citation["status"] == "drifted"
     assert "moved_to" not in citation
+
+
+def test_a_merged_heading_records_moved_to_and_a_span_of_two_records_none(
+    project: Path,
+) -> None:
+    """`moved_to` is one token in the artifact format; a span has no form there."""
+    memo, cited = bound_under_s1(project, OCCUPANCY, COVERAGE, TAXES)
+    ingest(write_source(project, OCCUPANCY, f"{HEADING}\n\n{COVERAGE}", TAXES))
+
+    invoke("bind", "memo.md", "--session", "s1")
+
+    (drifted,) = [c for c in record_citations(memo) if c["status"] == "drifted"]
+    assert drifted["moved_to"] == chunk_tokens(project)[1]
+    assert f"The cited words stand unchanged at <code>{drifted['moved_to']}</code>" in (
+        rendered(memo)
+    )
+
+    ingest(write_source(project, OCCUPANCY, LONG))
+    long_memo = write_memo(project, [chunk_tokens(project)[1]], claims=["Renewals"])
+    ingest(write_source(project, OCCUPANCY, GROWN))
+    invoke("bind", long_memo.name)
+    (citation,) = record_citations(long_memo)
+    assert citation["status"] == "drifted" and "moved_to" not in citation

@@ -95,7 +95,10 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # snapshot may now be drifted, so re-bind and read the report rather than
 # assuming. Then `backdraft locate <doc.md>`: a paragraph inserted above a
 # cited one moves its text without changing it, and locate finds the exact
-# cited text in the new snapshot — `moved` names the token that now holds it,
+# cited text in the new snapshot — `moved` names the token that now holds it
+# (or, when a short heading merged into the chunk or a cut runs through the
+# words, the chunk holding them among more, or two adjoining tokens joined by
+# `;`, and the line says which),
 # `ambiguous` names several places (or a cell, whose value alone proves no
 # move), `gone` proposes nothing. It mints nothing; `--apply` writes the
 # moved tokens into the document's links (never by hand), and nothing else —
@@ -233,7 +236,8 @@ backdraft bind memo.md --check value-trace,overlap
                                             # report with session show's note.
 backdraft locate memo.md                    # after a re-ingest, where each
                                             # drifted citation's exact text
-                                            # stands now: moved (new token),
+                                            # stands now: moved (new token,
+                                            # or a;b across two chunks),
                                             # ambiguous (several places, or a
                                             # cell), gone. Mints nothing;
                                             # exit 0 whatever it finds.

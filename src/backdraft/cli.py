@@ -72,9 +72,9 @@ from .registry import (
     Ingested,
     Naming,
     Registry,
+    Relocation,
     citation_for,
-    current_with,
-    relocated,
+    relocate,
     withdrawn_reason,
 )
 
@@ -798,13 +798,12 @@ class _Located:
     claim: Claim
     cited: Anchor
     """The anchor the token names — in the superseded generation, since it drifted."""
-    found: tuple[Anchor, ...]
-    """Every current anchor of the same kind whose snippet hashes the same, in order."""
+    relocation: Relocation
+    """`registry.relocate`'s answer, the rule bind writes `moved_to` by."""
 
     @property
     def outcome(self) -> str:
-        """`registry.relocated`'s rule, the one bind writes `moved_to` by."""
-        return relocated(self.cited, self.found)
+        return self.relocation.outcome
 
 
 @app.command()
@@ -841,6 +840,11 @@ def locate(
     that text; `ambiguous`, naming the places it stands when there are several
     or when the citation is a cell, whose value alone does not say it moved; or
     `gone`, when the text was edited or removed and nothing stands in for it.
+    When a short heading merged into the cited chunk, or a cut now runs
+    through the cited words, the exact text stands nowhere and the words are
+    intact: the cited words standing whole inside one chunk, or across two
+    adjoining ones, are `moved` too, and the line says which; a span proposes
+    both tokens, `;`-separated.
 
     By default it proposes and never rewrites: nothing in the document, the
     registry or the ledger changes, and a new token is not minted by being
@@ -868,7 +872,10 @@ def locate(
         unseen = [
             token
             for token in dict.fromkeys(
-                item.found[0].token for item in located if item.outcome == MOVED
+                anchor.token
+                for item in located
+                if item.outcome == MOVED
+                for anchor in item.relocation.places[0]
             )
             if not registry.was_shown(session_id, token)
         ]
@@ -917,7 +924,9 @@ def _apply_moves(
     moves: dict[int, dict[str, str]] = {}
     for item in located:
         if item.outcome == MOVED:
-            moves.setdefault(index_of[id(item.claim)], {})[item.cited.token] = item.found[0].token
+            moves.setdefault(index_of[id(item.claim)], {})[item.cited.token] = (
+                item.relocation.token  # type: ignore[assignment]
+            )
     edits: list[tuple[int, int, str]] = []
     for index, swaps in moves.items():
         claim = raw_claims[index]
@@ -1011,30 +1020,33 @@ def _drifted(registry: Registry, claims: list[Claim]) -> list[_Located]:
             if resolution is None:  # pragma: no cover - drifted means it resolved
                 continue
             cited = resolution.anchor
-            located.append(_Located(claim, cited, tuple(current_with(registry, cited))))
+            located.append(_Located(claim, cited, relocate(registry, cited)))
     return located
 
 
 def _located_line(item: _Located) -> str:
     """A line item, `bind`'s shape: `! <outcome>: <token> — <detail> — <claim> @<offset>`."""
     outcome = item.outcome
+    relocation = item.relocation
     detail = ""
     if outcome == MOVED:
-        detail = f" — now at {item.found[0].token}"
+        detail = f" — now at {relocation.token}{_within(relocation)}"
     elif outcome == AMBIGUOUS:
         what = "text" if item.cited.kind in PROSE_KINDS else "value"
-        named = ", ".join(anchor.token for anchor in item.found[:PLACES_NAMED])
-        if len(item.found) == 1:
+        stands = f"the cited {what} stands"
+        if relocation.contained:
+            stands = "the cited words stand whole inside more text"
+        places = relocation.places
+        named = ", ".join(";".join(a.token for a in place) for place in places[:PLACES_NAMED])
+        if len(places) == 1:
             detail = (
                 f" — the cited value stands at {named}, and a value alone does not say "
                 "the cell moved"
             )
-        elif len(item.found) <= PLACES_NAMED:
-            detail = f" — the cited {what} stands at {len(item.found)} places: {named}"
+        elif len(places) <= PLACES_NAMED:
+            detail = f" — {stands} at {len(places)} places: {named}"
         else:
-            detail = (
-                f" — the cited {what} stands at {len(item.found)} places, among them {named}"
-            )
+            detail = f" — {stands} at {len(places)} places, among them {named}"
     return (
         f"  ! {outcome}: {item.cited.token}{detail} — "
         f"{claim_words(item.claim.text)} @{item.claim.start}"
@@ -1044,9 +1056,24 @@ def _located_line(item: _Located) -> str:
 def _applied_line(item: _Located) -> str:
     """A `moved` line once `--apply` has made its swap: `applied: <old> → <new> — <claim> @<offset>`."""
     return (
-        f"  applied: {item.cited.token} → {item.found[0].token} — "
+        f"  applied: {item.cited.token} → {item.relocation.token}{_within(item.relocation)} — "
         f"{claim_words(item.claim.text)} @{item.claim.start}"
     )
+
+
+def _within(relocation: Relocation) -> str:
+    """The qualifier a `moved` line carries when the cited words now stand among more.
+
+    Empty for an exact move, so that line is byte for byte what it always was.
+    Otherwise it says which of `current_within`'s two cases it is, since a
+    proposal of a chunk that holds more than was cited, or of two chunks, is a
+    different thing to accept than the same words at a new address.
+    """
+    if not relocation.contained:
+        return ""
+    if len(relocation.places[0]) == 1:
+        return ", whole inside a chunk that now holds more"
+    return ", across two adjoining chunks"
 
 
 def _locate_hints(

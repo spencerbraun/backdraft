@@ -25,7 +25,6 @@ import shlex
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..kernel.chunking import PARAGRAPH_BREAK
 from ..kernel.claims import parse_citation
 from ..kernel.errors import BackdraftError
 from ..kernel.hashing import normalize
@@ -37,7 +36,14 @@ from ..kernel.tokens import (
     format_locator,
     parse as parse_token,
 )
-from ..registry import MATCH_CLOSE, MATCH_OPEN, current_at, unmark, withdrawn_reason
+from ..registry import (
+    MATCH_CLOSE,
+    MATCH_OPEN,
+    current_at,
+    one_paragraph,
+    unmark,
+    withdrawn_reason,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -420,12 +426,12 @@ def adjoining(registry: Registry, anchors: Iterable[Anchor]) -> dict[str, Adjoin
             continue
         before = after = None
         if index > 0:
-            if _one_paragraph(text(slug, number), page[index - 1], page[index]):
+            if one_paragraph(text(slug, number), page[index - 1], page[index]):
                 before = page[index - 1]
         elif previous := on(slug, number - 1):
             before = previous[-1]
         if index + 1 < len(page):
-            if _one_paragraph(text(slug, number), page[index], page[index + 1]):
+            if one_paragraph(text(slug, number), page[index], page[index + 1]):
                 after = page[index + 1]
         elif following := on(slug, number + 1):
             after = following[0]
@@ -460,13 +466,6 @@ def adjoining_lines(anchor: Anchor, beside: Adjoining, *, indent: str = "") -> l
             f"{indent}  {excerpt(beside.after.receipt.snippet)}",
         ]
     return lines
-
-
-def _one_paragraph(text: str | None, left: Anchor, right: Anchor) -> bool:
-    """True when no blank line separates two chunks of one page."""
-    if text is None or left.end is None or right.start is None or left.end > right.start:
-        return False
-    return PARAGRAPH_BREAK.search(text[left.end : right.start]) is None
 
 
 def excerpt(snippet: str, matches: Sequence[tuple[int, int]] = ()) -> str:

@@ -34,7 +34,13 @@ from typing import Any, Iterable, Sequence
 from ..extract import ExtractedPage, base as extract_base
 from ..kernel import chunking
 from ..kernel.errors import BackdraftError, TokenError
-from ..kernel.hashing import TOKEN_HASH_LENGTHS, config_hash, content_hash, snippet_hash
+from ..kernel.hashing import (
+    TOKEN_HASH_LENGTHS,
+    config_hash,
+    content_hash,
+    normalize,
+    snippet_hash,
+)
 from ..kernel.claims import parse_citation
 from ..kernel.model import (
     Anchor,
@@ -63,6 +69,7 @@ __all__ = [
     "MOVED",
     "PROSE_KINDS",
     "UNCHANGED",
+    "Relocation",
     "Ingested",
     "Naming",
     "Registry",
@@ -73,8 +80,10 @@ __all__ = [
     "citation_for",
     "current_at",
     "current_with",
+    "current_within",
     "media_type_for",
-    "relocated",
+    "one_paragraph",
+    "relocate",
     "sanitize_sheet_name",
     "slug_for",
     "unmark",
@@ -399,39 +408,165 @@ def current_with(registry: "Registry", anchor: Anchor) -> list[Anchor]:
     ]
 
 
+def one_paragraph(text: str | None, left: Anchor, right: Anchor) -> bool:
+    """True when no blank line separates two chunks of one page's `text`.
+
+    The chunker splits on blank lines before anything else (chunking rule 1), so
+    two chunks with none between them are one paragraph that rule 3 cut for
+    length. Here rather than in the gate because two readers ask it — the gate's
+    `adjoining`, to say which chunks a hit runs on into, and `current_within`, to
+    find cited words a cut now straddles — and the dependency rule lets the gate
+    import the registry and not the other way round. A pair whose offsets are
+    unknown, or overlap, is not claimed to be one paragraph.
+    """
+    if text is None or left.end is None or right.start is None or left.end > right.start:
+        return False
+    return chunking.PARAGRAPH_BREAK.search(text[left.end : right.start]) is None
+
+
+def current_within(registry: "Registry", anchor: Anchor) -> list[tuple[Anchor, ...]]:
+    """Where a chunk's exact words stand inside more text in its document's current generation.
+
+    `current_with`'s fallback, for the two ways the chunker changes a chunk's
+    hash without touching a cited word: rule 2 merges a segment under
+    `MIN_CHARS` forward, so a short heading inserted directly above a paragraph
+    becomes part of its chunk, and rule 3 cuts a paragraph grown past `MAX_CHARS`
+    near a `TARGET_CHARS` multiple, so the cited words can straddle the cut. Each
+    place is one chunk whose normalized text contains the cited snippet's
+    normalized text, or two adjoining chunks — on one page with no blank line
+    between them (`one_paragraph`), or the last of one page and the first of the
+    next, the rule the gate's `adjoining` uses — that contain it joined by the
+    one space normalization would put between them and neither of which contains
+    it alone. Still exact: the words must stand whole and contiguous, beginning
+    and ending at a word edge, so a sentence edited by one figure is still found
+    nowhere.
+
+    Chunks only. A cell's snippet is a value, and a value found inside a longer
+    string proves nothing; a page's is the whole page. Read off `pages` and
+    `anchors_for_page` one document at a time, with no new index, so it costs a
+    pass over one document's current chunks — which is why `relocate` asks it
+    only after the indexed exact lookup found nothing. Every place is returned,
+    in page and ordinal order, and none is judged.
+    """
+    if anchor.kind != "chunk":
+        return []
+    cited = normalize(anchor.receipt.snippet)
+    if not cited:
+        return []
+    chunks: list[tuple[Page, list[Anchor]]] = [
+        (
+            page,
+            sorted(
+                (
+                    candidate
+                    for candidate in registry.anchors_for_page(anchor.slug, page.number)
+                    if candidate.kind == "chunk"
+                ),
+                key=lambda candidate: candidate.locator.ordinal,  # type: ignore[union-attr]
+            ),
+        )
+        for page in registry.pages(anchor.slug)
+    ]
+    texts = {
+        candidate.token: normalize(candidate.receipt.snippet)
+        for _, page_chunks in chunks
+        for candidate in page_chunks
+    }
+
+    def holds(text: str) -> bool:
+        at = text.find(cited)
+        while at != -1:
+            after = at + len(cited)
+            if (at == 0 or text[at - 1] == " ") and (after == len(text) or text[after] == " "):
+                return True
+            at = text.find(cited, at + 1)
+        return False
+
+    places: list[tuple[Anchor, ...]] = []
+    previous: tuple[Page, Anchor] | None = None
+    for page, page_chunks in chunks:
+        for index, candidate in enumerate(page_chunks):
+            if previous is not None:
+                before_page, before = previous
+                adjoins = (
+                    one_paragraph(page.text, before, candidate)
+                    if before_page.number == page.number
+                    else index == 0 and before_page.number + 1 == page.number
+                )
+                if (
+                    adjoins
+                    and not holds(texts[before.token])
+                    and not holds(texts[candidate.token])
+                    and holds(f"{texts[before.token]} {texts[candidate.token]}")
+                ):
+                    places.append((before, candidate))
+            if holds(texts[candidate.token]):
+                places.append((candidate,))
+            previous = (page, candidate)
+    return places
+
+
 MOVED = "moved"
-"""`relocated` outcome: the cited text stands, exactly, at one new place — a token proposed."""
+"""`relocate` outcome: the cited text stands, exactly, at one new place — a token proposed."""
 
 AMBIGUOUS = "ambiguous"
-"""`relocated` outcome: the cited text stands somewhere, and that is not evidence enough to
+"""`relocate` outcome: the cited text stands somewhere, and that is not evidence enough to
 propose one token — several places hold it, or it is a cell's value."""
 
 GONE = "gone"
-"""`relocated` outcome: the cited text stands nowhere in the current generation."""
+"""`relocate` outcome: the cited text stands nowhere in the current generation."""
 
 PROSE_KINDS = frozenset({"page", "chunk"})
 """Anchor kinds whose snippet is words, which identify a passage. A cell's is a value."""
 
 
-def relocated(cited: Anchor, found: Sequence[Anchor]) -> str:
-    """What `current_with`'s answer for a drifted anchor amounts to: moved, ambiguous, gone.
+@dataclass(frozen=True, slots=True)
+class Relocation:
+    """Where a drifted anchor's cited text stands now, and what that amounts to."""
 
-    Moved only on one exact match of words; the rest is not a proposal. Several
-    matches are a choice nothing here has a way to make, and a cell is a value —
-    an equal value at another address is as often a second fact that happens to
-    agree (two rates of 6.25%) as the same cell after a row was inserted, and
-    proposing it would rewrite provenance.
+    outcome: str
+    """`MOVED`, `AMBIGUOUS` or `GONE`."""
+    places: tuple[tuple[Anchor, ...], ...] = ()
+    """Each place the text stands: one anchor, or two adjoining chunks it runs across."""
+    contained: bool = False
+    """True when the places hold the cited words among more (`current_within`),
+    False when they hold exactly the cited snippet (`current_with`)."""
+
+    @property
+    def token(self) -> str | None:
+        """The proposal, when `MOVED`: one token, or two `;`-separated for a span."""
+        if self.outcome != MOVED:
+            return None
+        return ";".join(anchor.token for anchor in self.places[0])
+
+
+def relocate(registry: "Registry", cited: Anchor) -> Relocation:
+    """Where a drifted anchor's text stands now: moved, ambiguous, gone.
+
+    The exact snippet first (`current_with`, one indexed query), then — for a
+    chunk, and only when that found nothing — the cited words standing whole
+    inside one current chunk or across two adjoining ones (`current_within`),
+    since a heading merged in above or a cut through the middle changes a hash
+    and not a word. Moved only on one place holding words; the rest is not a
+    proposal. Several places are a choice nothing here has a way to make, and a
+    cell is a value — an equal value at another address is as often a second
+    fact that happens to agree (two rates of 6.25%) as the same cell after a row
+    was inserted, and proposing it would rewrite provenance.
 
     One owner for two readers: `locate` prints the outcome as advice, and
     `citation_for` puts a moved citation's new token on the record as
     `moved_to`, so the artifact and the command can never disagree about
     whether a drifted citation's words still stand.
     """
-    if not found:
-        return GONE
-    if len(found) == 1 and cited.kind in PROSE_KINDS:
-        return MOVED
-    return AMBIGUOUS
+    found = current_with(registry, cited)
+    if found:
+        places = tuple((anchor,) for anchor in found)
+        moved = len(found) == 1 and cited.kind in PROSE_KINDS
+        return Relocation(MOVED if moved else AMBIGUOUS, places)
+    within = tuple(current_within(registry, cited))
+    if not within:
+        return Relocation(GONE)
+    return Relocation(MOVED if len(within) == 1 else AMBIGUOUS, within, contained=True)
 
 
 def withdrawn_reason(document: Document) -> str:
@@ -470,8 +605,9 @@ def citation_for(
     the reserved `bd:calc(...)` form lands identically everywhere; `drifted`
     carries the superseded snippet in `drifted_from` and the anchor standing at
     that locator now (or, when the locator itself is gone, the cited one, so the
-    two sides of the diff agree), plus `moved_to` when `relocated` says the cited
-    words stand unchanged at one new place, so the diff is not drawn against a
+    two sides of the diff agree), plus `moved_to` when `relocate` says the cited
+    words stand unchanged at one new place — the same snippet, or the whole of
+    it inside one chunk that now holds more — so the diff is not drawn against a
     paragraph that merely took over their address. `not_shown` is the fifth, and only with a
     `session_id`: a `resolved` token that session was never shown comes back
     `not_shown` with the same anchor. It is a fact about a ledger session rather
@@ -516,14 +652,26 @@ def citation_for(
         if session_id is not None and not registry.was_shown(session_id, token):
             return Citation(token=token, status=CitationStatus.NOT_SHOWN, anchor=anchor)
         return Citation(token=token, status=CitationStatus.RESOLVED, anchor=anchor)
-    found = current_with(registry, anchor)
     return Citation(
         token=token,
         status=CitationStatus.DRIFTED,
         anchor=current_at(registry, anchor) or anchor,
         drifted_from=anchor.receipt.snippet,
-        moved_to=found[0].token if relocated(anchor, found) == MOVED else None,
+        moved_to=_moved_to(relocate(registry, anchor)),
     )
+
+
+def _moved_to(relocation: Relocation) -> str | None:
+    """A moved citation's `moved_to`: the one token whose chunk holds the cited words.
+
+    A span across two adjoining chunks writes none. The key is one token in the
+    artifact format (spec/artifact.md), and a `;`-separated pair in it would be a
+    second meaning of a pinned key that a consumer reading it as one token would
+    get wrong; `locate` still proposes the pair.
+    """
+    if relocation.outcome != MOVED or len(relocation.places[0]) != 1:
+        return None
+    return relocation.places[0][0].token
 
 
 class Registry:

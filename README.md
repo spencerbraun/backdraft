@@ -457,6 +457,25 @@ edited or removed, here a tax figure revised from $412,300, and nothing is
 proposed for it — matching is exact on purpose, because a near match offered as
 a move would rewrite provenance.
 
+The chunker can change a chunk's hash without changing a word, and `locate`
+looks for that too, still exactly. A heading under 200 characters inserted
+directly above a cited paragraph merges into its chunk, and a paragraph that
+grows past 2,400 characters is cut near 1,200, perhaps through the cited
+words. When the exact snippet stands nowhere, `locate` looks for the cited
+words standing whole inside one current chunk, or across two adjoining ones
+(one paragraph the chunker cut, or the two sides of a page break), and says
+which:
+
+```console
+  ! moved: bd:q3-letter:p1.c2:d140 — now at bd:q3-letter:p1.c2:5e01, whole inside a chunk that now holds more — 1.42x @84
+  ! moved: bd:q3-letter:p1.c3:00ce — now at bd:q3-letter:p1.c3:91aa;bd:q3-letter:p1.c4:07b2, across two adjoining chunks — taxes of $412,300 @122
+```
+
+The second proposes both tokens, `;`-separated, the way a claim cites a passage
+spanning two chunks, and `--apply` writes the pair into the link. Several
+chunks holding the words are `ambiguous`, and a cell is never matched this way:
+a value found inside a longer one proves nothing.
+
 By default it proposes and never rewrites: the document, the registry and the
 ledger are untouched. `--apply` makes the swap for you, in the document only —
 each moved citation's old token becomes its new one inside that claim's link,
@@ -482,10 +501,13 @@ a token printed or written here was never shown to your session, so run the
 re-bind. Exit 0 whatever it finds: `bind` is the check.
 
 The record learns the same thing without anyone running `locate`. When `bind`
-finds a drifted citation's words standing unchanged at one place, it writes that
+finds a drifted citation's words standing unchanged at one place — the same
+snippet, or the whole of it inside one chunk that now holds more — it writes that
 token on the citation as `moved_to`, and the artifact's card says the cited
 words stand unchanged there instead of word-diffing them against whatever
-paragraph took over their old address. The status is still `drifted` — the
+paragraph took over their old address. A span across two chunks writes none,
+because `moved_to` is one token in the artifact format; `locate` still proposes
+the pair. The status is still `drifted` — the
 token still names a superseded snapshot — so the swap is still yours to make.
 
 ## Forgetting a source

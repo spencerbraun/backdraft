@@ -101,7 +101,7 @@ def test_drift_swaps_in_the_current_generations_snippet(tmp_path, fake_bind_regi
 def test_drifted_words_standing_unchanged_at_one_new_place_carry_moved_to(
     tmp_path, fake_bind_registry
 ) -> None:
-    """`relocated`'s rule on the record, and through the verifiers' rebuild too."""
+    """`relocate`'s rule on the record, and through the verifiers' rebuild too."""
     cited = token(fake_bind_registry, "t12-audit", "p9.c1")
     fake_bind_registry.add_anchor("t12-audit", "p9.c1", "A paragraph inserted above.", page_number=9)
     moved = fake_bind_registry.add_anchor("t12-audit", "p9.c2", DRIFTED_SNIPPET, page_number=9)

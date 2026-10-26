@@ -129,7 +129,7 @@ MUST fall back to locating the claim by its `text`.
 | `status` | string | one of the five statuses below |
 | `anchor` | object | present when an anchor was found |
 | `drifted_from` | string | present when `status` is `drifted`: the snippet as cited |
-| `moved_to` | string | OPTIONAL, only beside `drifted_from`: the token of the one place in the current extraction where the cited words stand unchanged |
+| `moved_to` | string | OPTIONAL, only beside `drifted_from`: the token of the one place in the current extraction where the cited words stand unchanged — one token, never a `;`-separated list |
 | `error` | string | why the status happened, where the status alone does not say: a `malformed` token's parse failure, or an `unresolved` one whose source was withdrawn |
 | `verdicts` | array | one entry per verification method that ran; always present, may be empty |
 
@@ -189,9 +189,16 @@ both; the difference is the finding.
 or a chunk when the cited snippet's normalized hash matches exactly one anchor
 of the same kind in the source's current extraction, and it is that anchor's
 token: the words did not change, their address did — a passage inserted or
-removed above them renumbered the chunks. `anchor.snippet` is then an unrelated
-passage that took over the old address, and a renderer MUST NOT present it as
-an edit of the cited words; it says where they stand and shows `drifted_from`
+removed above them renumbered the chunks. For a chunk whose snippet matches no
+anchor, a producer MAY also write it when the cited snippet's normalized text
+stands whole — contiguous, beginning and ending at a word edge — inside exactly
+one current chunk's normalized text: a segment shorter than the chunker's
+minimum merged into the cited one (spec/chunking.md rule 2), so the words stand
+unchanged among more. Words that stand only across two chunks carry no
+`moved_to`, since the key names one token. `anchor.snippet` is then whatever
+took over the old address — an unrelated passage, or, when a merge left the
+locator in place, the chunk that holds the cited words among more — and a
+renderer MUST NOT present it as an edit of the cited words; it says where they stand and shows `drifted_from`
 once. Several matches, no match, and every cell citation (a value at another
 address is not evidence the cell moved) carry no `moved_to`. The status stays
 `drifted`, because the token still names a superseded snippet, and the receipt
