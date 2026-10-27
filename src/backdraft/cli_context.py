@@ -149,14 +149,43 @@ def _either_form(home: Path) -> Path:
     return home.parent if home.name == DIRECTORY else home
 
 
-def open_registry(start: Path | None = None) -> Registry:
-    """Open the discovered registry, or raise `UsageError` for `guard` to report."""
+def open_registry(start: Path | None = None, *, document: Path | None = None) -> Registry:
+    """Open the discovered registry, or raise `UsageError` for `guard` to report.
+
+    `document` is the file a walk from its directory was started for — `bind`'s
+    and `locate`'s — and is only ever wording. A walk from cwd that finds nothing
+    says what it always said. A walk from anywhere else names where it searched
+    and the document that sent it there, because "this directory" reads as cwd:
+    a draft kept beside its project was told there was no registry in the one
+    directory that visibly had one, and `backdraft init` was wrong advice both
+    ways — in cwd it reports the registry already there, and beside the draft it
+    makes an empty one every citation then binds `unresolved` against. When the
+    walk from cwd would have found a registry, the refusal names it and the two
+    ways to connect them instead, and never falls back to it: discovery infers
+    nothing (DESIGN 2026-09-15), and a registry the draft is not under is exactly
+    the link the caller has to state.
+    """
     root = find_root(start)
-    if root is None:
+    if root is not None:
+        return Registry.open(root)
+    here = Path.cwd().resolve()
+    searched = (start or here).resolve()
+    if searched == here:
         raise UsageError(
             f"no {DIRECTORY}/ found in this directory or any parent; run `backdraft init`"
         )
-    return Registry.open(root)
+    origin = f"{searched}, where {document} is," if document is not None else str(searched)
+    nearby = find_root(here)
+    if nearby is None:
+        raise UsageError(
+            f"no {DIRECTORY}/ found in {origin} or any parent; run "
+            f"`backdraft init <project root>` for the project it belongs under"
+        )
+    raise UsageError(
+        f"no {DIRECTORY}/ found in {origin} or any parent; the registry at {nearby} "
+        f"does not cover it — move the document under {nearby}, or run with "
+        f"{HOME_ENV}={shlex.quote(str(nearby))}"
+    )
 
 
 def resolve_session(session: str | None = None, registry: Registry | None = None) -> str:
@@ -230,14 +259,16 @@ def guard(code: int = EXIT_USAGE) -> Iterator[None]:
 
 
 @contextmanager
-def opened_registry(start: Path | None = None) -> Iterator[Registry]:
+def opened_registry(
+    start: Path | None = None, *, document: Path | None = None
+) -> Iterator[Registry]:
     """The discovered registry, guarded and always closed.
 
     The shape almost every command wants: discovery failures and domain errors
     raised in the body both become exit 1, and the connection closes either way.
     """
     with guard():
-        registry = open_registry(start)
+        registry = open_registry(start, document=document)
         try:
             yield registry
         finally:

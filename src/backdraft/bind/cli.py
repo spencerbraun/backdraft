@@ -176,7 +176,7 @@ def bind(
         # opens, not a decode error the `--check` handler below happens to catch.
         authored_text(doc)
         checks = [name.strip() for name in (check or "").split(",") if name.strip()]
-        registry = open_registry(doc.resolve().parent)
+        registry = open_registry(doc.resolve().parent, document=doc)
         session_id = resolve_session(session, registry)
         try:
             report = run_bind(

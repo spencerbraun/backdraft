@@ -39,6 +39,14 @@ discovering it mid-job. Installing an extra or setting a key is the user's
 call — relay it, do not do it. A missing registry is the one gap every verb
 stops on, and `backdraft init` is its fix.
 
+**Keep the draft under its project.** `bind` and `locate` find the registry by
+walking up from the document's directory, not from where you run them, so a
+draft saved beside the project (`../drafts/memo.md`) finds none and is refused
+with the registry that does not cover it named. Save the draft inside the
+project, or name the project for the whole shell with
+`export BACKDRAFT_HOME=<project root>`. Do not `backdraft init` next to the
+draft: that makes an empty registry and every citation binds `unresolved`.
+
 **Start a session and export it.** It is skippable and skipping it costs the
 system's strongest check. Without one, every run in the project reads into a
 single shared ledger that is never reset, so `not_shown` stops meaning "this

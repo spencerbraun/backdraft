@@ -26,7 +26,7 @@ def fake_bind_registry(monkeypatch) -> FakeAnchorRegistry:
     fake = FakeAnchorRegistry()
     fake.add_anchor("t12-audit", "p8.c3", SNIPPET, page_number=8)
     fake.add_document("t12-audit", "T12 Audit.pdf")
-    monkeypatch.setattr(bind_cli, "open_registry", lambda start=None: fake)
+    monkeypatch.setattr(bind_cli, "open_registry", lambda start=None, *, document=None: fake)
     return fake
 
 

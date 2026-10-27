@@ -32,46 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. A draft outside its project is told there is no registry, about the wrong directory
-
-**Intent.** `bind` and `locate` find the registry from the document's directory
-(SPEC § CLI), and when that walk finds nothing `cli_context.open_registry`
-refuses with `no .backdraft/ found in this directory or any parent; run backdraft
-init` — where "this directory" reads as cwd. Checked on 2026-09-18: from inside
-the demo project, `backdraft bind ../elsewhere/memo.md`, a draft kept beside the
-project in a common layout, says there is no registry in the one directory that
-visibly has one. The advice is wrong twice over. `init` in cwd reports the
-registry that already exists, and `init` beside the draft makes an empty one,
-after which every citation binds `unresolved` and the agent concludes its tokens
-are bad.
-
-**Shape.** `open_registry(start)` owns the wording. When the walk started
-somewhere other than cwd, the refusal names that directory and the document it
-came from. When the walk from cwd would have found a registry, it says so and
-names the two ways to connect them — move the draft under that project, or run
-with `BACKDRAFT_HOME=<root>` — and drops `backdraft init`, which is the wrong fix
-there. It never falls back to cwd's registry: discovery infers nothing
-(2026-09-15), and a registry the draft is not under is exactly the case to
-refuse. `backdraft init` stays where no walk found anything, the fresh-project
-case it was written for, and every refusal whose walk started at cwd — every gate
-command — prints what it prints today, pinned. Not a `bind --against`: whether
-`bind` should take a named registry the way `verify` does is a separate decision,
-and the DESIGN row says why the environment variable is enough for now or queues
-the flag.
-
-**Acceptance.** From inside `demo/`, `backdraft bind ../elsewhere/memo.md` and
-`backdraft locate ../elsewhere/memo.md` exit 1 naming the directory they searched
-from, naming the demo project's root as a registry that does not cover the draft,
-and naming `BACKDRAFT_HOME`, without mentioning `backdraft init`; with
-`BACKDRAFT_HOME` set to the demo, the same bind runs. From a directory with no
-registry anywhere above it, `backdraft read` and `backdraft bind memo.md` print
-today's message byte for byte. None of these runs creates a `.backdraft/`
-anywhere, asserted. `skills/backdraft/SKILL.md` and `site/llms.txt` say a draft
-must live under its project or name it with `BACKDRAFT_HOME`. DESIGN row.
-
-**Size.** One day.
-
-### 2. After a re-ingest, nothing says which drafts cite the source that moved
+### 1. After a re-ingest, nothing says which drafts cite the source that moved
 
 **Intent.** `ingest`'s new-generation note says citations "may now report
 `drifted`", that `bind` on a document citing the source says which, and names
@@ -112,7 +73,7 @@ the note names the drafts. DESIGN row.
 
 **Size.** Two days.
 
-### 3. `render` ships a draft edited after `bind` as if the record had judged it
+### 2. `render` ships a draft edited after `bind` as if the record had judged it
 
 **Intent.** `render` reads two files, the draft and the record `bind` wrote for
 it, and never checks that they still describe the same text. Checked on
@@ -147,7 +108,7 @@ refuses a draft edited since bind. DESIGN row.
 
 **Size.** One to two days.
 
-### 4. An older backdraft reads a newer registry as if what it does not know were not there
+### 3. An older backdraft reads a newer registry as if what it does not know were not there
 
 **Intent.** The registry travels with the project folder — the documented answer
 to a sandbox that cannot reach the vision model is to ingest locally and hand the
@@ -182,7 +143,7 @@ DESIGN row.
 
 **Size.** One to two days.
 
-### 5. `ingest` reports per source in columns an agent has to scrape
+### 4. `ingest` reports per source in columns an agent has to scrape
 
 **Intent.** `bind` and `verify` gained `--json` (2026-09-14) because their output
 is read by agents and every wording fix silently broke a parser. `ingest` is the
@@ -216,7 +177,7 @@ is byte-identical, pinned. `site/llms.txt`, `skills/backdraft/SKILL.md`,
 
 **Size.** Two days.
 
-### 6. `forget` asks for confirmation without saying which drafts it will break
+### 5. `forget` asks for confirmation without saying which drafts it will break
 
 **Intent.** `forget` is the one command that takes something away, so it asks
 first, and what it says is general: a token already written into a draft still
@@ -250,7 +211,7 @@ the drafts.
 
 **Size.** One day, two if it lands the records reader.
 
-### 7. `doctor` is read by agents and prints only columns
+### 6. `doctor` is read by agents and prints only columns
 
 **Intent.** The writing skill's first instruction is now "Run `backdraft doctor`
 before you promise anything" and plan from its `missing` lines. An agent does
@@ -278,7 +239,7 @@ name the flag.
 
 **Size.** One day.
 
-### 8. A `not_shown` cleared by `show` after `bind` reads like a citation read before writing
+### 7. A `not_shown` cleared by `show` after `bind` reads like a citation read before writing
 
 **Intent.** `not_shown` is the one status that says the author cited a passage
 they never read, and it clears by being shown: `bind` flags it, the agent runs
@@ -320,7 +281,7 @@ and says to re-judge each claim it lists. DESIGN row.
 
 **Size.** One to two days.
 
-### 9. `verify`'s `next: not_shown` tells an auditor to mint into the author's session
+### 8. `verify`'s `next: not_shown` tells an auditor to mint into the author's session
 
 **Intent.** Since 2026-10-14 `verify` re-checks `not_shown` against the session
 the record names, and its report closes with `cli_context.NEXT_MOVES`' line for
@@ -353,7 +314,7 @@ than running them" for this case. DESIGN row amending 2026-10-14's.
 
 **Size.** One day.
 
-### 10. `verify --json` carries the finding and not the move
+### 9. `verify --json` carries the finding and not the move
 
 **Intent.** `bind` and `verify` reports end with `next:` lines (2026-10-14), and
 both `--json` forms carry none of it, by design for `bind`, whose `--json` is
@@ -383,7 +344,7 @@ the object is byte-identical, pinned against the existing JSON tests. SPEC
 
 **Size.** One day.
 
-### 11. A search hit on a long page points at the whole page
+### 10. A search hit on a long page points at the whole page
 
 **Intent.** Every search result block closes with `[Read the page: backdraft
 read <slug> p<n>]`, and `show` does the same. On a 57-chunk web page that is
@@ -417,7 +378,7 @@ hint. DESIGN row.
 
 **Size.** One day.
 
-### 12. A web page saved by hand ingests as a file and loses the address it came from
+### 11. A web page saved by hand ingests as a file and loses the address it came from
 
 **Intent.** The 2026-08-05 row made a URL provenance, not identity: a fetched
 page is identified by its snapshot and named everywhere by its URL. An agent
@@ -456,7 +417,7 @@ from the fixture are identical with and without `--origin`, diffed. SPEC
 
 **Size.** Two to three days.
 
-### 13. `show` on a drifted token prints the passage that took over its address as `now`, and never says the cited words only moved
+### 12. `show` on a drifted token prints the passage that took over its address as `now`, and never says the cited words only moved
 
 **Intent.** `backdraft show <token>` is the first command an agent reaches for
 when `bind` says `drifted`, and its block prints `cited:` then `now [<token>]:`
@@ -483,8 +444,8 @@ snippet verbatim, so the session has been shown it — which is what lets a
 writer go `show` → `locate --apply` → `bind` clean with no further `show`. The
 DESIGN row says so, and says why `ambiguous` and `gone` add nothing (several
 places is a choice `locate` lays out; nowhere is today's block exactly). The
-`DRIFT_HINT` keeps its `<doc.md>` placeholder — item 2 in this queue is what
-replaces it — but when every drifted token the run printed carried a move, the
+`DRIFT_HINT` keeps its `<doc.md>` placeholder — item 1, on which drafts cite a
+moved source, replaces it — but when every drifted token the run printed carried a move, the
 hint names `locate <doc.md> --apply`. A sentence edited in place, and every
 cell citation, print today's block byte for byte. Exit codes do not move.
 
@@ -501,7 +462,7 @@ bullet say what the line means. DESIGN row.
 
 **Size.** One day.
 
-### 14. `bind` knows which drifted citations only moved and reports none of it
+### 13. `bind` knows which drifted citations only moved and reports none of it
 
 **Intent.** Since 2026-10-21 `citation_for` writes `moved_to` on every drifted
 citation whose words stand unchanged at one place, so the record knows, the
@@ -542,7 +503,7 @@ at`. `bind --json` on both is unchanged against the current output, and
 
 **Size.** One day.
 
-### 15. `ingest --dry-run` says a PDF would go to the vision model and not how many pages that is
+### 14. `ingest --dry-run` says a PDF would go to the vision model and not how many pages that is
 
 **Intent.** The 2026-10-19 row put the extractor on the dry run's line because
 it is the one fact there that can cost money, and the note says `vlm` is a
@@ -581,7 +542,7 @@ amending 2026-10-19.
 
 **Size.** One day.
 
-### 16. A source re-ingested from where it moved to keeps the registry's old path, and every hint that names the path names a file that is gone
+### 15. A source re-ingested from where it moved to keeps the registry's old path, and every hint that names the path names a file that is gone
 
 **Intent.** Identity is the bytes (2026-08-05), so re-ingesting an unchanged
 file from a new path is a no-op: `Registry.ingest` finds the document by
@@ -620,7 +581,7 @@ names where the file was last seen. DESIGN row.
 
 **Size.** One day.
 
-### 17. `search` and the table of contents never say which hits or chunks this session was already shown
+### 16. `search` and the table of contents never say which hits or chunks this session was already shown
 
 **Intent.** `session show --in` (2026-10-20) answers coverage per document, but
 the moment an agent actually chooses what to read next is a `search` block of

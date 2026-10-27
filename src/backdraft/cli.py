@@ -866,7 +866,7 @@ def locate(
         source = authored_text(doc)
         original = doc.read_bytes() if apply else b""
     session_id = resolve_session(session)
-    with opened_registry(doc.resolve().parent) as registry:
+    with opened_registry(doc.resolve().parent, document=doc) as registry:
         claims = parse_claims(source)
         located = _drifted(registry, claims)
         unseen = [
