@@ -12,6 +12,7 @@ belongs here.
 
 from __future__ import annotations
 
+from .records import CitingDraft, RecordScan, scan_records
 from .store import (
     AMBIGUOUS,
     CREATED,
@@ -57,8 +58,10 @@ __all__ = [
     "MOVED",
     "PROSE_KINDS",
     "UNCHANGED",
+    "CitingDraft",
     "Ingested",
     "Naming",
+    "RecordScan",
     "Registry",
     "RegistryError",
     "Relocation",
@@ -73,6 +76,7 @@ __all__ = [
     "one_paragraph",
     "relocate",
     "sanitize_sheet_name",
+    "scan_records",
     "slug_for",
     "unmark",
     "withdrawn_reason",

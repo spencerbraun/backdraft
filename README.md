@@ -457,6 +457,16 @@ edited or removed, here a tax figure revised from $412,300, and nothing is
 proposed for it — matching is exact on purpose, because a near match offered as
 a move would rewrite provenance.
 
+You do not have to remember which drafts cite the source. When `ingest` makes a
+new generation, its note names each draft in the project whose last bind cited
+that source — read from the records `bind` keeps under `.backdraft/records/` —
+with the `locate` to run for it, and `show` on a drifted token closes the same
+way:
+
+```console
+note: as last bound, 1 draft cites q3-letter — run `backdraft locate memo.md` to see which of its citations drifted and where their words stand now.
+```
+
 The chunker can change a chunk's hash without changing a word, and `locate`
 looks for that too, still exactly. A heading under 200 characters inserted
 directly above a cited paragraph merges into its chunk, and a paragraph that

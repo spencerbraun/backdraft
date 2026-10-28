@@ -79,7 +79,11 @@ Read each source's line: it ends with how much text came out, and with what
 token into it still stands. `new generation` means the bytes moved since the
 last ingest, so citations written against the previous snapshot may now be
 `drifted`; re-bind and act on what it says, do not assume — and where it says
-`drifted`, `backdraft locate <doc.md>` is the next command (below). A bare line
+`drifted`, `backdraft locate <doc.md>` is the next command (below). The note
+under a new generation names each draft in this project whose last bind cited
+that source, with the exact `backdraft locate` to run for it — run each one
+rather than guessing which drafts are affected; a draft you have edited since
+its last bind may cite more or less than the note says. A bare line
 is a document that did not exist before. When almost no text came out, ingest
 prints a `note: little text extracted` line naming the likely cause — that note,
 not your own judgement, is the signal that a source came back as a shell.

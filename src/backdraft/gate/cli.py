@@ -28,6 +28,8 @@ from ..cli_context import (
     DEFAULT_SESSION,
     EXIT_USAGE,
     SESSION_ENV,
+    as_typed,
+    citing_drafts,
     opened_registry,
     resolve_session,
 )
@@ -165,7 +167,8 @@ def show(
     else's message, when the question is what it actually cites. Statuses are
     bind's: `resolved`, `drifted` (both snippets print: what was cited, and what
     stands at that locator now — after an edit above it, a different passage,
-    so `backdraft locate <doc.md>` is what finds where the cited text went),
+    so `backdraft locate` is what finds where the cited text went, and the run
+    names it for each draft in this project citing that source, as last bound),
     `unresolved`, `malformed`. Showing is minting, so a snippet shown here is
     citable.
 
@@ -175,7 +178,13 @@ def show(
     session_id = resolve_session(session)
     with opened_registry() as registry:
         shown = show_tokens(
-            registry, tokens, session=session_id, session_flag=_typed(session)
+            registry,
+            tokens,
+            session=session_id,
+            session_flag=_typed(session),
+            citing=lambda slugs: [
+                str(as_typed(draft.path)) for draft in citing_drafts(registry, slugs)[0]
+            ],
         )
         typer.echo(shown.text)
     if not shown.complete:

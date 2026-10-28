@@ -38,7 +38,9 @@ from .cli_context import (
     HOME_ENV,
     SESSION_ENV,
     UsageError,
+    as_typed,
     authored_text,
+    citing_drafts,
     claim_words,
     fail,
     find_root,
@@ -57,7 +59,15 @@ from .extract import snapshots, vlm_gap, vlm_ready
 # needed it. All are downward imports, which SPEC § Dependency rule spells "`cli`
 # imports everything"; the mount guard below is about sub-*apps*, and `gate`
 # itself does not need typer.
-from .gate import WITHDRAWN_HINT, extracted_chars, session_argument, thin_mark, unit
+from .gate import (
+    HANDFUL,
+    WITHDRAWN_HINT,
+    extracted_chars,
+    locate_command,
+    session_argument,
+    thin_mark,
+    unit,
+)
 from .kernel.claims import parse_claims
 from .kernel.errors import BackdraftError
 from .kernel.model import Anchor, CitationStatus, Claim, Document, Page, source_name
@@ -69,6 +79,7 @@ from .registry import (
     MOVED,
     PROSE_KINDS,
     UNCHANGED,
+    CitingDraft,
     Ingested,
     Naming,
     Registry,
@@ -435,7 +446,9 @@ def ingest(
     Each source that lands prints its slug, its name, its media type, its page
     count and how much text came out — plus `unchanged` when re-running produced
     a no-op, or `new generation` when the bytes moved, which is when citations
-    into the previous snapshot can start reporting `drifted`. A source almost no
+    into the previous snapshot can start reporting `drifted` — and a note then
+    names each draft in the project whose last bind cited it, with the
+    `backdraft locate` to run for it. A source almost no
     text came out of gets a note naming the likely cause, at exit 0: a thin
     snapshot is still a real one.
 
@@ -543,6 +556,9 @@ def ingest(
                                 unsnapshot.setdefault(str(error), []).append(document.slug)
                 except BackdraftError as error:
                     unread.append((source, str(error)))
+            # Read while the registry is open, because the records it walks are
+            # this project's; only a run that made a new generation pays for it.
+            citing = citing_drafts(registry, regenerated) if regenerated else ((), 0)
     # One line per distinct reason — which is one line, unless a machine
     # without poppler is somehow also holding an unrenderable PDF.
     for reason, slugs in unsnapshot.items():
@@ -611,6 +627,9 @@ def ingest(
             "where each drifted citation's text stands now, and names the new token "
             "wherever the text only moved."
         )
+        drafts, skipped = citing
+        if drafts or skipped:
+            typer.echo(_citing_note(drafts, skipped, set(regenerated)))
     if unread:
         # Last, and it carries the exit code: everything above is what landed.
         fail(
@@ -625,6 +644,53 @@ def ingest(
                 ),
             )
         )
+
+
+def _citing_note(
+    drafts: tuple[CitingDraft, ...], skipped: int, regenerated: set[str]
+) -> str:
+    """Which drafts cite a source that just gained a generation, as last bound.
+
+    The new-generation note above says drift may have happened; this says
+    where, from the records every rooted bind leaves under
+    `.backdraft/records/`, each with the `locate` that answers it. A draft
+    citing only some of several regenerated sources says which. Records
+    reflect each draft's last bind, not its current text — said on the line,
+    since an agent may have edited a draft since. A record that could not be
+    read is counted, so a short list is never mistaken for a complete one.
+    """
+    def named(draft: CitingDraft) -> str:
+        command = f"`{locate_command(str(as_typed(draft.path)))}`"
+        cited = regenerated & draft.citations.keys()
+        if cited == regenerated:
+            return command
+        return f"{command} ({', '.join(sorted(cited))})"
+
+    sources = ", ".join(sorted(regenerated))
+    if not drafts:
+        line = "note: as last bound, no draft in this project cites " + sources
+    else:
+        shown = [named(draft) for draft in drafts[:HANDFUL]]
+        rest = len(drafts) - HANDFUL
+        if rest > 0:
+            shown.append(f"{rest} more")
+        commands = shown[0] if len(shown) == 1 else (
+            ", ".join(shown[:-1]) + " and " + shown[-1]
+        )
+        cites = "cites" if len(drafts) == 1 else "cite"
+        whose = "its" if len(drafts) == 1 else "their"
+        line = (
+            f"note: as last bound, {len(drafts)} draft{'s' if len(drafts) > 1 else ''} "
+            f"{cites} {sources} — run {commands} to see which of {whose} citations "
+            "drifted and where their words stand now"
+        )
+    if skipped:
+        line += (
+            f" ({skipped} record{'s' if skipped > 1 else ''} under "
+            "`.backdraft/records/` could not be read and "
+            f"{'were' if skipped > 1 else 'was'} skipped, so this may be short)"
+        )
+    return line + "."
 
 
 def _report_naming(

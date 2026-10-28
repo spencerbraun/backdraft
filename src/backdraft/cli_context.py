@@ -30,7 +30,7 @@ import typer
 from .kernel.artifact import DEFAULT_SESSION
 from .kernel.errors import BackdraftError
 from .kernel.model import CitationStatus
-from .registry import DIRECTORY, Registry
+from .registry import DIRECTORY, CitingDraft, Registry, scan_records
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterator
@@ -49,6 +49,7 @@ __all__ = [
     "UsageError",
     "as_typed",
     "authored_text",
+    "citing_drafts",
     "claim_words",
     "fail",
     "find_root",
@@ -292,6 +293,20 @@ def as_typed(path: Path) -> Path:
         return path.relative_to(Path.cwd().resolve())
     except ValueError:
         return path
+
+
+def citing_drafts(
+    registry: Registry, slugs: Collection[str]
+) -> tuple[tuple[CitingDraft, ...], int]:
+    """The drafts whose records cite any of `slugs`, and how many records were skipped.
+
+    One owner for the walk `ingest`'s new-generation note and `show`'s drift
+    hint both make, over the project the registry was opened for. Paths come
+    back absolute; a caller prints them through `as_typed`.
+    """
+    root = getattr(registry, "root", None)
+    scan = scan_records(Path(root).resolve() if root is not None else None)
+    return scan.citing(frozenset(slugs)), scan.skipped
 
 
 CLAIM_WIDTH = 80

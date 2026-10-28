@@ -46,7 +46,7 @@ from ..registry import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Callable, Iterable, Sequence
 
     from ..kernel.model import Anchor, Document, Page
     from ..registry.store import Registry
@@ -62,12 +62,15 @@ __all__ = [
     "DEFAULT_SESSION_NOTE",
     "DRIFT_HINT",
     "EARLIER_GENERATION_NOTE",
+    "HANDFUL",
     "EXCERPT_CHARS",
     "GRAMMAR_HINT",
     "LIST_HINT",
     "THIN_SOURCE_CHARS",
     "TOC_PREVIEW_CHARS",
     "WITHDRAWN_HINT",
+    "drift_commands",
+    "locate_command",
     "WITHDRAWN_SESSION_NOTE",
     "Selection",
     "Shown",
@@ -110,7 +113,7 @@ from."""
 DRIFT_HINT = (
     "[`now` is what stands at the cited locator today, which after an edit above it "
     "can be a different passage. To find where the cited text itself went: "
-    "backdraft locate <doc.md>{session}]"
+    "{commands}]"
 )
 """Closes a `show` that printed a `drifted` token's two sides.
 
@@ -119,9 +122,39 @@ The block labels its second snippet `now` and mints its token, which reads as
 exactly wrong when a paragraph inserted above moved the cited words down a
 chunk, since what stands at the old address is then someone else's paragraph.
 `locate` answers the second case (2026-09-17), and this is where a caller who
-reached `show` from `bind`'s line item learns that it exists. `{session}` is
-`session_argument`'s, because `locate` reads the ledger it is given.
+reached `show` from `bind`'s line item learns that it exists. `{commands}` is
+`drift_commands`': the `locate` for each draft whose record cites the drifted
+slug, or the `<doc.md>` placeholder when no record does, since `show` is handed
+a token and never a document.
 """
+
+HANDFUL = 5
+"""How many drafts a note or hint names by command before it counts the rest.
+
+Shared by `ingest`'s new-generation note and `show`'s drift hint, which name the
+same drafts from the same records: enough to cover a working project, few enough
+that the line stays a line."""
+
+
+def locate_command(draft: str, session: str = "") -> str:
+    """`backdraft locate <draft>`, shell-quoted, with `session_argument`'s tail."""
+    return f"backdraft locate {shlex.quote(draft)}{session}"
+
+
+def drift_commands(drafts: Sequence[str], session: str = "") -> str:
+    """What `DRIFT_HINT` names: the `locate` per citing draft, or the placeholder.
+
+    Drafts come from the project's records, which reflect each draft's last bind
+    rather than its current text, so the wording says "as last bound". Past
+    `HANDFUL` the rest are counted, not named.
+    """
+    if not drafts:
+        return f"backdraft locate <doc.md>{session}"
+    named = "; ".join(locate_command(draft, session) for draft in drafts[:HANDFUL])
+    rest = len(drafts) - HANDFUL
+    more = f"; and {rest} more" if rest > 0 else ""
+    who = "the draft" if len(drafts) == 1 else f"the {len(drafts)} drafts"
+    return f"{named}{more} ({who} citing it, as last bound)"
 
 WITHDRAWN_HINT = "Re-ingest it to bring it back: backdraft ingest {path}"
 """The way back from a withdrawal, wherever one is reported.
@@ -1152,6 +1185,7 @@ def show(
     *,
     session: str | None = None,
     session_flag: str | None = None,
+    citing: Callable[[frozenset[str]], Sequence[str]] | None = None,
 ) -> Shown:
     """The inverse of minting: what does this token say?
 
@@ -1172,7 +1206,10 @@ def show(
     both sides of the diff and mints the anchor standing at the locator now,
     because its token was printed — and the run closes with `DRIFT_HINT`, since
     after an insertion above, that anchor is a different passage and the cited
-    words are somewhere `backdraft locate` can find.
+    words are somewhere `backdraft locate` can find. `citing` maps the drifted
+    slugs to the drafts whose records cite them, as the caller wants them
+    printed; it is the CLI's to supply because the path a person would type is
+    relative to their cwd, and it is asked only when something drifted.
 
     A token whose document was *withdrawn* is the reason this command outlives
     `forget`: the anchor is found and the receipt prints, under the `unresolved`
@@ -1186,7 +1223,7 @@ def show(
     toc_hints: list[str] = []
     back_hints: list[str] = []
     malformed = False
-    drifted = False
+    drifted: set[str] = set()
     complete = True
 
     for text in tokens:
@@ -1235,7 +1272,7 @@ def show(
             current = current_at(registry, anchor)
             blocks.append(_drift_block(anchor, current))
             shown = (anchor, current)
-            drifted = True
+            drifted.add(anchor.slug)
         # Emitting is minting: every anchor whose token reached the output.
         minted += [a.id for a in shown if a is not None and a.id is not None]
         if anchor.page_number is not None:
@@ -1250,7 +1287,9 @@ def show(
     lines = "\n\n".join(blocks).split("\n") if blocks else ["(no tokens)"]
     hints = [*read_hints, *toc_hints, *(f"[{hint}]" for hint in back_hints)]
     if drifted:
-        hints.append(DRIFT_HINT.format(session=session_argument(session_flag)))
+        drafts = citing(frozenset(drifted)) if citing is not None else ()
+        commands = drift_commands(drafts, session_argument(session_flag))
+        hints.append(DRIFT_HINT.format(commands=commands))
     if malformed:
         hints.append(GRAMMAR_HINT)
     return Shown(text=_block([*lines, "", *hints]), complete=complete)

@@ -920,7 +920,12 @@ t12-summary  t12-summary.pdf  pdf  3 pages  8865 chars  new generation
 underwriting-model  underwriting-model.xlsx  xlsx  2 sheets  2357 chars  new generation
 note: extracted with pdf-text (the embedded text layer). Glossy or scanned PDFs extract better through a vision model: set BACKDRAFT_VLM_API_KEY in .backdraft/env.
 note: new generation of t12-summary, underwriting-model — citations into the previous snapshot may now report `drifted`. A token whose locator and snippet both survived the change carries over untouched, so `backdraft bind` on a document citing it is what says which; `backdraft locate <document>` then finds where each drifted citation's text stands now, and names the new token wherever the text only moved.
+note: as last bound, 1 draft cites t12-summary, underwriting-model — run `backdraft locate memo.md` to see which of its citations drifted and where their words stand now.
 ```
+
+The last line is the project's records talking: every `bind` leaves one under
+`.backdraft/records/`, listing what the draft cited, so `ingest` can name the
+drafts a new generation touches and the `locate` that checks each.
 
 Here the answer is none of them: the generators change the bytes and not the
 extracted text, so every token carries over and a re-bind still says

@@ -211,7 +211,7 @@ def test_a_drifted_show_closes_by_naming_locate(registry: Registry, book: Path) 
 
     shown = show(registry, [cited, cited], session="s1", session_flag="s1")
 
-    assert shown.text.splitlines()[-1] == DRIFT_HINT.format(session=" --session s1")
+    assert shown.text.splitlines()[-1] == DRIFT_HINT.format(commands="backdraft locate <doc.md> --session s1")
     assert shown.text.count("backdraft locate") == 1
     assert show(registry, [cited]).text.endswith("backdraft locate <doc.md>]")
 
