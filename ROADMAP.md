@@ -32,42 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. `render` ships a draft edited after `bind` as if the record had judged it
-
-**Intent.** `render` reads two files, the draft and the record `bind` wrote for
-it, and never checks that they still describe the same text. Checked on
-2026-10-09 in a scratch project: bind a memo with one resolved citation, then add
-a sentence citing `bd:notes:p1.c1:ffff` — a token no gate ever emitted — and
-`backdraft render memo.md` writes the artifact at exit 0 with that claim in it
-and not a word said. An agent's normal loop is draft, bind, fix a sentence,
-render, so the commonest way to ship an unchecked citation is not to skip `bind`
-but to edit after it, and the artifact — the file whose whole claim is that every
-citation in it was checked — is the thing that carries it out.
-
-**Shape.** `render/cli.py`, before anything is written: parse the draft with
-`kernel.claims.parse_claims` and compare it against the record's `claims` on what
-a claim is — its text, its tokens in order, and its `start`/`end`, since render
-places each claim by offset and a shifted offset misplaces every highlight after
-it. Any difference is a `UsageError` (exit 1, the code `render` already uses for a
-record it cannot use) naming how many claims differ, the first one by offset, the
-record's `bound_at`, and the one fix: `backdraft bind <doc>` then render again.
-No artifact-format change — the comparison uses what the record already carries;
-a content hash of the draft in the record is the alternative and is a format
-change, so name it in the DESIGN row and say why it lost. Prose edits outside any
-claim that move no offset render as today. `verify` is not touched: it checks an
-artifact against itself, and the artifact embeds the draft it was rendered from.
-
-**Acceptance.** The scratch repro above exits 1 with the message, and no
-`memo.backdraft.html` is written or overwritten (assert the old file's bytes are
-unchanged). Re-binding then rendering succeeds. An edit that changes no claim and
-no offset (a typo fixed after the last claim) renders byte-identical to before.
-`demo/`'s render is byte-identical. `render --help`, README's render section,
-`site/docs.html`, `site/llms.txt` and `skills/backdraft/SKILL.md` say that render
-refuses a draft edited since bind. DESIGN row.
-
-**Size.** One to two days.
-
-### 2. An older backdraft reads a newer registry as if what it does not know were not there
+### 1. An older backdraft reads a newer registry as if what it does not know were not there
 
 **Intent.** The registry travels with the project folder — the documented answer
 to a sandbox that cannot reach the vision model is to ingest locally and hand the
@@ -102,7 +67,7 @@ DESIGN row.
 
 **Size.** One to two days.
 
-### 3. `ingest` reports per source in columns an agent has to scrape
+### 2. `ingest` reports per source in columns an agent has to scrape
 
 **Intent.** `bind` and `verify` gained `--json` (2026-09-14) because their output
 is read by agents and every wording fix silently broke a parser. `ingest` is the
@@ -136,7 +101,7 @@ is byte-identical, pinned. `site/llms.txt`, `skills/backdraft/SKILL.md`,
 
 **Size.** Two days.
 
-### 4. `forget` asks for confirmation without saying which drafts it will break
+### 3. `forget` asks for confirmation without saying which drafts it will break
 
 **Intent.** `forget` is the one command that takes something away, so it asks
 first, and what it says is general: a token already written into a draft still
@@ -169,7 +134,7 @@ the drafts.
 
 **Size.** One day.
 
-### 5. `doctor` is read by agents and prints only columns
+### 4. `doctor` is read by agents and prints only columns
 
 **Intent.** The writing skill's first instruction is now "Run `backdraft doctor`
 before you promise anything" and plan from its `missing` lines. An agent does
@@ -197,7 +162,7 @@ name the flag.
 
 **Size.** One day.
 
-### 6. A `not_shown` cleared by `show` after `bind` reads like a citation read before writing
+### 5. A `not_shown` cleared by `show` after `bind` reads like a citation read before writing
 
 **Intent.** `not_shown` is the one status that says the author cited a passage
 they never read, and it clears by being shown: `bind` flags it, the agent runs
@@ -239,7 +204,7 @@ and says to re-judge each claim it lists. DESIGN row.
 
 **Size.** One to two days.
 
-### 7. `verify`'s `next: not_shown` tells an auditor to mint into the author's session
+### 6. `verify`'s `next: not_shown` tells an auditor to mint into the author's session
 
 **Intent.** Since 2026-10-14 `verify` re-checks `not_shown` against the session
 the record names, and its report closes with `cli_context.NEXT_MOVES`' line for
@@ -272,7 +237,7 @@ than running them" for this case. DESIGN row amending 2026-10-14's.
 
 **Size.** One day.
 
-### 8. `verify --json` carries the finding and not the move
+### 7. `verify --json` carries the finding and not the move
 
 **Intent.** `bind` and `verify` reports end with `next:` lines (2026-10-14), and
 both `--json` forms carry none of it, by design for `bind`, whose `--json` is
@@ -302,7 +267,7 @@ the object is byte-identical, pinned against the existing JSON tests. SPEC
 
 **Size.** One day.
 
-### 9. A search hit on a long page points at the whole page
+### 8. A search hit on a long page points at the whole page
 
 **Intent.** Every search result block closes with `[Read the page: backdraft
 read <slug> p<n>]`, and `show` does the same. On a 57-chunk web page that is
@@ -336,7 +301,7 @@ hint. DESIGN row.
 
 **Size.** One day.
 
-### 10. A web page saved by hand ingests as a file and loses the address it came from
+### 9. A web page saved by hand ingests as a file and loses the address it came from
 
 **Intent.** The 2026-08-05 row made a URL provenance, not identity: a fetched
 page is identified by its snapshot and named everywhere by its URL. An agent
@@ -375,7 +340,7 @@ from the fixture are identical with and without `--origin`, diffed. SPEC
 
 **Size.** Two to three days.
 
-### 11. `show` on a drifted token prints the passage that took over its address as `now`, and never says the cited words only moved
+### 10. `show` on a drifted token prints the passage that took over its address as `now`, and never says the cited words only moved
 
 **Intent.** `backdraft show <token>` is the first command an agent reaches for
 when `bind` says `drifted`, and its block prints `cited:` then `now [<token>]:`
@@ -420,7 +385,7 @@ bullet say what the line means. DESIGN row.
 
 **Size.** One day.
 
-### 12. `bind` knows which drifted citations only moved and reports none of it
+### 11. `bind` knows which drifted citations only moved and reports none of it
 
 **Intent.** Since 2026-10-21 `citation_for` writes `moved_to` on every drifted
 citation whose words stand unchanged at one place, so the record knows, the
@@ -463,7 +428,7 @@ at`. `bind --json` on both is unchanged against the current output, and
 
 **Size.** One day.
 
-### 13. `ingest --dry-run` says a PDF would go to the vision model and not how many pages that is
+### 12. `ingest --dry-run` says a PDF would go to the vision model and not how many pages that is
 
 **Intent.** The 2026-10-19 row put the extractor on the dry run's line because
 it is the one fact there that can cost money, and the note says `vlm` is a
@@ -502,7 +467,7 @@ amending 2026-10-19.
 
 **Size.** One day.
 
-### 14. A source re-ingested from where it moved to keeps the registry's old path, and every hint that names the path names a file that is gone
+### 13. A source re-ingested from where it moved to keeps the registry's old path, and every hint that names the path names a file that is gone
 
 **Intent.** Identity is the bytes (2026-08-05), so re-ingesting an unchanged
 file from a new path is a no-op: `Registry.ingest` finds the document by
@@ -541,7 +506,7 @@ names where the file was last seen. DESIGN row.
 
 **Size.** One day.
 
-### 15. `search` and the table of contents never say which hits or chunks this session was already shown
+### 14. `search` and the table of contents never say which hits or chunks this session was already shown
 
 **Intent.** `session show --in` (2026-10-20) answers coverage per document, but
 the moment an agent actually chooses what to read next is a `search` block of

@@ -372,10 +372,9 @@ def test_renders_with_the_registry_deleted(
 # two happened.
 
 
-MATH_DOC = DEMO_DOC.replace(
-    "## What the file says",
-    "Coverage is $\\frac{NOI}{D}$ today.\n\n## What the file says",
-)
+# NOTE: appended after the last claim, so no claim moves and the record still
+# describes the document — render refuses one edited under its claims.
+MATH_DOC = DEMO_DOC + "\nCoverage is $\\frac{NOI}{D}$ today.\n"
 
 
 @pytest.fixture
@@ -421,3 +420,144 @@ def test_the_note_belongs_to_the_artifact_not_the_projections(
     result = runner.invoke(app, ["render", str(bound), "--to", "footnotes"])
     assert result.exit_code == 0, result.output
     assert "formula(s) rendered verbatim" not in result.output
+
+
+# ---- a draft edited after bind -----------------------------------------------
+#
+# The agent's normal loop is draft, bind, fix a sentence, render — so the
+# commonest way to ship an unchecked citation is not to skip bind but to edit
+# after it. The artifact claims every citation in it was checked; render must
+# not carry out one that bind never judged.
+
+
+@pytest.fixture
+def project(
+    root: pathlib.Path, registry, note: pathlib.Path
+) -> tuple[pathlib.Path, str]:
+    """A rooted project, a memo with one resolved citation bound in it, and its token."""
+    from backdraft.bind.binder import bind
+
+    registry.ingest(note)
+    slug = registry.documents()[0].slug
+    token = registry.anchors_for_page(slug, 1)[0].token
+    doc = root / "memo.md"
+    doc.write_text(f"# Memo\n\n[Revenue grew]({token}) this quarter.\n", encoding="utf-8")
+    bind(doc, registry)
+    return doc, token
+
+
+def test_a_claim_added_after_bind_is_refused_and_nothing_is_written(
+    project: tuple[pathlib.Path, str],
+) -> None:
+    doc, _ = project
+    assert runner.invoke(app, ["render", str(doc)]).exit_code == 0
+    artifact = doc.with_name("memo.backdraft.html")
+    before = artifact.read_bytes()
+    doc.write_text(
+        doc.read_text(encoding="utf-8") + "\n[Margins doubled](bd:notes:p1.c1:ffff).\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["render", str(doc)])
+
+    assert result.exit_code == 1
+    assert "memo.md was edited since it was bound at " in result.stderr
+    assert "1 claim differs from the record" in result.stderr
+    assert '"Margins doubled"' in result.stderr
+    assert "is not in the record" in result.stderr
+    assert f"`backdraft bind {doc}`" in result.stderr
+    assert artifact.read_bytes() == before
+
+
+def test_a_refused_draft_writes_no_artifact_where_there_was_none(
+    project: tuple[pathlib.Path, str],
+) -> None:
+    doc, token = project
+    doc.write_text(f"# Memo\n\n[Revenue fell]({token}) this quarter.\n", encoding="utf-8")
+    result = runner.invoke(app, ["render", str(doc), "--to", "footnotes"])
+    assert result.exit_code == 1
+    assert "is not the one bind recorded" in result.stderr
+    assert not doc.with_name("memo.footnotes.md").exists()
+
+
+def test_rebinding_after_the_edit_renders(project: tuple[pathlib.Path, str], registry) -> None:
+    from backdraft.bind.binder import bind
+
+    doc, _ = project
+    doc.write_text(
+        doc.read_text(encoding="utf-8") + "\n[Margins doubled](bd:notes:p1.c1:ffff).\n",
+        encoding="utf-8",
+    )
+    bind(doc, registry)
+    assert runner.invoke(app, ["render", str(doc)]).exit_code == 0
+
+
+def test_a_claim_moved_by_an_edit_above_it_is_refused(
+    project: tuple[pathlib.Path, str],
+) -> None:
+    """Render places each claim by offset; a moved one misplaces every highlight."""
+    doc, _ = project
+    doc.write_text("Preface.\n" + doc.read_text(encoding="utf-8"), encoding="utf-8")
+    result = runner.invoke(app, ["render", str(doc)])
+    assert result.exit_code == 1
+    assert '"Revenue grew" moved from offset 8 to 17' in result.stderr
+
+
+def test_a_deleted_claim_is_named_from_the_record(project: tuple[pathlib.Path, str]) -> None:
+    doc, _ = project
+    doc.write_text("# Memo\n\nRevenue grew this quarter.\n", encoding="utf-8")
+    result = runner.invoke(app, ["render", str(doc)])
+    assert result.exit_code == 1
+    assert 'the claim "Revenue grew" at offset 8 is no longer in the draft' in result.stderr
+
+
+def test_an_edit_after_the_last_claim_renders_as_before(
+    project: tuple[pathlib.Path, str],
+) -> None:
+    """No claim and no offset moved, so the record still describes the draft."""
+    from backdraft.render import html
+
+    doc, _ = project
+    doc.write_text(
+        doc.read_text(encoding="utf-8").replace("this quarter", "this quartre"),
+        encoding="utf-8",
+    )
+    assert runner.invoke(app, ["render", str(doc)]).exit_code == 0
+    doc.write_text(
+        doc.read_text(encoding="utf-8").replace("this quartre", "this quarter"),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["render", str(doc)])
+
+    assert result.exit_code == 0, result.output
+    artifact = doc.with_name("memo.backdraft.html").read_text(encoding="utf-8")
+    report = sidecar.read(sidecar.find_sidecar(doc))
+    assert artifact == html.render(doc.read_text(encoding="utf-8"), report, theme=None)
+
+
+def test_a_backfill_sentence_edited_after_bind_is_refused(
+    tmp_path: pathlib.Path, demo: BindReport
+) -> None:
+    """Backfill's uncited claims carry no token; each is held to its span."""
+    from dataclasses import replace
+
+    from backdraft.kernel.claims import parse_claims
+    from backdraft.kernel.model import Claim
+
+    text = DEMO_DOC + "\nTaxes were 412,300 in 2025.\n"
+    start = text.index("Taxes")
+    uncited = Claim(
+        text="Taxes were 412,300 in 2025.", start=start, end=len(text) - 1, unmatched=True
+    )
+    assert [claim.start for claim in parse_claims(text)] == [c.start for c in demo.claims]
+    report = replace(demo, mode="backfill", claims=(*demo.claims, uncited))
+    doc = tmp_path / "memo.md"
+    sidecar.write(report, sidecar.sidecar_path(doc))
+
+    doc.write_text(text, encoding="utf-8")
+    assert runner.invoke(app, ["render", str(doc)]).exit_code == 0
+    doc.write_text(text.replace("412,300", "512,300"), encoding="utf-8")
+    result = runner.invoke(app, ["render", str(doc)])
+    assert result.exit_code == 1
+    assert '"Taxes were 412,300 in 2025." at offset' in result.stderr

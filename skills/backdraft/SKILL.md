@@ -335,6 +335,12 @@ backdraft bind memo.md --session s-<short-name>
 backdraft render memo.md --to html
 ```
 
+Bind last, then render. `render` refuses a draft edited since its bind — a
+claim added, reworded, re-cited, or moved by an edit above it — exiting 1 with
+nothing written and the first such claim named. That is not a fault to work
+around: bind again, read its report, then render. An edit that moves no claim,
+such as a typo fixed after the last one, renders without a re-bind.
+
 Bind embeds the evidence behind every citation — cited page images, cell
 windows, sheet values — into the record, and the artifact carries it all in
 one file. The record lives under `.backdraft/records/`, so the working

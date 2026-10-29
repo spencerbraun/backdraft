@@ -283,6 +283,11 @@ memo.backdraft.html
 That file is the whole deliverable: send it over email or Slack and the
 recipient gets the full experience by double-clicking it.
 
+Render refuses a draft edited since its bind. The artifact's whole claim is
+that every citation in it was checked, so a claim added, reworded, re-cited or
+moved after `bind` exits 1 naming the first one and writes nothing; bind again,
+then render. Prose edits that move no claim render as before.
+
 **The recipient can check it.** `backdraft verify` takes the artifact or its
 sidecar and does the checking that the file is built to make possible: every
 snippet rehashed against the sha256 recorded beside it, every token checked

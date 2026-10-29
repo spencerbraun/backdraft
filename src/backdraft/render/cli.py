@@ -36,6 +36,7 @@ import shlex
 import sys
 from dataclasses import dataclass
 from enum import StrEnum
+from itertools import zip_longest
 from pathlib import Path
 from typing import Annotated, Any, NamedTuple
 
@@ -62,6 +63,7 @@ from ..kernel.artifact import (
     SIDECAR_SUFFIX,
     VERIFY_FORMAT,
 )
+from ..kernel.claims import parse_claims
 from ..kernel.errors import TokenError
 from ..kernel.hashing import snippet_hash
 from ..kernel.model import BindReport, Citation, CitationStatus, Claim
@@ -124,10 +126,15 @@ def render(
     document — `<doc>.backdraft.html` for the artifact — unless `-o` names
     another path; `--to json` goes to stdout.
 
+    Refuses a document edited since its bind: every cited claim must stand in
+    the document with the text, tokens and offsets the record holds, or nothing
+    is written and the fix is to bind again. Prose edits that move no claim
+    render as before.
+
     Exit codes: 0 on success, 1 when the document or its record is missing or
-    unreadable, or the theme cannot be used. An unresolved citation is not a
-    failure here: the artifact reports it, which is the point, and exit 2
-    belongs to `bind` and `verify`.
+    unreadable, the document was edited since bind, or the theme cannot be
+    used. An unresolved citation is not a failure here: the artifact reports
+    it, which is the point, and exit 2 belongs to `bind` and `verify`.
     """
     with guard():
         source = authored_text(doc)
@@ -138,6 +145,8 @@ def render(
             report = sidecar.read(found)
         except (ValueError, KeyError, OSError) as error:
             raise UsageError(f"unreadable sidecar {found.name}: {error}") from error
+        if (stale := _edited_since_bind(doc, source, report)) is not None:
+            raise UsageError(stale)
         if theme is not None and to is not Target.HTML:
             raise UsageError(f"--theme styles the html artifact; --to {to.value} has no styling")
         # NOTE: resolved before anything is written, so a bad theme costs a
@@ -207,6 +216,77 @@ def _unrendered_math_note(source: str) -> str | None:
     found: list[math_module.Math] = []
     math_module.protect(source, found)
     return VERBATIM_MATH_NOTE.format(count=len(found)) if found else None
+
+
+def _edited_since_bind(doc: Path, source: str, report: BindReport) -> str | None:
+    """Why the record no longer describes `source`, or None when it still does.
+
+    The artifact's claim is that every citation in it was checked, so a claim
+    added or changed after `bind` must not ride out in it unjudged — and render
+    places each claim by offset, so one that merely moved would misplace every
+    highlight after it. A claim is compared on what bind recorded of it: its
+    words, its tokens in order, and its span. The cited claims are the ones
+    `parse_claims` finds again; backfill's uncited sentences carry no token, so
+    each is held to its span still holding its words.
+
+    No hash of the draft is stored for this: the record already carries the
+    claims, so the check needs no format change, and an edit outside every claim
+    that moves no offset — a typo fixed after the last claim — still renders.
+    """
+    cited = [claim for claim in report.claims if claim.citations]
+    parsed = parse_claims(source)
+    differing: list[tuple[Claim | None, Claim | None]] = [
+        (recorded, current)
+        for recorded, current in zip_longest(cited, parsed)
+        if recorded is None or current is None or _signature(recorded) != _signature(current)
+    ]
+    differing.extend(
+        (claim, None)
+        for claim in report.claims
+        if not claim.citations and source[claim.start : claim.end] != claim.text
+    )
+    if not differing:
+        return None
+    recorded, current = min(
+        differing, key=lambda pair: min(c.start for c in pair if c is not None)
+    )
+    if current is None:
+        first = (
+            f'the claim "{claim_words(recorded.text)}" at offset {recorded.start} '
+            "is no longer in the draft"
+        )
+    elif recorded is None:
+        first = (
+            f'the claim "{claim_words(current.text)}" at offset {current.start} '
+            "is not in the record"
+        )
+    elif _signature(recorded)[:2] == _signature(current)[:2]:
+        first = (
+            f'the claim "{claim_words(current.text)}" moved from offset '
+            f"{recorded.start} to {current.start}"
+        )
+    else:
+        first = (
+            f'the claim at offset {current.start}, "{claim_words(current.text)}", '
+            "is not the one bind recorded"
+        )
+    count = len(differing)
+    return (
+        f"{doc.name} was edited since it was bound at {report.bound_at}: {count} "
+        f"claim{'' if count == 1 else 's'} differ{'s' if count == 1 else ''} from the "
+        f"record, first {first}. Nothing was rendered; run "
+        f"`backdraft bind {shlex.quote(str(doc))}`, then render again."
+    )
+
+
+def _signature(claim: Claim) -> tuple[str, tuple[str, ...], int, int]:
+    """What a claim is, for `_edited_since_bind`: words, tokens in order, span."""
+    return (
+        claim.text,
+        tuple(citation.token for citation in claim.citations),
+        claim.start,
+        claim.end,
+    )
 
 
 def _no_record(doc: Path) -> str:

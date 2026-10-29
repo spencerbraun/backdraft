@@ -25,6 +25,7 @@ import typer
 from typer.testing import CliRunner
 
 from conftest_registry import PAGE_BREAK
+from conftest_render import DEMO_DOC
 
 from backdraft.kernel.artifact import (
     DEFAULT_SESSION,
@@ -291,7 +292,7 @@ def test_the_rendered_artifact_verifies_through_its_island(
 ) -> None:
     """The half people forward is the half that has to be checkable."""
     doc = tmp_path / "memo.md"
-    doc.write_text("# Memo\n", encoding="utf-8")
+    doc.write_text(DEMO_DOC, encoding="utf-8")
     sidecar.write(demo, sidecar.sidecar_path(doc))
     assert runner.invoke(app, ["render", str(doc)]).exit_code == 0
 
@@ -913,7 +914,7 @@ def test_the_artifact_spec_names_every_value_json_can_carry() -> None:
 def test_the_payload_reader_takes_either_half(tmp_path: pathlib.Path, demo: BindReport) -> None:
     """`render --to json` and the island of `--to html` are the same bytes."""
     doc = tmp_path / "memo.md"
-    doc.write_text("# Memo\n", encoding="utf-8")
+    doc.write_text(DEMO_DOC, encoding="utf-8")
     path = sidecar.write(demo, sidecar.sidecar_path(doc))
     assert runner.invoke(app, ["render", str(doc)]).exit_code == 0
 

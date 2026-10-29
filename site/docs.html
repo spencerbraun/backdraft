@@ -290,6 +290,7 @@ backdraft show bd:report:p4.c2:7f11 <span class="dim"># what does this token say
 <span class="dim"># write claims as links, then bind and render</span>
 backdraft bind memo.md --check value-trace,overlap
 backdraft render memo.md --to html <span class="dim"># -&gt; memo.backdraft.html</span>
+<span class="dim"># edited a claim since bind? render refuses (exit 1) until you bind again</span>
 
 <span class="dim"># check one you were handed — the artifact or its record</span>
 backdraft verify memo.backdraft.html</pre>

@@ -251,7 +251,11 @@ backdraft locate memo.md                    # after a re-ingest, where each
 backdraft locate memo.md --apply            # write the moved tokens into
                                             # memo.md's links; then the show
                                             # its closing line names, re-bind.
-backdraft render memo.md --to html          # -> memo.backdraft.html
+backdraft render memo.md --to html          # -> memo.backdraft.html.
+                                            # Refuses (exit 1, writes
+                                            # nothing) a draft whose claims
+                                            # changed or moved since bind:
+                                            # re-bind, then render.
 backdraft verify memo.backdraft.html        # check a record you were handed:
                                             # snippets rehashed, tokens checked
                                             # against their anchors, summary
