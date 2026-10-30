@@ -542,6 +542,165 @@ says what the mark means. DESIGN row.
 
 **Size.** One to two days.
 
+### 15. A drifted citation whose words now span two chunks has no `moved_to`, so its card diffs them against half a passage
+
+**Intent.** Since 2026-10-26 `locate` proposes `a;b` when a cut now runs
+through the cited words, and `--apply` writes the pair. `bind` does not record
+it: `_moved_to` in `registry/store.py` writes none for a span, because
+`moved_to` is one token in `spec/artifact.md`. So a reader of the artifact — or
+an auditor following `skills/backdraft-artifact/SKILL.md`, which says "without
+`moved_to` the words were edited, removed, or stand in several places" — is
+told the claim may have failed, and the card word-diffs the cited words
+against the first piece, when nothing changed but a cut. DESIGN.md's Open list
+carries exactly this question; it should be decided rather than left there.
+
+**Shape.** Decide for an additive optional key, not a second meaning of the
+pinned one: a `drifted` citation may carry `moved_across`, a list of exactly
+two tokens, the adjoining chunks that together hold the cited words, written
+only when `relocate` returns `MOVED` with a two-anchor place — so `moved_to`
+keeps its meaning and a consumer that does not know the new key reads today's
+record. `Citation` in `kernel/model.py` gains the field and its `to_dict`/
+`from_dict` round trip; `_moved_to`'s neighbour in `store.py` fills it; the
+artifact card in `render/` treats it the way it treats `moved_to` (where the
+words stand, no word-diff), naming both tokens; the footnotes projection
+follows. `spec/artifact.md` gains the key in the citation table and the
+`moved_to` paragraph, still `artifact-v1` because it is optional. The golden
+record and artifact fixtures move only where a fixture holds a span — say so
+in the commit. The artifact skill's `drifted` row learns the key. DESIGN row
+closing the Open bullet.
+
+**Acceptance.** `tests/test_locate.py`'s grown-paragraph case, bound after the
+re-ingest: the record's citation carries `moved_across` equal to the two
+tokens `locate` proposes and no `moved_to`; the rendered card says the words
+stand across those two tokens and draws no diff. Every existing golden
+artifact without a span is byte-identical. A record written before this change
+renders exactly as it does today. `backdraft verify` on the new artifact exits
+as before — the key is not part of the receipt checks.
+
+**Size.** Two days.
+
+### 16. The drafts named after a new generation may have been edited since their bind, and the note cannot tell which
+
+**Intent.** `ingest`'s new-generation note and `show`'s drift hint name the
+drafts whose records cite a source "as last bound", and the writing skill has
+to warn the agent that "a draft you have edited since its last bind may cite
+more or less than the note says". The repo can already tell: `render`'s
+`_edited_since_bind` in `render/cli.py` compares a record's claims against the
+draft on disk, with no format change. An agent with three drafts open learns
+which records are stale only by running `render` on each and reading a
+refusal.
+
+**Shape.** Move `_edited_since_bind` and `_signature` out of `render/cli.py` to
+one owner both the renderer and `registry/records.py` can import without
+breaking the dependency rule — the kernel, since it is pure over a source
+string and a `BindReport` (`kernel/claims.py` already holds `parse_claims`),
+returning a small result (count and first differing claim) that `render`
+formats into today's message byte for byte. `CitingDraft` gains `edited: bool`,
+computed in `scan_records` only for drafts it is about to return (one read
+and one parse per citing draft, not per record). `_citing_note` and
+`drift_commands` append `(edited since)` to a draft's command when it is set.
+No change when no draft is edited.
+
+**Acceptance.** In `tests/test_citing_drafts.py`'s two-memo project, add a
+claim to `memos/q3.md` after its bind and re-ingest `notes.md`: the note names
+`` `backdraft locate memos/q3.md` (edited since) ``, and `show` on the drifted
+token ends the same way; an unedited project prints exactly today's lines.
+`render`'s refusal tests pass unchanged. The writing skill's sentence about
+edited drafts is replaced by what the mark means.
+
+**Size.** One day.
+
+### 17. `bind` under a different session than the draft's last bind says nothing, and every citation turns `not_shown`
+
+**Intent.** An agent that loses its context, or a fresh shell without
+`BACKDRAFT_SESSION` exported, re-binds a draft with no `--session`: the run
+judges against the shared `default` ledger, and every citation the writer
+really read comes back `not_shown`. The report reads like the agent cited
+things it never read, and the skill's response to `not_shown` is to go read
+them again — budget spent recovering a ledger that was never lost. The
+draft's previous record says which session it was bound under; `render`'s
+refusal now names it (0.16.0), and `bind` itself is the place it matters most.
+
+**Shape.** In `bind/cli.py`, after `resolve_session`, read the existing record
+at `record_path` (or the sidecar fallback) for its `session_id` only — a
+missing or unreadable record is silence. When it differs from the session
+this run resolved, print one `note:` line before the report: the session it
+was last bound under, the one this run uses, and the exact re-run with
+`--session <previous>` (shell-quoted, `session_argument`'s style). A note, not
+a refusal: switching sessions on purpose is legitimate, and verifiers never
+gate. Exit codes do not move. No note when the sessions match or when there
+is no previous record.
+
+**Acceptance.** Bind `memo.md` under `--session s1`, then bind again with no
+flag and no exported session: the note names `s1`, `default`, and
+`backdraft bind memo.md --session s1`; the report's `not_shown` counts are
+unchanged from today (the note explains, it does not alter). Re-binding
+under `s1` prints exactly today's output. The demo's `bind` in
+`demo/walkthrough.md` is byte-identical. The writing skill's `not_shown`
+paragraph says to read the note before re-reading anything.
+
+**Size.** One day.
+
+### 18. A record the scan cannot read is counted, never named, so the "may be short" warning has no next step
+
+**Intent.** `scan_records` skips a record that is not valid JSON or not a
+record's shape and counts it; `ingest`'s note then says "1 record under
+`.backdraft/records/` could not be read and was skipped, so this may be short"
+and stops. The calling agent knows the list of affected drafts is incomplete
+and has no way to find which draft is missing or what to do — the error
+message says what went wrong and not what to do next. Records also outlive
+their drafts silently: a renamed draft's record names a path that is gone and
+is dropped without a word, so the note misses the draft at its new name until
+it is re-bound.
+
+**Shape.** `RecordScan` in `registry/records.py` gains `unreadable:
+tuple[Path, ...]` (record paths, sorted) in place of a bare count — `skipped`
+stays as a property for the callers that count — and `orphaned:
+tuple[Path, ...]`, the drafts a readable record names that no longer exist.
+`_citing_note` names the first unreadable record by its path relative to the
+project and says the fix: re-bind the draft it was written for, or delete the
+file if that draft is gone; past one, it counts the rest via `gate.reader.
+handful`. Orphans are reported only when one of them cited a regenerated
+slug — "a record for `old/memo.md`, which no longer exists, cites notes; if
+the draft moved, bind it at its new path" — so an untouched project prints
+nothing new.
+
+**Acceptance.** In `tests/test_citing_drafts.py`: a broken record yields a
+note naming `.backdraft/records/broken.backdraft.json` and the re-bind advice;
+a draft renamed after its bind yields the orphan line naming the old path; a
+project with neither prints exactly today's note. `scan_records`' existing
+tests pass with `skipped` unchanged.
+
+**Size.** One day.
+
+### 19. `relocate` re-reads a whole document for every drifted chunk citation it cannot find exactly
+
+**Intent.** `current_within` (2026-10-26) is a pass over every current chunk of
+the cited document — `registry.pages` plus `anchors_for_page` per page, then a
+normalize of every snippet — and `relocate` runs it once per drifted citation
+whose exact snippet stands nowhere. `bind` calls it through `citation_for`,
+and `locate` through `_drifted`, so a memo with thirty citations into a
+four-hundred-page filing that just gained a generation re-reads and
+re-normalizes that filing thirty times, inside `bind`, which agents run after
+every edit. The cost is invisible until the corpus is real.
+
+**Shape.** Keep `relocate(registry, cited)` as the public rule and give the
+pass a per-document cache that lives for one run: a `DocumentChunks` value
+(pages, ordered chunks, normalized texts) built once per slug, and
+`current_within` taking it. The owner of the cache is the caller's loop —
+`bind.binder` and `cli._drifted` — passed as an optional argument so a lone
+call still works; no module-level state, no new index, no schema change. The
+outcome of every relocation is unchanged, which the existing
+`tests/test_reingest.py` and `tests/test_locate.py` cases pin.
+
+**Acceptance.** A test with a counting wrapper around `Registry.pages` binds a
+memo of ten drifted citations into one re-chunked source and asserts one
+`pages` call for that slug, not ten; every existing relocate, locate and bind
+test passes unchanged; `uv run backdraft bind memo.md` in `demo/` prints
+byte-identical output.
+
+**Size.** One day.
+
 ## Parked
 
 Deliberately not queued, each with the reason, so picking one up starts from
