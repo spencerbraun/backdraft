@@ -16,7 +16,7 @@ from typer.testing import CliRunner
 
 from backdraft import cli
 from backdraft.gate.reader import HANDFUL, drift_commands
-from backdraft.registry import DIRECTORY, Registry, scan_records
+from backdraft.registry import DIRECTORY, CitingDraft, Registry, scan_records
 
 runner = CliRunner()
 
@@ -148,6 +148,43 @@ def test_several_regenerated_sources_say_which_each_draft_cites(project: Path) -
 
     assert line.startswith("note: as last bound, 2 drafts cite notes, other — run ")
     assert "`backdraft locate memos/q3.md` (notes) and `backdraft locate staff.md` (other)" in line
+
+
+def test_only_unreadable_records_still_say_the_list_may_be_short(project: Path) -> None:
+    """No draft named, but a skipped record means "none" is not known to be true."""
+    write(project / "notes.md", NOTES)
+    assert invoke("ingest", "notes.md").exit_code == 0
+    records = project / DIRECTORY / "records"
+    records.mkdir(parents=True, exist_ok=True)
+    for name in ("a", "b"):
+        (records / f"{name}.backdraft.json").write_text("{bad")
+    write(project / "notes.md", INSERTED, NOTES)
+
+    [line] = citing_lines(invoke("ingest", "notes.md").output)
+
+    assert line == (
+        "note: as last bound, no draft in this project cites notes (2 records under "
+        "`.backdraft/records/` could not be read and were skipped, so this may be short)."
+    )
+
+
+def test_the_ingest_note_counts_drafts_past_a_handful(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    drafts = tuple(
+        CitingDraft(path=project / f"d{n}.md", citations={"notes": 1})
+        for n in range(HANDFUL + 2)
+    )
+    monkeypatch.setattr(cli, "citing_drafts", lambda registry, slugs: (drafts, 0))
+    write(project / "notes.md", NOTES)
+    assert invoke("ingest", "notes.md").exit_code == 0
+    write(project / "notes.md", INSERTED, NOTES)
+
+    [line] = citing_lines(invoke("ingest", "notes.md").output)
+
+    assert line.startswith("note: as last bound, 7 drafts cite notes — run ")
+    assert line.count("backdraft locate") == HANDFUL
+    assert "`backdraft locate d4.md` and 2 more to see which of their citations" in line
 
 
 def test_a_deleted_draft_is_not_named(project: Path) -> None:

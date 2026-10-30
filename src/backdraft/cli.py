@@ -60,9 +60,9 @@ from .extract import snapshots, vlm_gap, vlm_ready
 # imports everything"; the mount guard below is about sub-*apps*, and `gate`
 # itself does not need typer.
 from .gate import (
-    HANDFUL,
     WITHDRAWN_HINT,
     extracted_chars,
+    handful,
     locate_command,
     session_argument,
     thin_mark,
@@ -670,10 +670,7 @@ def _citing_note(
     if not drafts:
         line = "note: as last bound, no draft in this project cites " + sources
     else:
-        shown = [named(draft) for draft in drafts[:HANDFUL]]
-        rest = len(drafts) - HANDFUL
-        if rest > 0:
-            shown.append(f"{rest} more")
+        shown = handful([named(draft) for draft in drafts])
         commands = shown[0] if len(shown) == 1 else (
             ", ".join(shown[:-1]) + " and " + shown[-1]
         )

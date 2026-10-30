@@ -62,16 +62,17 @@ __all__ = [
     "DEFAULT_SESSION_NOTE",
     "DRIFT_HINT",
     "EARLIER_GENERATION_NOTE",
-    "HANDFUL",
     "EXCERPT_CHARS",
     "GRAMMAR_HINT",
+    "HANDFUL",
     "LIST_HINT",
     "THIN_SOURCE_CHARS",
     "TOC_PREVIEW_CHARS",
     "WITHDRAWN_HINT",
-    "drift_commands",
-    "locate_command",
     "WITHDRAWN_SESSION_NOTE",
+    "drift_commands",
+    "handful",
+    "locate_command",
     "Selection",
     "Shown",
     "excerpt",
@@ -136,6 +137,16 @@ same drafts from the same records: enough to cover a working project, few enough
 that the line stays a line."""
 
 
+def handful(named: Sequence[str]) -> list[str]:
+    """The first `HANDFUL` of `named`, then `N more` for the rest, if any.
+
+    One owner for the cut both drafts lines make; each joins the result its
+    own way, since one is prose and the other a run of commands.
+    """
+    rest = len(named) - HANDFUL
+    return [*named[:HANDFUL], *([f"{rest} more"] if rest > 0 else [])]
+
+
 def locate_command(draft: str, session: str = "") -> str:
     """`backdraft locate <draft>`, shell-quoted, with `session_argument`'s tail."""
     return f"backdraft locate {shlex.quote(draft)}{session}"
@@ -150,11 +161,12 @@ def drift_commands(drafts: Sequence[str], session: str = "") -> str:
     """
     if not drafts:
         return f"backdraft locate <doc.md>{session}"
-    named = "; ".join(locate_command(draft, session) for draft in drafts[:HANDFUL])
-    rest = len(drafts) - HANDFUL
-    more = f"; and {rest} more" if rest > 0 else ""
+    shown = handful([locate_command(draft, session) for draft in drafts])
+    if len(shown) > HANDFUL:
+        shown[-1] = f"and {shown[-1]}"
     who = "the draft" if len(drafts) == 1 else f"the {len(drafts)} drafts"
-    return f"{named}{more} ({who} citing it, as last bound)"
+    return f"{'; '.join(shown)} ({who} citing it, as last bound)"
+
 
 WITHDRAWN_HINT = "Re-ingest it to bring it back: backdraft ingest {path}"
 """The way back from a withdrawal, wherever one is reported.

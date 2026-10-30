@@ -16,12 +16,12 @@ submodules, and only what a consumer outside the package imports.
 from __future__ import annotations
 
 from .reader import (
-    HANDFUL,
     THIN_SOURCE_CHARS,
     WITHDRAWN_HINT,
     GateError,
     Selection,
     extracted_chars,
+    handful,
     locate_command,
     read,
     render_documents,
@@ -35,12 +35,12 @@ from .reader import (
 from .searcher import render_search, search
 
 __all__ = [
-    "HANDFUL",
     "THIN_SOURCE_CHARS",
     "WITHDRAWN_HINT",
     "GateError",
     "Selection",
     "extracted_chars",
+    "handful",
     "locate_command",
     "read",
     "render_documents",
