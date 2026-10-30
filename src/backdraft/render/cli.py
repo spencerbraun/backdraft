@@ -271,11 +271,20 @@ def _edited_since_bind(doc: Path, source: str, report: BindReport) -> str | None
             "is not the one bind recorded"
         )
     count = len(differing)
+    # The session the record was judged under, so the re-bind it names is
+    # judged against the same ledger: without it, a shell with no exported
+    # session re-binds against the shared `default` one, and every citation the
+    # writer really read comes back `not_shown`.
+    session = (
+        f" --session {shlex.quote(report.session_id)}"
+        if report.session_id not in (None, DEFAULT_SESSION)
+        else ""
+    )
     return (
         f"{doc.name} was edited since it was bound at {report.bound_at}: {count} "
         f"claim{'' if count == 1 else 's'} differ{'s' if count == 1 else ''} from the "
         f"record, first {first}. Nothing was rendered; run "
-        f"`backdraft bind {shlex.quote(str(doc))}`, then render again."
+        f"`backdraft bind {shlex.quote(str(doc))}{session}`, then render again."
     )
 
 

@@ -492,6 +492,26 @@ def test_rebinding_after_the_edit_renders(project: tuple[pathlib.Path, str], reg
     assert runner.invoke(app, ["render", str(doc)]).exit_code == 0
 
 
+def test_the_refusal_names_the_session_the_record_was_bound_under(
+    project: tuple[pathlib.Path, str], registry
+) -> None:
+    """Re-binding without it would judge against the shared default ledger."""
+    from backdraft.bind.binder import bind
+
+    doc, _ = project
+    registry.ensure_session("s-memo")
+    bind(doc, registry, session_id="s-memo")
+    doc.write_text(
+        doc.read_text(encoding="utf-8") + "\n[Margins doubled](bd:notes:p1.c1:ffff).\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["render", str(doc)])
+
+    assert result.exit_code == 1
+    assert f"`backdraft bind {doc} --session s-memo`, then render again." in result.stderr
+
+
 def test_a_claim_moved_by_an_edit_above_it_is_refused(
     project: tuple[pathlib.Path, str],
 ) -> None:
