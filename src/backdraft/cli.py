@@ -264,11 +264,12 @@ def _registry_state() -> tuple[str | None, str]:
         registry = Registry.open(root)
         try:
             count = len(registry.documents())
+            version = registry.schema_version()
         finally:
             registry.close()
     except BackdraftError as error:
         return str(error), ""  # the registry's own reason names the file
-    return None, f"{root / DIRECTORY}, {count} document(s)"
+    return None, f"{root / DIRECTORY}, schema {version}, {count} document(s)"
 
 
 def _capabilities() -> list[_Capability]:

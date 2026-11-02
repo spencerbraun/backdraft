@@ -25,7 +25,7 @@ import pytest
 
 from backdraft.kernel.hashing import snippet_hash
 from backdraft.kernel.tokens import parse as parse_token
-from backdraft.registry import EXPORT_FORMAT, Registry
+from backdraft.registry import EXPORT_FORMAT, SCHEMA_VERSION, Registry
 
 SPEC = Path(__file__).resolve().parent.parent / "spec" / "registry.md"
 
@@ -318,6 +318,7 @@ def test_an_empty_registry_still_emits_all_four_top_level_keys(root: Path) -> No
         exported = registry.export_json()
     assert exported == {
         "$format": EXPORT_FORMAT,
+        "schema_version": SCHEMA_VERSION,
         "documents": [],
         "sessions": [],
         "ledger": [],

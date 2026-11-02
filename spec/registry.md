@@ -56,6 +56,7 @@ exactly that reason.
 ```json
 {
   "$format": "backdraft/registry-v1",
+  "schema_version": 1,
   "documents": [ … ],
   "sessions": [ … ],
   "ledger": [ … ],
@@ -68,12 +69,13 @@ exactly that reason.
 | Key | Type | Is |
 |---|---|---|
 | `$format` | string | `backdraft/registry-v1`, matched exactly. See *Versioning* |
+| `schema_version` | integer | OPTIONAL. The stamp of the SQLite file this was exported from. See *The schema stamp* |
 | `documents` | array | every ingested document, oldest first |
 | `sessions` | array | every session, oldest first |
 | `ledger` | array | every showing of an anchor to a session, oldest first |
 | `bindings` | array | every bind run recorded against this registry, oldest first |
 
-An empty registry emits all four keys with empty arrays. There is no `$legend`
+An empty registry emits all four arrays, empty. There is no `$legend`
 here: an artifact is read by whoever was handed the artifact, and carries its own
 decoding; an export is read by an implementer holding this file.
 
@@ -311,6 +313,26 @@ round-trip a registry. A reader MUST NOT conclude from an absent page image that
 a document has none. A tool that rebuilds a registry from an export produces one
 whose tokens all resolve and whose artifacts render without page evidence; that
 is the honest limit of the format, and widening it means a new format string.
+
+## The schema stamp
+
+The SQLite file carries an integer in `PRAGMA user_version`, currently `1`. It
+says which shape of registry wrote the file, and moves when a change adds meaning
+a reader that does not know it would silently drop: a table of withdrawals, say,
+whose absence from a reader's model lists a withdrawn source as on offer. Anything
+that opens the file itself MUST honour it:
+
+- Stamped higher than the implementation knows: refuse, naming both numbers,
+  before writing anything. What the file holds is more than the reader can see,
+  and there is no telling which of its answers that changes.
+- Stamped lower, `0` (a file from before the stamp) included: bring the file up
+  and stamp it. A file that cannot be written, on a read-only mount, is read
+  unstamped.
+
+An export's `schema_version` reports that integer. A reader of the export ignores
+it safely, because the payload's meaning is `$format`'s to state and the stamp
+describes the file the payload came from. An export from before the stamp omits
+the key, and `$format` does not move for it.
 
 ## Versioning
 

@@ -2,6 +2,9 @@
 --
 -- Applied by `Registry.open` against a fresh `.backdraft/registry.db`; every
 -- statement is idempotent so opening an existing registry is a no-op.
+--
+-- A change here that adds meaning an older reader would silently drop bumps
+-- `store.SCHEMA_VERSION`, which `Registry.open` stamps in `PRAGMA user_version`.
 
 CREATE TABLE IF NOT EXISTS documents (
   id INTEGER PRIMARY KEY,

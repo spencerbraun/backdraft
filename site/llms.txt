@@ -117,6 +117,9 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # network, continue with the text layer and say so. The registry travels
 # with the project folder (.backdraft/), so a registry ingested with the
 # vision model elsewhere works in any session; bind and render need no key.
+# A registry written by a newer backdraft than this one is refused at exit 1
+# with nothing changed, and the message names both schema versions: upgrade
+# (`uvx backdraft@latest ...`), do not re-init.
 
 ## The contract
 

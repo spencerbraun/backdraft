@@ -400,8 +400,8 @@ def verify(
         # outranks `BACKDRAFT_HOME`: a name typed on this command is more
         # specific than one exported for the whole shell.
         root = named_root(against) if against is not None else find_root()
+        checked = _check(payload, report, root)
 
-    checked = _check(payload, report, root)
     if as_json:
         document = _verification(artifact, checked)
         sys.stdout.write(json.dumps(document, indent=2, ensure_ascii=False) + "\n")

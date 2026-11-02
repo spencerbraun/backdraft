@@ -620,11 +620,14 @@ poppler, the vision model, `[xls]`, `[entail]` and `[math]` — each as `ready`
 or `missing`, with what its absence costs the verbs and the command that fixes
 it, in the same words the verb itself would print. Keys are named `set` or
 `absent` and their values never printed. Read-only, and always exit 0: a
-missing optional capability is not an error.
+missing optional capability is not an error. A registry written by a newer
+backdraft than this one is reported here as missing, and every verb that opens
+it refuses at exit 1 and changes nothing: upgrade, since a build that cannot see
+what the file holds would answer wrongly about it.
 
 ```console
 $ backdraft doctor
-registry      ready    /…/demo/.backdraft, 3 document(s)
+registry      ready    /…/demo/.backdraft, schema 1, 3 document(s)
 page images   ready    poppler renders PDF pages for the artifact's cited-page view
 vision model  missing  Glossy or scanned PDFs extract better through a vision model: set BACKDRAFT_VLM_API_KEY in .backdraft/env.
               costs    ingest: `auto` reads a PDF's text layer, so a scan comes back thin, and an image cannot be ingested at all. A PDF with a text layer, and every other format, is unaffected.

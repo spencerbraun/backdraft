@@ -68,6 +68,7 @@ __all__ = [
     "MATCH_OPEN",
     "MOVED",
     "PROSE_KINDS",
+    "SCHEMA_VERSION",
     "UNCHANGED",
     "Relocation",
     "Ingested",
@@ -98,6 +99,14 @@ DATABASE = "registry.db"
 EXPORT_FORMAT = "backdraft/registry-v1"
 """NOTE: the spec does not name the export; a format string makes the dump
 self-describing, matching the artifact's `$format` habit."""
+
+SCHEMA_VERSION = 1
+"""The registry's shape, stamped in the file's `PRAGMA user_version`.
+
+Bump it for any change that adds meaning an older reader would silently drop,
+as `withdrawals` did: a build that does not know the table lists the withdrawn
+source and binds its citations `resolved`. A file stamped above this refuses to
+open; one stamped below is brought up by the idempotent DDL and stamped."""
 
 SLUG_MAX = 32
 """A slug is 2-32 characters (kernel/tokens.py enforces the grammar)."""
@@ -674,6 +683,24 @@ def _moved_to(relocation: Relocation) -> str | None:
     return relocation.places[0][0].token
 
 
+def _stamped_version(connection: sqlite3.Connection) -> int:
+    return connection.execute("PRAGMA user_version").fetchone()[0]
+
+
+def _stamp(connection: sqlite3.Connection) -> None:
+    """Stamp an older registry current, unless the file cannot be written.
+
+    A registry on a read-only mount opens and answers every read, and the stamp
+    is not worth refusing that for: it stays unstamped until a build that can
+    write it opens it, and `schema_version` reports what the file actually holds.
+    """
+    try:
+        connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+    except sqlite3.OperationalError as error:
+        if error.sqlite_errorcode != sqlite3.SQLITE_READONLY:
+            raise
+
+
 class Registry:
     """SQLite + FTS5 behind the surface in SPEC.md § Addendum A."""
 
@@ -690,6 +717,9 @@ class Registry:
         Discovery — which `root` — lives in the CLI. Creating the schema here
         rather than in `init` keeps every entry point working against a fresh
         checkout, and the DDL is idempotent.
+
+        A registry stamped newer than `SCHEMA_VERSION` is refused before the DDL
+        runs, so this build writes nothing into a shape it does not know.
         """
         root = Path(root)
         directory = root / DIRECTORY
@@ -700,8 +730,19 @@ class Registry:
             connection = sqlite3.connect(path)
             connection.row_factory = sqlite3.Row
             connection.execute("PRAGMA foreign_keys = ON")
+            found = _stamped_version(connection)
+            if found > SCHEMA_VERSION:
+                connection.close()
+                raise RegistryError(
+                    f"{path} was written by a newer backdraft: its schema is version "
+                    f"{found} and this build reads up to version {SCHEMA_VERSION}. "
+                    "Nothing was changed; upgrade backdraft (`uv tool upgrade "
+                    "backdraft`, or `pip install -U backdraft`) and run this again."
+                )
             with connection:
                 connection.executescript(_SCHEMA.read_text(encoding="utf-8"))
+            if found < SCHEMA_VERSION:
+                _stamp(connection)
         except sqlite3.DatabaseError as error:
             # A damaged or foreign file reached every verb as a traceback, and
             # `doctor`, whose answer is never a failure, crashed on it too. As a
@@ -728,6 +769,10 @@ class Registry:
     def close(self) -> None:
         """Close the underlying connection. Idempotent."""
         self._connection.close()
+
+    def schema_version(self) -> int:
+        """The version this file is stamped with: `doctor`'s line and the export's key."""
+        return _stamped_version(self._connection)
 
     def __enter__(self) -> "Registry":
         return self
@@ -1351,6 +1396,7 @@ class Registry:
             documents.append(entry)
         return {
             "$format": EXPORT_FORMAT,
+            "schema_version": self.schema_version(),
             "documents": documents,
             "sessions": ledger_module.sessions(self._connection),
             "ledger": [
