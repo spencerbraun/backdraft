@@ -23,7 +23,7 @@ import shlex
 import shutil
 import sys
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Annotated, Iterable, Iterator
@@ -185,6 +185,114 @@ def _outcome_note(document: Ingested) -> str:
     if document.restored:
         marks.append("restored")
     return "".join(f"  {mark}" for mark in marks)
+
+
+INGEST_FORMAT = "backdraft/ingest-v1"
+"""What `ingest --json` prints; SPEC § CLI is its format, keys stable and the
+`reason` and `notes` strings declared rewordable, as `backdraft/verify-v1`'s are."""
+
+SNAPSHOTS_CAPTURED = "captured"
+SNAPSHOTS_NOT_CAPTURED = "not_captured"
+SNAPSHOTS_NOT_APPLICABLE = "not_applicable"
+
+
+@dataclass(frozen=True, slots=True)
+class _Landed:
+    """One source `ingest` landed, as the values its line, its notes and `--json` read.
+
+    Counts rather than the pages themselves, so a folder's worth of extracted
+    text is not held for the whole run in order to print a number at the end of
+    it. `slug_applied` is None when no `--slug` was given, which is a different
+    fact from one that was given and not used.
+    """
+
+    source: str
+    document: Ingested
+    pages: int
+    page_unit: str
+    chars: int
+    thin: bool
+    slug_applied: bool | None
+    snapshots: str = SNAPSHOTS_NOT_APPLICABLE
+    snapshots_reason: str | None = None
+
+
+def _landed_line(row: _Landed) -> str:
+    """A landed source's line in the report."""
+    document = row.document
+    return (
+        f"{document.slug}  {source_name(document)}  "
+        f"{document.media_type}  {row.pages} {row.page_unit}  "
+        f"{row.chars} chars{_outcome_note(document)}"
+        + ("  --slug not applied" if row.slug_applied is False else "")
+    )
+
+
+def _landed_object(row: _Landed) -> dict:
+    """A landed source's entry in `ingest --json`."""
+    document = row.document
+    return {
+        "source": row.source,
+        "slug": document.slug,
+        "name": source_name(document),
+        "media_type": document.media_type,
+        "pages": row.pages,
+        "chars": row.chars,
+        "outcome": document.outcome,
+        "restored": document.restored,
+        "slug_applied": row.slug_applied,
+        "thin": row.thin,
+        "snapshots": {"status": row.snapshots, "reason": row.snapshots_reason},
+    }
+
+
+def _named_object(source: str, naming: Naming, requested: str | None) -> dict:
+    """A source's entry in `ingest --dry-run --json`: the same keys, where they can be known.
+
+    What only extraction can say is null rather than absent, so one parser reads
+    both objects. `extractor` and `extracted_with` are the dry run's own, because
+    they are what it adds to its line.
+    """
+    return {
+        "source": source,
+        "slug": naming.slug,
+        "name": None,
+        "media_type": naming.media_type,
+        "pages": None,
+        "chars": None,
+        "outcome": "already-ingested" if naming.ingested else "would-ingest",
+        "restored": naming.withdrawn,
+        "slug_applied": None if requested is None else requested == naming.slug,
+        "thin": None,
+        "snapshots": None,
+        "extractor": naming.extractor,
+        "extracted_with": naming.extracted_with,
+    }
+
+
+def _print_ingest_object(
+    *,
+    dry_run: bool,
+    sources: list[dict],
+    unread: list[tuple[str, str]],
+    notes: list[str],
+) -> None:
+    """`ingest --json`'s stdout, and the same exit 1 a failed source gets without it.
+
+    The one exit-1 path where stdout is not empty, because the run happened: what
+    landed is in the registry, and a caller needs its slugs as much as the
+    failures. A run that could not start never reaches here and prints nothing.
+    """
+    payload = {
+        "format": INGEST_FORMAT,
+        "dry_run": dry_run,
+        "sources": sources,
+        "failures": [{"source": source, "reason": reason} for source, reason in unread],
+        "notes": notes,
+    }
+    sys.stdout.write(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+    if unread:
+        raise typer.Exit(EXIT_USAGE)
 
 
 # ---- commands ---------------------------------------------------------------
@@ -425,6 +533,16 @@ def ingest(
             ),
         ),
     ] = False,
+    as_json: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help=(
+                "Print one object instead of the report: each source's fields, "
+                "the failures and the notes. Same exit codes."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Snapshot files or web pages into the registry, minting their anchors.
 
@@ -478,14 +596,15 @@ def ingest(
     `api_key`, `base_url`, `model`, `timeout` and `retries`, and `concurrency` is
     `vlm`'s alone. Every other format reads no config at all, so a key there is a
     typo and is reported as one.
+
+    `--json` prints one object in place of the report, format
+    `backdraft/ingest-v1`: `sources`, `failures` and `notes`, the notes being the
+    report's own strings. A failed source still exits 1, with the object on
+    stdout saying what landed; a run that cannot start prints nothing there. With
+    `--dry-run` it is the same object, `dry_run` true, `outcome` `would-ingest` or
+    `already-ingested`, null where only extraction could say.
     """
-    nudge_vlm = False
-    note_pptx = False
-    unsnapshot: dict[str, list[str]] = {}  # why it failed -> which documents
-    thin: dict[str, list[str]] = {}  # why it came back thin -> which documents
-    regenerated: list[str] = []  # documents that gained a generation this run
-    restored: list[str] = []  # documents that had been withdrawn and are back
-    kept: list[tuple[str, str]] = []  # which source -> the slug `--slug` did not replace
+    landed: list[_Landed] = []
     unread: list[tuple[str, str]] = []  # which source -> why it never landed
     with guard():
         if slug is not None and len(sources) > 1:
@@ -495,7 +614,7 @@ def ingest(
         # on a command that cannot start would be a prediction worse than none.
         settings = _parse_config(config or [])
         if dry_run:
-            _report_naming(sources, extractor, slug, settings)
+            _report_naming(sources, extractor, slug, settings, as_json=as_json)
             return
         with opened_registry() as registry:
             for source in sources:
@@ -520,117 +639,40 @@ def ingest(
                         # registry says which slug it assigned rather than whether
                         # it took the one asked for — so the comparison is here,
                         # in the layer that owns the reporting.
-                        unapplied = slug is not None and slug != document.slug
-                        typer.echo(
-                            f"{document.slug}  {source_name(document)}  "
-                            f"{document.media_type}  {len(pages)} {unit(pages)}  "
-                            f"{chars} chars{_outcome_note(document)}"
-                            + ("  --slug not applied" if unapplied else "")
+                        row = _Landed(
+                            source=source,
+                            document=document,
+                            pages=len(pages),
+                            page_unit=unit(pages),
+                            chars=chars,
+                            thin=bool(thin_mark(pages)),
+                            slug_applied=None if slug is None else slug == document.slug,
                         )
-                        if unapplied:
-                            kept.append((source_name(document), document.slug))
-                        if document.outcome == GENERATION:
-                            regenerated.append(document.slug)
-                        if document.restored:
-                            restored.append(document.slug)
-                        if thin_mark(pages):
-                            thin.setdefault(
-                                _thin_cause(document.media_type), []
-                            ).append(document.slug)
-                        nudge_vlm = nudge_vlm or (
-                            extractor == "auto"
-                            and document.media_type == "pdf"
-                            and not vlm_ready(settings)
-                        )
-                        note_pptx = note_pptx or document.media_type == "pptx"
-                        # Page images: the VLM extractor stores them itself, so this
-                        # only ever fires for the text-layer path (and for a re-ingest
-                        # that landed before this machine had poppler). Display only,
-                        # hence best-effort — a failure notes itself and ingest stands.
-                        if _wants_snapshots(registry, document, pages):
-                            try:
-                                for _ in snapshots.capture(
-                                    registry, document.slug, path, config=settings
-                                ):
-                                    pass
-                            except snapshots.SnapshotError as error:
-                                unsnapshot.setdefault(str(error), []).append(document.slug)
+                        # Printed as it lands, before its page images, so a long
+                        # batch shows progress and a run that dies part way has
+                        # said what it finished. `--json` has one object to print.
+                        if not as_json:
+                            typer.echo(_landed_line(row))
+                        landed.append(_with_snapshots(registry, row, path, pages, settings))
                 except BackdraftError as error:
                     unread.append((source, str(error)))
             # Read while the registry is open, because the records it walks are
             # this project's; only a run that made a new generation pays for it.
+            regenerated = [
+                row.document.slug for row in landed if row.document.outcome == GENERATION
+            ]
             citing = citing_drafts(registry, regenerated) if regenerated else ((), 0)
-    # One line per distinct reason — which is one line, unless a machine
-    # without poppler is somehow also holding an unrenderable PDF.
-    for reason, slugs in unsnapshot.items():
-        typer.echo(
-            f"note: page images not captured — {reason}. {snapshots.MISSING_EFFECT} "
-            f"Backfill later with `backdraft snapshot-pages <slug>` for: {', '.join(slugs)}."
+    notes = _ingest_notes(landed, regenerated, citing, extractor, slug, settings)
+    if as_json:
+        _print_ingest_object(
+            dry_run=False,
+            sources=[_landed_object(row) for row in landed],
+            unread=unread,
+            notes=notes,
         )
-    if nudge_vlm:
-        # One line, once per invocation: `auto` fell back to the text layer,
-        # and the note names the condition that failed.
-        typer.echo(
-            f"note: extracted with pdf-text (the embedded text layer). {vlm_gap(settings)}"
-        )
-    if note_pptx:
-        # Same shape as the pdf-text note: the honest gap, and the path that
-        # closes it — relayed by a calling agent when the deck is visual-heavy.
-        typer.echo(
-            "note: extracted slide text only. Charts and images on slides are "
-            "not captured; exporting the deck to PDF and ingesting it through "
-            "the vision extractor captures them."
-        )
-    # Grouped by cause, the way the snapshot note above is: one scanned PDF and
-    # the next have the same story, and each document's own count is already on
-    # its own line, so the note carries the cause and the names rather than
-    # repeating numbers.
-    for cause, slugs in thin.items():
-        typer.echo(
-            f"note: little text extracted — {cause} Read it with `backdraft read "
-            "<slug>` before citing it, and tell the user the source came back "
-            f"thin rather than citing the shell of it: {', '.join(slugs)}."
-        )
-    if restored:
-        # Grouped like the rest, and said out loud because it undoes a command
-        # somebody ran on purpose: an agent re-ingesting a folder should not
-        # have to notice that a source it was told to forget is back.
-        typer.echo(
-            f"note: {', '.join(restored)} came back — withdrawn with `backdraft "
-            "forget`, and ingesting the source again is the undo. Back in "
-            "`backdraft read`, `search` and `ls`, with citations into them "
-            "resolving again. Forget again if that was not the intent."
-        )
-    for name, kept_slug in kept:
-        # One source at most — `--slug` names one — so this is a single line,
-        # last among the notes on what landed because it is about the one input
-        # the run was handed and did not use. It names the cost of a rename
-        # rather than a route to one, because there is none: identity is the
-        # bytes and then the origin, never the slug, so `forget` followed by a
-        # re-ingest brings this same document back under this same slug.
-        typer.echo(
-            f"note: --slug {slug} not applied — {name} is already in the registry "
-            f"as {kept_slug}, and a slug is fixed once assigned. Every token "
-            f"written against the source carries {kept_slug}, so a rename would "
-            "strand each one, and nothing renames a document: not `--slug`, and "
-            "not `backdraft forget` then a re-ingest, which brings the same "
-            f"document back under the same slug. Cite it as {kept_slug}."
-        )
-    if regenerated:
-        # The one line here that is about work already done: a new generation is
-        # the moment older citations can start reporting `drifted`.
-        typer.echo(
-            "note: new generation of "
-            f"{', '.join(regenerated)} — citations into the previous snapshot may "
-            "now report `drifted`. A token whose locator and snippet both survived "
-            "the change carries over untouched, so `backdraft bind` on a document "
-            "citing it is what says which; `backdraft locate <document>` then finds "
-            "where each drifted citation's text stands now, and names the new token "
-            "wherever the text only moved."
-        )
-        drafts, skipped = citing
-        if drafts or skipped:
-            typer.echo(_citing_note(drafts, skipped, set(regenerated)))
+        return
+    for note in notes:
+        typer.echo(note)
     if unread:
         # Last, and it carries the exit code: everything above is what landed.
         fail(
@@ -645,6 +687,131 @@ def ingest(
                 ),
             )
         )
+
+
+def _with_snapshots(
+    registry: Registry, row: _Landed, path: Path, pages: list[Page], settings: dict[str, str]
+) -> _Landed:
+    """Capture `row`'s page images if it wants them, and say how that stands.
+
+    The VLM extractor stores them itself, so capture only ever fires for the
+    text-layer path (and for a re-ingest that landed before this machine had
+    poppler). Display only, hence best-effort — a failure is recorded, its note
+    follows, and the ingest stands. Captured means the images are there, however
+    they got there; a source that has none and never wanted any is not applicable.
+    """
+    slug = row.document.slug
+    if _wants_snapshots(registry, row.document, pages):
+        try:
+            for _ in snapshots.capture(registry, slug, path, config=settings):
+                pass
+        except snapshots.SnapshotError as error:
+            return replace(
+                row, snapshots=SNAPSHOTS_NOT_CAPTURED, snapshots_reason=str(error)
+            )
+    if pages and registry.page_image(slug, pages[0].number) is not None:
+        return replace(row, snapshots=SNAPSHOTS_CAPTURED)
+    return row
+
+
+def _ingest_notes(
+    landed: list[_Landed],
+    regenerated: list[str],
+    citing: tuple[tuple[CitingDraft, ...], int],
+    extractor: str,
+    requested: str | None,
+    settings: dict[str, str],
+) -> list[str]:
+    """Everything `ingest` says under its lines, one string per note.
+
+    A list rather than echoes because the report and `--json` both print it, so
+    each wording still has one owner.
+    """
+    notes: list[str] = []
+    media_types = {row.document.media_type for row in landed}
+    unsnapshot: dict[str, list[str]] = {}  # why it failed -> which documents
+    thin: dict[str, list[str]] = {}  # why it came back thin -> which documents
+    for row in landed:
+        if row.snapshots_reason is not None:
+            unsnapshot.setdefault(row.snapshots_reason, []).append(row.document.slug)
+        if row.thin:
+            thin.setdefault(_thin_cause(row.document.media_type), []).append(row.document.slug)
+    restored = [row.document.slug for row in landed if row.document.restored]
+    # One line per distinct reason — which is one line, unless a machine
+    # without poppler is somehow also holding an unrenderable PDF.
+    for reason, slugs in unsnapshot.items():
+        notes.append(
+            f"note: page images not captured — {reason}. {snapshots.MISSING_EFFECT} "
+            f"Backfill later with `backdraft snapshot-pages <slug>` for: {', '.join(slugs)}."
+        )
+    if extractor == "auto" and "pdf" in media_types and not vlm_ready(settings):
+        # One line, once per invocation: `auto` fell back to the text layer,
+        # and the note names the condition that failed.
+        notes.append(
+            f"note: extracted with pdf-text (the embedded text layer). {vlm_gap(settings)}"
+        )
+    if "pptx" in media_types:
+        # Same shape as the pdf-text note: the honest gap, and the path that
+        # closes it — relayed by a calling agent when the deck is visual-heavy.
+        notes.append(
+            "note: extracted slide text only. Charts and images on slides are "
+            "not captured; exporting the deck to PDF and ingesting it through "
+            "the vision extractor captures them."
+        )
+    # Grouped by cause, the way the snapshot note above is: one scanned PDF and
+    # the next have the same story, and each document's own count is already on
+    # its own line, so the note carries the cause and the names rather than
+    # repeating numbers.
+    for cause, slugs in thin.items():
+        notes.append(
+            f"note: little text extracted — {cause} Read it with `backdraft read "
+            "<slug>` before citing it, and tell the user the source came back "
+            f"thin rather than citing the shell of it: {', '.join(slugs)}."
+        )
+    if restored:
+        # Grouped like the rest, and said out loud because it undoes a command
+        # somebody ran on purpose: an agent re-ingesting a folder should not
+        # have to notice that a source it was told to forget is back.
+        notes.append(
+            f"note: {', '.join(restored)} came back — withdrawn with `backdraft "
+            "forget`, and ingesting the source again is the undo. Back in "
+            "`backdraft read`, `search` and `ls`, with citations into them "
+            "resolving again. Forget again if that was not the intent."
+        )
+    for row in landed:
+        if row.slug_applied is not False:
+            continue
+        name, kept_slug = source_name(row.document), row.document.slug
+        # One source at most — `--slug` names one — so this is a single line,
+        # last among the notes on what landed because it is about the one input
+        # the run was handed and did not use. It names the cost of a rename
+        # rather than a route to one, because there is none: identity is the
+        # bytes and then the origin, never the slug, so `forget` followed by a
+        # re-ingest brings this same document back under this same slug.
+        notes.append(
+            f"note: --slug {requested} not applied — {name} is already in the registry "
+            f"as {kept_slug}, and a slug is fixed once assigned. Every token "
+            f"written against the source carries {kept_slug}, so a rename would "
+            "strand each one, and nothing renames a document: not `--slug`, and "
+            "not `backdraft forget` then a re-ingest, which brings the same "
+            f"document back under the same slug. Cite it as {kept_slug}."
+        )
+    if regenerated:
+        # The one line here that is about work already done: a new generation is
+        # the moment older citations can start reporting `drifted`.
+        notes.append(
+            "note: new generation of "
+            f"{', '.join(regenerated)} — citations into the previous snapshot may "
+            "now report `drifted`. A token whose locator and snippet both survived "
+            "the change carries over untouched, so `backdraft bind` on a document "
+            "citing it is what says which; `backdraft locate <document>` then finds "
+            "where each drifted citation's text stands now, and names the new token "
+            "wherever the text only moved."
+        )
+        drafts, skipped = citing
+        if drafts or skipped:
+            notes.append(_citing_note(drafts, skipped, set(regenerated)))
+    return notes
 
 
 def _citing_note(
@@ -692,7 +859,12 @@ def _citing_note(
 
 
 def _report_naming(
-    sources: list[str], extractor: str, slug: str | None, settings: dict[str, str]
+    sources: list[str],
+    extractor: str,
+    slug: str | None,
+    settings: dict[str, str],
+    *,
+    as_json: bool = False,
 ) -> None:
     """`ingest --dry-run`: what each source would be called, before that is permanent.
 
@@ -719,6 +891,14 @@ def _report_naming(
                 unread.append((source, str(error)))
     finally:
         registry.close()
+    if as_json:
+        _print_ingest_object(
+            dry_run=True,
+            sources=[_named_object(source, naming, slug) for source, naming in named],
+            unread=unread,
+            notes=_naming_notes(named, slug),
+        )
+        return
     for source, naming in named:
         typer.echo(f"{naming.slug}  {source}  {naming.media_type}{_naming_note(naming, slug)}")
     for line in _naming_notes(named, slug):

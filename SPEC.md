@@ -307,7 +307,7 @@ All switches **default off** (`--check` opts in). Verdicts are recorded evidence
 
 ```
 backdraft init                      # create .backdraft/, print status
-backdraft ingest <sources...> [--extractor auto] [--slug S] [--config k=v] [--dry-run]
+backdraft ingest <sources...> [--extractor auto] [--slug S] [--config k=v] [--dry-run] [--json]
                                     # a source is a path or an http(s) URL
                                     # --dry-run: the slug, media type and extractor
                                     # each source would take, fetching, writing and
@@ -315,6 +315,7 @@ backdraft ingest <sources...> [--extractor auto] [--slug S] [--config k=v] [--dr
                                     # fails it as it fails the ingest
                                     # --slug names a new document only; on one already
                                     # ingested the line says `--slug not applied`
+                                    # --json: backdraft/ingest-v1 on stdout, below
 backdraft forget <slug> [--yes]      # withdraw a source; citations keep resolving
 backdraft ls [--withdrawn]          # --withdrawn: what forget took out, its date,
                                     # and the ingest that brings it back
@@ -338,6 +339,8 @@ backdraft theme [list|show <name|file>]
 backdraft export [--out registry.json]
 backdraft session [start|show] 
 ```
+
+`ingest --json` prints one object, format `backdraft/ingest-v1`, in place of the report. It describes this command's output and not the artifact, so it is specified here and not in `spec/`. Top level: `format`, `dry_run` (bool), `sources`, `failures`, `notes`. Each `sources` entry, in the order given and only for a source that landed: `source` as typed, `slug`, `name` (`source_name`), `media_type`, `pages` (int), `chars` (int), `outcome` (`created`, `generation` or `unchanged`), `restored` (bool, the source had been withdrawn), `slug_applied` (null when no `--slug` was given, else whether the document carries it), `thin` (bool, by `gate.thin_mark`, the same rule `ls` and `read` mark by), and `snapshots` as `{status, reason}`, where `status` is `captured` (the page images are stored, however they got there), `not_captured` (`reason` says why; the ingest still stands) or `not_applicable`. `failures` is `[{source, reason}]` with the reason a `!` line prints. `notes` is an array of the same strings the report prints. `reason` and `notes` are prose and may be reworded between releases; the keys and the enumerated values are the contract. Exit codes do not move: a failed source exits 1 with the object on stdout and nothing on stderr, because what landed is in the registry and the caller needs its slugs; a run that cannot start (`--slug` with several sources, a malformed `--config`, no registry) exits 1 with its error on stderr and nothing on stdout. With `--dry-run` the object has the same keys and `dry_run` true: `outcome` is `would-ingest` or `already-ingested`, `restored` says whether ingesting would bring a withdrawn source back, `slug_applied` is the same comparison against the slug it would take, `name`, `pages`, `chars`, `thin` and `snapshots` are null because only extraction settles them, and each entry adds `extractor` (what would run) and `extracted_with` (what its current generation came from, or null).
 
 Registry discovery: nearest `.backdraft/` walking up from cwd, `BACKDRAFT_HOME` override — from the *document's* directory for `bind` and `locate`, and from cwd for `verify`, whose input is a portable file that says nothing about which registry produced it. A walk from a document's directory that finds nothing never falls back to cwd's registry: its refusal (exit 1) names the directory searched and the document, and, where the walk from cwd would have found a registry, names that root as one that does not cover the draft and `BACKDRAFT_HOME=<root>` as the way to state the link, without suggesting `backdraft init`; a walk from cwd that finds nothing prints ``no .backdraft/ found in this directory or any parent; run `backdraft init` `` unchanged. `verify --against <project>` bypasses discovery instead — the recipient asserting which registry the file came from, in either form `BACKDRAFT_HOME` takes, outranking `BACKDRAFT_HOME` and the walk, and refused (exit 1) when it names no registry rather than falling back to the file alone. Exit codes: 0 clean; 1 usage/env error; 2 a run that completed and did not come out clean — `bind` with non-resolved citations, `verify` with a record that failed its checks (so hooks can gate on either).
 

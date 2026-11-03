@@ -88,6 +88,16 @@ is a document that did not exist before. When almost no text came out, ingest
 prints a `note: little text extracted` line naming the likely cause — that note,
 not your own judgement, is the signal that a source came back as a shell.
 
+To act on those results as data — taking each slug to cite from a folder's worth
+of sources, branching on which came back thin — parse `backdraft ingest <sources>
+--json` rather than the lines. Each entry under `sources` has `slug`, `outcome`
+(`created`, `generation`, `unchanged`), `restored`, `slug_applied`, `thin` and
+`snapshots.status`; `failures` holds each source that never landed with its
+`reason`, and `notes` holds the report's own notes. A failed source still exits
+1, and the object is on stdout saying what landed. `--dry-run --json` is the same
+object before anything is written, `outcome` being `would-ingest` or
+`already-ingested`. Relay the `reason` and the `notes` to the user as written.
+
 You will often be writing against a registry you did not ingest — it travels
 with the project folder, and the ingest may have happened in another session —
 so that note is not the only place the signal lives. `backdraft read`'s document

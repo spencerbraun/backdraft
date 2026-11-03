@@ -317,7 +317,17 @@ answered; a path with no registry exits 1.
 
 Parse keys, not lines: the lines are worded for the user and get reworded. To
 act on a result as data, add --json — same exit codes, one JSON object on
-stdout, nothing on stdout at exit 1. `bind --json` prints the record, the same
+stdout, nothing on stdout at exit 1 (ingest is the one exception, below).
+`ingest --json` prints a small object (format backdraft/ingest-v1): sources[]
+for what landed, each with source as typed, slug, name, media_type, pages,
+chars, outcome (created, generation, unchanged), restored, slug_applied (null
+without --slug), thin, and snapshots.status (captured, not_captured with a
+reason, not_applicable); failures[] as {source, reason}; notes[], the report's
+own strings. A failed source still exits 1, with the object on stdout saying
+what landed; a run that cannot start exits 1 with stdout empty. With --dry-run
+the same keys, dry_run true, outcome would-ingest or already-ingested, null
+where only extraction could say, plus extractor and extracted_with.
+`bind --json` prints the record, the same
 bytes bind writes under .backdraft/records/: every citation's token, status and
 error under claims[].citations[], counts in summary.by_status. It carries the
 embedded evidence (page images make it hundreds of KB), so pipe it into a

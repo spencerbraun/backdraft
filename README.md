@@ -335,7 +335,11 @@ when a citation does not resolve against the sources today (its status beside
 the record's says whether they moved since binding), `recount` when the summary
 disagrees with the claims. Exit codes are unchanged; the payload says which kind
 of exit 2 you got. The format is in
-[spec/artifact.md](spec/artifact.md#the-verify-report).
+[spec/artifact.md](spec/artifact.md#the-verify-report). `backdraft ingest <sources>
+--json` prints each source's slug, outcome and whether it came back thin, plus
+the failures and the notes, as one object (`backdraft/ingest-v1`,
+[SPEC.md](SPEC.md#cli-clipy--typer)); a failed source still exits 1, with the
+object on stdout saying what landed.
 
 **Theming.** The artifact ships with a default look and two alternates,
 `press` and `slate`:
