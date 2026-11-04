@@ -543,6 +543,26 @@ it is out of `backdraft read`, `search` and `ls`. Its anchors are untouched: a t
 [Re-ingest it to bring it back: backdraft ingest scratch-copy.md]
 ```
 
+Whether a draft cites the source decides whether forgetting it is tidying or
+breaking a memo, so `forget` names the drafts first. It reads them from the
+records every bind leaves, before the prompt and under `--yes` alike, and prints
+nothing extra when no draft cites the source:
+
+```console
+$ backdraft forget notes --yes
+as last bound, 1 draft cites notes, and forgetting it turns these citations `unresolved`:
+  memos/q3.md  3 citations
+forgot notes (notes.md, text, 1 page)
+it is out of `backdraft read`, `search` and `ls`. Its anchors are untouched: a token already written into a draft or an artifact still shows its receipt under `backdraft show`, and `bind` reports it `unresolved` naming this withdrawal rather than passing it silently.
+[Re-ingest it to bring it back: backdraft ingest notes.md]
+```
+
+"As last bound" is the limit of what a record knows: a draft edited since its
+last bind may cite more or less. Past five drafts the rest are counted, and a
+record that cannot be read is counted on the line rather than stopping the
+withdrawal. With no terminal and no `--yes`, the same lines print, the command
+exits 1 naming the flag, and nothing is withdrawn.
+
 This **withdraws** rather than deletes, and the difference is the whole point.
 Nothing is removed — the document, its generations, its anchors and its
 receipts all stay — so a token already written into somebody's draft or artifact

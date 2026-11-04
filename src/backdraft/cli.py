@@ -849,13 +849,18 @@ def _citing_note(
             f"{cites} {sources} — run {commands} to see which of {whose} citations "
             "drifted and where their words stand now"
         )
-    if skipped:
-        line += (
-            f" ({skipped} record{'s' if skipped > 1 else ''} under "
-            "`.backdraft/records/` could not be read and "
-            f"{'were' if skipped > 1 else 'was'} skipped, so this may be short)"
-        )
-    return line + "."
+    return line + _skipped_records(skipped) + "."
+
+
+def _skipped_records(skipped: int) -> str:
+    """The clause saying a citing-drafts list may be short, or nothing if it is whole."""
+    if not skipped:
+        return ""
+    return (
+        f" ({skipped} record{'s' if skipped > 1 else ''} under "
+        "`.backdraft/records/` could not be read and "
+        f"{'were' if skipped > 1 else 'was'} skipped, so this may be short)"
+    )
 
 
 def _report_naming(
@@ -1555,8 +1560,12 @@ def forget(
     Ingesting the source again brings it back, as the same document under the
     same slug rather than a second one beside it.
 
+    Names each draft whose last bind cited the source, and how many citations
+    each would turn `unresolved`, before withdrawing anything.
+
     Asks before withdrawing. Where nothing can answer — a script, an agent, a
-    pipe — pass `--yes`, which is the whole of the confirmation.
+    pipe — pass `--yes`, which is the whole of the confirmation. Without it, such
+    a caller gets those names and this flag, and nothing is withdrawn.
     """
     with opened_registry() as registry:
         document = _document_named(registry, slug)
@@ -1575,6 +1584,8 @@ def forget(
             typer.echo(f"{described} was already {withdrawn_reason(document)}")
             typer.echo(f"[{back}]")
             return
+        for line in _forget_citing_lines(slug, *citing_drafts(registry, {slug})):
+            typer.echo(line)
         if not yes:
             _confirm(described)
         registry.forget(slug)
@@ -1586,6 +1597,41 @@ def forget(
         "`unresolved` naming this withdrawal rather than passing it silently."
     )
     typer.echo(f"[{back}]")
+
+
+def _forget_citing_lines(
+    slug: str, drafts: tuple[CitingDraft, ...], skipped: int
+) -> list[str]:
+    """Which drafts a withdrawal would break, as last bound, one line per draft.
+
+    The one fact that decides whether forgetting a source is tidying or breaking
+    a memo about to go out. Printed before the prompt and under `--yes` alike,
+    since the caller passing `--yes` is the one reading this output afterwards.
+    Records reflect each draft's last bind, not its current text, so the header
+    says so. No citing draft and no unreadable record adds nothing, but "no draft"
+    is not sayable by silence once a record could not be read, so that case gets
+    its line — the same one the new-generation note prints.
+    """
+    skip = _skipped_records(skipped)
+    if not drafts:
+        if not skipped:
+            return []
+        return [f"as last bound, no draft in this project cites {slug}{skip}."]
+    many = len(drafts) > 1
+    rows = [
+        f"{as_typed(draft.path)}  {_citations(draft.citations[slug])}" for draft in drafts
+    ]
+    return [
+        f"as last bound, {len(drafts)} draft{'s' if many else ''} "
+        f"{'cite' if many else 'cites'} {slug}, and forgetting it turns these "
+        f"citations `unresolved`{skip}:",
+        *(f"  {row}" for row in handful(rows)),
+    ]
+
+
+def _citations(count: int) -> str:
+    """`1 citation` or `N citations`."""
+    return f"{count} citation{'s' if count != 1 else ''}"
 
 
 def _interactive() -> bool:

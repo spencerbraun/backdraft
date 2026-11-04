@@ -115,7 +115,10 @@ report under two names, a file the user did not mean to include — say so and
 offer `backdraft forget <slug> --yes`, which withdraws it from `read`, `search`
 and `ls` while leaving every token already minted from it resolving. Do not run
 it unasked: which copy is the real one is the user's call, not yours, and the
-same file ingested again is the undo.
+same file ingested again is the undo. Run `backdraft forget <slug>` without
+`--yes` first, where no terminal can answer: it exits 1 and withdraws nothing,
+but names each draft citing the source as last bound and how many citations
+would turn `unresolved`. Put those names in your offer.
 
 For real PDFs (glossy layouts, info boxes, scans) the VLM extractor produces the
 best receipts; `auto` prefers it when `BACKDRAFT_VLM_API_KEY` is set (env or `.backdraft/env`; ambient provider keys

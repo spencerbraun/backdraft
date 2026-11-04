@@ -300,8 +300,8 @@ def citing_drafts(
 ) -> tuple[tuple[CitingDraft, ...], int]:
     """The drafts whose records cite any of `slugs`, and how many records were skipped.
 
-    One owner for the walk `ingest`'s new-generation note and `show`'s drift
-    hint both make, over the project the registry was opened for. Paths come
+    One owner for the walk `ingest`'s new-generation note, `show`'s drift hint
+    and `forget`'s description all make, over the project the registry was opened for. Paths come
     back absolute; a caller prints them through `as_typed`.
     """
     root = getattr(registry, "root", None)

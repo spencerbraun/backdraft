@@ -132,16 +132,16 @@ a token and never a document.
 HANDFUL = 5
 """How many drafts a note or hint names by command before it counts the rest.
 
-Shared by `ingest`'s new-generation note and `show`'s drift hint, which name the
-same drafts from the same records: enough to cover a working project, few enough
+Shared by `ingest`'s new-generation note, `show`'s drift hint and `forget`'s
+description, which name drafts from the same records: enough to cover a working project, few enough
 that the line stays a line."""
 
 
 def handful(named: Sequence[str]) -> list[str]:
     """The first `HANDFUL` of `named`, then `N more` for the rest, if any.
 
-    One owner for the cut both drafts lines make; each joins the result its
-    own way, since one is prose and the other a run of commands.
+    One owner for the cut every drafts line makes; each lays the result out its
+    own way: prose, a run of commands, or one row per draft.
     """
     rest = len(named) - HANDFUL
     return [*named[:HANDFUL], *([f"{rest} more"] if rest > 0 else [])]

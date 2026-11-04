@@ -254,3 +254,175 @@ def test_a_malformed_token_counts_nothing_and_does_not_spoil_the_record(
 
     assert scan.skipped == 0
     assert [d.citations for d in scan.drafts] == [{"notes": 1}]
+
+
+# ---- forget -----------------------------------------------------------------
+
+FORGOT_NOTES = (
+    "forgot notes (notes.md, text, 1 page)\n"
+    "it is out of `backdraft read`, `search` and `ls`. Its anchors are untouched: a "
+    "token already written into a draft or an artifact still shows its receipt under "
+    "`backdraft show`, and `bind` reports it `unresolved` naming this withdrawal "
+    "rather than passing it silently.\n"
+    "[Re-ingest it to bring it back: backdraft ingest notes.md]\n"
+)
+
+SKIPPED_ONE = (
+    "(1 record under `.backdraft/records/` could not be read and was skipped, "
+    "so this may be short)"
+)
+
+
+def broken_record(project: Path) -> None:
+    write(project / DIRECTORY / "records" / "broken.backdraft.json", "{not json")
+
+
+def test_forget_names_the_memo_citing_it_and_not_the_other(project: Path) -> None:
+    two_memos(project)
+
+    result = invoke("forget", "notes", "--yes")
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout == (
+        "as last bound, 1 draft cites notes, and forgetting it turns these citations "
+        "`unresolved`:\n"
+        "  memos/q3.md  1 citation\n" + FORGOT_NOTES
+    )
+    assert "staff.md" not in result.stdout
+
+
+def test_the_count_forget_names_is_what_bind_then_reports(project: Path) -> None:
+    cited = two_memos(project)
+    write(
+        project / "memos" / "q3.md",
+        f"[Revenue grew twelve percent]({cited}). [Led by renewals]({cited}).",
+    )
+    assert invoke("bind", "memos/q3.md", "--session", "s1").exit_code == 0
+
+    assert "  memos/q3.md  2 citations\n" in invoke("forget", "notes", "--yes").stdout
+
+    bound = invoke("bind", "memos/q3.md", "--session", "s1")
+    assert bound.stdout.count("! unresolved:") == 2
+
+
+def test_forget_with_no_records_prints_exactly_what_it_did(project: Path) -> None:
+    write(project / "notes.md", NOTES)
+    assert invoke("ingest", "notes.md").exit_code == 0
+
+    result = invoke("forget", "notes", "--yes")
+
+    assert result.exit_code == 0
+    assert result.stdout == FORGOT_NOTES
+
+
+def test_forget_with_records_citing_only_other_sources_prints_what_it_did(
+    project: Path,
+) -> None:
+    two_memos(project)
+    write(project / "third.md", INSERTED)
+    assert invoke("ingest", "third.md").exit_code == 0
+
+    result = invoke("forget", "third", "--yes")
+
+    assert result.exit_code == 0
+    assert "as last bound" not in result.stdout
+    assert result.stdout.startswith("forgot third (third.md, text, 1 page)\n")
+
+
+def test_an_unreadable_record_does_not_stop_the_forget_and_is_counted(
+    project: Path,
+) -> None:
+    write(project / "notes.md", NOTES)
+    assert invoke("ingest", "notes.md").exit_code == 0
+    broken_record(project)
+
+    result = invoke("forget", "notes", "--yes")
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout == (
+        f"as last bound, no draft in this project cites notes {SKIPPED_ONE}.\n"
+        + FORGOT_NOTES
+    )
+    assert "notes" not in invoke("ls").stdout
+
+
+def test_an_unreadable_record_is_counted_beside_the_drafts_that_could_be_read(
+    project: Path,
+) -> None:
+    two_memos(project)
+    broken_record(project)
+
+    result = invoke("forget", "notes", "--yes")
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout.startswith(
+        "as last bound, 1 draft cites notes, and forgetting it turns these citations "
+        f"`unresolved` {SKIPPED_ONE}:\n"
+        "  memos/q3.md  1 citation\n"
+        "forgot notes"
+    )
+
+
+def test_forget_counts_the_drafts_past_a_handful(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write(project / "notes.md", NOTES)
+    assert invoke("ingest", "notes.md").exit_code == 0
+    drafts = tuple(
+        CitingDraft(path=project / f"d{n}.md", citations={"notes": n + 1})
+        for n in range(HANDFUL + 2)
+    )
+    monkeypatch.setattr(cli, "citing_drafts", lambda registry, slugs: (drafts, 0))
+
+    lines = invoke("forget", "notes", "--yes").stdout.splitlines()
+
+    assert lines[0].startswith("as last bound, 7 drafts cite notes, and ")
+    assert lines[1] == "  d0.md  1 citation"
+    assert lines[HANDFUL] == "  d4.md  5 citations"
+    assert lines[HANDFUL + 1] == "  2 more"
+    assert lines[HANDFUL + 2].startswith("forgot notes")
+
+
+def test_a_deleted_draft_is_not_named_by_forget(project: Path) -> None:
+    two_memos(project)
+    (project / "memos" / "q3.md").unlink()
+    assert "as last bound" not in invoke("forget", "notes", "--yes").stdout
+
+
+def test_forget_without_yes_names_the_drafts_and_withdraws_nothing(project: Path) -> None:
+    two_memos(project)
+
+    result = invoke("forget", "notes")
+
+    assert result.exit_code == 1
+    assert "  memos/q3.md  1 citation\n" in result.stdout
+    assert "--yes" in result.stderr
+    assert "notes" in invoke("ls").stdout
+
+
+def test_the_prompt_comes_after_the_drafts_and_its_question_has_not_moved(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    two_memos(project)
+    monkeypatch.setattr(cli, "_interactive", lambda: True)
+
+    declined = runner.invoke(cli.app, ["forget", "notes"], input="n\n")
+
+    assert declined.exit_code == 1
+    assert declined.stdout.startswith(
+        "as last bound, 1 draft cites notes, and forgetting it turns these citations "
+        "`unresolved`:\n"
+        "  memos/q3.md  1 citation\n"
+        "forget notes (notes.md, text, 1 page)? [y/N]: "
+    )
+    assert "notes" in invoke("ls").stdout
+
+
+def test_forgetting_twice_names_no_drafts_the_second_time(project: Path) -> None:
+    two_memos(project)
+    assert invoke("forget", "notes", "--yes").exit_code == 0
+
+    again = invoke("forget", "notes", "--yes")
+
+    assert again.exit_code == 0
+    assert "as last bound" not in again.stdout

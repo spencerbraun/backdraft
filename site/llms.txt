@@ -142,7 +142,12 @@ backdraft forget <slug> --yes               # a source ingest should not have
                                             # written still show their
                                             # receipts. Ingesting the file
                                             # again brings it back. Ask the
-                                            # user before running it.
+                                            # user before running it. Names
+                                            # each draft citing it, as last
+                                            # bound, and how many citations
+                                            # turn unresolved; with no terminal
+                                            # and no --yes it prints those names
+                                            # and withdraws nothing.
 backdraft ls --withdrawn                    # what was withdrawn, when, and the
                                             # ingest that brings each back
 backdraft session start --id s-<name>       # do this. Without it every run in

@@ -51,7 +51,10 @@ like attributing it to the right one. Name what you think the duplicates are
 and offer `backdraft forget <slug> --yes`, which withdraws a source from `read`,
 `search` and `ls` while leaving every token already minted from it resolving.
 Do not run it unasked — which copy is the real one is the user's call — and
-ingesting the same file again is the undo.
+ingesting the same file again is the undo. Run `backdraft forget <slug>` without
+`--yes` first, where no terminal can answer: it exits 1 and withdraws nothing,
+but names each draft citing the source as last bound and how many citations
+would turn `unresolved`. Put those names in your offer.
 
 No session is needed: backfill does not judge against the ledger, because the
 author was never shown anything. Read source files only through `backdraft
