@@ -23,6 +23,9 @@ uv tool install backdraft   # pip install backdraft where uv is absent
 # itself prints. Keys show as `set`/`absent`, never their values. Always exit
 # 0. Plan from it: do not promise a user scanned-PDF extraction when it says
 # the vision model is missing.
+# Read `backdraft doctor --json` rather than the columns: capabilities[] with
+# name, ready (bool), gap, costs, ready_detail and key as {name, set}, the
+# registry's entry adding root, schema_version and documents.
 # Human-run setup step (not for sessions): `backdraft skill install` copies
 # the writing skill into ~/.claude/skills/ (Claude Code); add
 # `--agent codex` to target ~/.agents/skills for the Codex family.
@@ -332,6 +335,10 @@ own strings. A failed source still exits 1, with the object on stdout saying
 what landed; a run that cannot start exits 1 with stdout empty. With --dry-run
 the same keys, dry_run true, outcome would-ingest or already-ingested, null
 where only extraction could say, plus extractor and extracted_with.
+`doctor --json` prints a small object (format backdraft/doctor-v1), exit 0
+always: capabilities[] with name, ready, gap and costs (null when ready),
+ready_detail (null when missing) and key as {name, set} or null, never a value;
+the registry's entry adds root, schema_version and documents.
 `bind --json` prints the record, the same
 bytes bind writes under .backdraft/records/: every citation's token, status and
 error under claims[].citations[], counts in summary.by_status. It carries the

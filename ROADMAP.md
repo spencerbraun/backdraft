@@ -32,35 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. `doctor` is read by agents and prints only columns
-
-**Intent.** The writing skill's first instruction is now "Run `backdraft doctor`
-before you promise anything" and plan from its `missing` lines. An agent does
-that by scraping aligned columns whose third field is a sentence, whose
-continuation lines are told apart by leading spaces, and whose summary is a
-bracketed line — the shape `bind --json` and `verify --json` (2026-09-14) were
-added to stop agents depending on. The capability set will grow; each new line
-moves the column widths.
-
-**Shape.** `--json` on `doctor` in `cli.py`, printing one object from the same
-`_Capability` list the report is built from: per capability `name`, `ready`
-(bool), `gap` (the verb's own string, or null), `costs` (null when ready),
-`ready_detail`, and `key` as `{name, set}` where the capability spends one —
-never a value. The registry's entry carries the root and document count as
-fields. Exit 0 always, as today. Document the object in SPEC § CLI beside
-`doctor`'s paragraph; it is not part of the artifact format and does not go in
-`spec/`.
-
-**Acceptance.** A test runs `doctor --json` with everything missing and with
-everything ready (the existing fixtures), parses it, and asserts every field; a
-test with a fake key set asserts its value appears nowhere in the output. The
-report without `--json` is byte-identical, pinned. `skills/backdraft/SKILL.md`
-tells an agent to read `doctor --json`; `site/llms.txt` and `site/docs.html`
-name the flag.
-
-**Size.** One day.
-
-### 2. A `not_shown` cleared by `show` after `bind` reads like a citation read before writing
+### 1. A `not_shown` cleared by `show` after `bind` reads like a citation read before writing
 
 **Intent.** `not_shown` is the one status that says the author cited a passage
 they never read, and it clears by being shown: `bind` flags it, the agent runs
@@ -102,7 +74,7 @@ and says to re-judge each claim it lists. DESIGN row.
 
 **Size.** One to two days.
 
-### 3. `verify`'s `next: not_shown` tells an auditor to mint into the author's session
+### 2. `verify`'s `next: not_shown` tells an auditor to mint into the author's session
 
 **Intent.** Since 2026-10-14 `verify` re-checks `not_shown` against the session
 the record names, and its report closes with `cli_context.NEXT_MOVES`' line for
@@ -135,7 +107,7 @@ than running them" for this case. DESIGN row amending 2026-10-14's.
 
 **Size.** One day.
 
-### 4. `verify --json` carries the finding and not the move
+### 3. `verify --json` carries the finding and not the move
 
 **Intent.** `bind` and `verify` reports end with `next:` lines (2026-10-14), and
 both `--json` forms carry none of it, by design for `bind`, whose `--json` is
@@ -165,7 +137,7 @@ the object is byte-identical, pinned against the existing JSON tests. SPEC
 
 **Size.** One day.
 
-### 5. A search hit on a long page points at the whole page
+### 4. A search hit on a long page points at the whole page
 
 **Intent.** Every search result block closes with `[Read the page: backdraft
 read <slug> p<n>]`, and `show` does the same. On a 57-chunk web page that is
@@ -199,7 +171,7 @@ hint. DESIGN row.
 
 **Size.** One day.
 
-### 6. A web page saved by hand ingests as a file and loses the address it came from
+### 5. A web page saved by hand ingests as a file and loses the address it came from
 
 **Intent.** The 2026-08-05 row made a URL provenance, not identity: a fetched
 page is identified by its snapshot and named everywhere by its URL. An agent
@@ -238,7 +210,7 @@ from the fixture are identical with and without `--origin`, diffed. SPEC
 
 **Size.** Two to three days.
 
-### 7. `show` on a drifted token prints the passage that took over its address as `now`, and never says the cited words only moved
+### 6. `show` on a drifted token prints the passage that took over its address as `now`, and never says the cited words only moved
 
 **Intent.** `backdraft show <token>` is the first command an agent reaches for
 when `bind` says `drifted`, and its block prints `cited:` then `now [<token>]:`
@@ -283,7 +255,7 @@ bullet say what the line means. DESIGN row.
 
 **Size.** One day.
 
-### 8. `bind` knows which drifted citations only moved and reports none of it
+### 7. `bind` knows which drifted citations only moved and reports none of it
 
 **Intent.** Since 2026-10-21 `citation_for` writes `moved_to` on every drifted
 citation whose words stand unchanged at one place, so the record knows, the
@@ -326,7 +298,7 @@ at`. `bind --json` on both is unchanged against the current output, and
 
 **Size.** One day.
 
-### 9. `ingest --dry-run` says a PDF would go to the vision model and not how many pages that is
+### 8. `ingest --dry-run` says a PDF would go to the vision model and not how many pages that is
 
 **Intent.** The 2026-10-19 row put the extractor on the dry run's line because
 it is the one fact there that can cost money, and the note says `vlm` is a
@@ -365,7 +337,7 @@ amending 2026-10-19.
 
 **Size.** One day.
 
-### 10. A source re-ingested from where it moved to keeps the registry's old path, and every hint that names the path names a file that is gone
+### 9. A source re-ingested from where it moved to keeps the registry's old path, and every hint that names the path names a file that is gone
 
 **Intent.** Identity is the bytes (2026-08-05), so re-ingesting an unchanged
 file from a new path is a no-op: `Registry.ingest` finds the document by
@@ -404,7 +376,7 @@ names where the file was last seen. DESIGN row.
 
 **Size.** One day.
 
-### 11. `search` and the table of contents never say which hits or chunks this session was already shown
+### 10. `search` and the table of contents never say which hits or chunks this session was already shown
 
 **Intent.** `session show --in` (2026-10-20) answers coverage per document, but
 the moment an agent actually chooses what to read next is a `search` block of
@@ -440,7 +412,7 @@ says what the mark means. DESIGN row.
 
 **Size.** One to two days.
 
-### 12. A drifted citation whose words now span two chunks has no `moved_to`, so its card diffs them against half a passage
+### 11. A drifted citation whose words now span two chunks has no `moved_to`, so its card diffs them against half a passage
 
 **Intent.** Since 2026-10-26 `locate` proposes `a;b` when a cut now runs
 through the cited words, and `--apply` writes the pair. `bind` does not record
@@ -477,7 +449,7 @@ as before — the key is not part of the receipt checks.
 
 **Size.** Two days.
 
-### 13. The drafts named after a new generation may have been edited since their bind, and the note cannot tell which
+### 12. The drafts named after a new generation may have been edited since their bind, and the note cannot tell which
 
 **Intent.** `ingest`'s new-generation note and `show`'s drift hint name the
 drafts whose records cite a source "as last bound", and the writing skill has
@@ -508,7 +480,7 @@ edited drafts is replaced by what the mark means.
 
 **Size.** One day.
 
-### 14. `bind` under a different session than the draft's last bind says nothing, and every citation turns `not_shown`
+### 13. `bind` under a different session than the draft's last bind says nothing, and every citation turns `not_shown`
 
 **Intent.** An agent that loses its context, or a fresh shell without
 `BACKDRAFT_SESSION` exported, re-binds a draft with no `--session`: the run
@@ -539,7 +511,7 @@ paragraph says to read the note before re-reading anything.
 
 **Size.** One day.
 
-### 15. A record the scan cannot read is counted, never named, so the "may be short" warning has no next step
+### 14. A record the scan cannot read is counted, never named, so the "may be short" warning has no next step
 
 **Intent.** `scan_records` skips a record that is not valid JSON or not a
 record's shape and counts it; `ingest`'s note then says "1 record under
@@ -571,7 +543,7 @@ tests pass with `skipped` unchanged.
 
 **Size.** One day.
 
-### 16. `relocate` re-reads a whole document for every drifted chunk citation it cannot find exactly
+### 15. `relocate` re-reads a whole document for every drifted chunk citation it cannot find exactly
 
 **Intent.** `current_within` (2026-10-26) is a pass over every current chunk of
 the cited document — `registry.pages` plus `anchors_for_page` per page, then a

@@ -23,7 +23,7 @@ import shlex
 import shutil
 import sys
 from contextlib import contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Annotated, Iterable, Iterator
@@ -325,6 +325,11 @@ def init(
     )
 
 
+DOCTOR_FORMAT = "backdraft/doctor-v1"
+"""What `doctor --json` prints; SPEC § CLI is its format, keys stable and its prose
+values declared rewordable, as `backdraft/ingest-v1`'s are."""
+
+
 @dataclass(frozen=True, slots=True)
 class _Capability:
     """One line of `doctor`: what it is, whether this install has it, and what that means."""
@@ -338,17 +343,48 @@ class _Capability:
     """What is there, printed in place of the gap when there is none."""
     key: str | None = None
     """The backdraft-scoped key this capability spends, reported set or absent either way."""
+    fields: dict[str, object] = field(default_factory=dict)
+    """What `--json` carries beyond the shared keys. Only the registry has any."""
 
 
-def _key_state(name: str) -> str:
-    """`NAME set` or `NAME absent` — the value is never read past truthiness, never printed."""
+def _key_set(name: str) -> bool:
+    """Whether the key is set — the value is never read past truthiness, never printed."""
     from .credentials import setting
 
-    return f"{name} {'set' if setting(name) else 'absent'}"
+    return bool(setting(name))
 
 
-def _registry_state() -> tuple[str | None, str]:
-    """`(gap, ready)` for the registry, found the way every verb finds it.
+def _capability_object(capability: _Capability) -> dict:
+    """A capability's entry in `doctor --json`: the report's values, unformatted."""
+    missing = capability.gap is not None
+    return {
+        "name": capability.name,
+        "ready": not missing,
+        "gap": capability.gap,
+        "costs": capability.effect if missing else None,
+        "ready_detail": None if missing else capability.ready,
+        "key": (
+            None
+            if capability.key is None
+            else {"name": capability.key, "set": _key_set(capability.key)}
+        ),
+        **capability.fields,
+    }
+
+
+def _registry_fields(
+    root: Path | None = None, schema_version: int | None = None, documents: int | None = None
+) -> dict[str, object]:
+    """The registry's extra `--json` keys. A root with no readable registry keeps its nulls."""
+    return {
+        "root": None if root is None else str(root),
+        "schema_version": schema_version,
+        "documents": documents,
+    }
+
+
+def _registry_state() -> tuple[str | None, str, dict[str, object]]:
+    """`(gap, ready, fields)` for the registry, found the way every verb finds it.
 
     Never creates one: `Registry.open` makes what it does not find, so a
     `BACKDRAFT_HOME` naming an empty directory is reported rather than opened,
@@ -361,12 +397,14 @@ def _registry_state() -> tuple[str | None, str]:
             f"no {DIRECTORY}/ in {Path.cwd()} or any directory above it — "
             "`backdraft init` makes one",
             "",
+            _registry_fields(),
         )
     if not (root / DIRECTORY).is_dir():
         return (
             f"{HOME_ENV} names {root}, which holds no {DIRECTORY}/ — "
             f"`backdraft init {root}` makes one, or unset {HOME_ENV}",
             "",
+            _registry_fields(),
         )
     try:
         registry = Registry.open(root)
@@ -376,8 +414,12 @@ def _registry_state() -> tuple[str | None, str]:
         finally:
             registry.close()
     except BackdraftError as error:
-        return str(error), ""  # the registry's own reason names the file
-    return None, f"{root / DIRECTORY}, schema {version}, {count} document(s)"
+        return str(error), "", _registry_fields(root)  # its own reason names the file
+    return (
+        None,
+        f"{root / DIRECTORY}, schema {version}, {count} document(s)",
+        _registry_fields(root, version, count),
+    )
 
 
 def _capabilities() -> list[_Capability]:
@@ -397,7 +439,7 @@ def _capabilities() -> list[_Capability]:
     from .extract import ExtractionError, get
     from .render import math as render_math
 
-    registry_gap, registry_ready = _registry_state()
+    registry_gap, registry_ready, registry_fields = _registry_state()
     try:
         get("xls")
         xls_gap = None
@@ -410,6 +452,7 @@ def _capabilities() -> list[_Capability]:
             "every verb but `init`, `skill` and `doctor` needs one: ingest, read, "
             "search, bind and render all stop here with exit 1.",
             registry_ready,
+            fields=registry_fields,
         ),
         _Capability(
             "page images",
@@ -453,7 +496,19 @@ def _capabilities() -> list[_Capability]:
 
 
 @app.command()
-def doctor() -> None:
+def doctor(
+    as_json: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help=(
+                "Print one object in place of the report, format "
+                f"{DOCTOR_FORMAT}: each capability's name, ready, gap, costs, "
+                "ready_detail and key. Parse this rather than the columns."
+            ),
+        ),
+    ] = False,
+) -> None:
     """Say what this install can do before a verb needs it. Read-only; always exit 0.
 
     backdraft degrades rather than fails, so each optional capability is
@@ -465,6 +520,13 @@ def doctor() -> None:
     unfamiliar environment.
     """
     capabilities = _capabilities()
+    if as_json:
+        payload = {
+            "format": DOCTOR_FORMAT,
+            "capabilities": [_capability_object(capability) for capability in capabilities],
+        }
+        sys.stdout.write(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+        return
     width = max(len(capability.name) for capability in capabilities)
     for capability in capabilities:
         label = capability.name.ljust(width)
@@ -475,7 +537,8 @@ def doctor() -> None:
             typer.echo(f"{label}  missing  {capability.gap}")
             typer.echo(f"{indent}  costs    {capability.effect}")
         if capability.key is not None:
-            typer.echo(f"{indent}  key      {_key_state(capability.key)}")
+            state = "set" if _key_set(capability.key) else "absent"
+            typer.echo(f"{indent}  key      {capability.key} {state}")
     missing = [capability.name for capability in capabilities if capability.gap is not None]
     if missing:
         typer.echo(

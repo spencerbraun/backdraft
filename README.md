@@ -648,6 +648,9 @@ missing optional capability is not an error. A registry written by a newer
 backdraft than this one is reported here as missing, and every verb that opens
 it refuses at exit 1 and changes nothing: upgrade, since a build that cannot see
 what the file holds would answer wrongly about it.
+`backdraft doctor --json` prints the same answers as one object
+(`backdraft/doctor-v1`, [SPEC.md](SPEC.md#cli-clipy--typer)) for an agent to read
+rather than scrape the columns.
 
 ```console
 $ backdraft doctor

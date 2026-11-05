@@ -20,7 +20,7 @@ on. Where uv is absent, `pip install backdraft` once per session, then use
 agent config directories; installs from PyPI need no special permissions.
 
 ```bash
-backdraft doctor                                  # first, on an unfamiliar machine
+backdraft doctor --json                           # first, on an unfamiliar machine
 backdraft init                                    # once per project
 backdraft ingest report.pdf model.xlsx notes.md   # every source, up front
 backdraft ingest <url> --dry-run                  # what would that be called?
@@ -29,15 +29,18 @@ backdraft session start --id s-<short-name>       # do this; see below
 export BACKDRAFT_SESSION=s-<short-name>
 ```
 
-**Run `backdraft doctor` before you promise anything.** It lists each optional
-capability as `ready` or `missing` and always exits 0. Where a line says
-`missing`, its `costs` line is what you cannot deliver: no vision model means a
-scanned PDF comes back thin and an image cannot be ingested; no page images
-means the artifact shows no cited page; no `[math]` means formulas render as
-LaTeX. Tell the user that up front, with the fix the line names, rather than
-discovering it mid-job. Installing an extra or setting a key is the user's
-call — relay it, do not do it. A missing registry is the one gap every verb
-stops on, and `backdraft init` is its fix.
+**Run `backdraft doctor --json` before you promise anything.** It prints one
+object and always exits 0; read it rather than the columns plain `doctor`
+prints, which move as capabilities are added. Each entry under `capabilities`
+has `name`, `ready` (bool), and where `ready` is false a `gap` (why, with the
+fix) and `costs`, which is what you cannot deliver: no `vision model` means a
+scanned PDF comes back thin and an image cannot be ingested; no `page images`
+means the artifact shows no cited page; no `math` means formulas render as
+LaTeX. Where a capability spends a key, `key` is `{name, set}` and never its
+value. Tell the user that up front, with the fix `gap` names, rather than
+discovering it mid-job. Installing an extra or setting a key is the user's call
+— relay it, do not do it. A missing `registry` is the one gap every verb stops
+on, and `backdraft init` is its fix.
 
 **Keep the draft under its project.** `bind` and `locate` find the registry by
 walking up from the document's directory, not from where you run them, so a
