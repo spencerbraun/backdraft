@@ -47,6 +47,7 @@ from .cli_context import (
     guard,
     open_registry,
     opened_registry,
+    print_json,
     resolve_session,
 )
 from .extract import snapshots, vlm_gap, vlm_ready
@@ -291,7 +292,7 @@ def _print_ingest_object(
         "failures": [{"source": source, "reason": reason} for source, reason in unread],
         "notes": notes,
     }
-    sys.stdout.write(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+    print_json(payload)
     if unread:
         raise typer.Exit(EXIT_USAGE)
 
@@ -526,7 +527,7 @@ def doctor(
             "format": DOCTOR_FORMAT,
             "capabilities": [_capability_object(capability) for capability in capabilities],
         }
-        sys.stdout.write(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+        print_json(payload)
         return
     width = max(len(capability.name) for capability in capabilities)
     for capability in capabilities:

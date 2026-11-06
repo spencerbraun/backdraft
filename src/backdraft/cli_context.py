@@ -19,8 +19,10 @@ completed and did not come out clean — `bind` with non-resolved citations, and
 
 from __future__ import annotations
 
+import json
 import os
 import shlex
+import sys
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn
@@ -58,6 +60,7 @@ __all__ = [
     "next_moves",
     "open_registry",
     "opened_registry",
+    "print_json",
     "resolve_session",
 ]
 
@@ -236,6 +239,15 @@ def authored_text(doc: Path) -> str:
 
 
 # ---- the error path ---------------------------------------------------------
+
+
+def print_json(payload: object) -> None:
+    """One JSON object on stdout, the way every `--json` prints it.
+
+    Indented, non-ASCII kept as written, one trailing newline: one owner, so
+    `ingest`, `doctor` and `verify` cannot drift apart in how they print.
+    """
+    sys.stdout.write(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
 
 
 def fail(message: str, code: int = EXIT_USAGE) -> NoReturn:

@@ -31,7 +31,6 @@ before `verify` and the `theme` group joined `render` here.
 
 from __future__ import annotations
 
-import json
 import shlex
 import sys
 from dataclasses import dataclass
@@ -54,6 +53,7 @@ from ..cli_context import (
     guard,
     named_root,
     next_moves,
+    print_json,
 )
 from ..kernel.artifact import (
     ARTIFACT_SUFFIX,
@@ -404,7 +404,7 @@ def verify(
 
     if as_json:
         document = _verification(artifact, checked)
-        sys.stdout.write(json.dumps(document, indent=2, ensure_ascii=False) + "\n")
+        print_json(document)
     else:
         _print_verification(artifact, checked)
     if not checked.clean:
