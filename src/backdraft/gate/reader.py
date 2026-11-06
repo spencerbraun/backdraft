@@ -133,8 +133,8 @@ HANDFUL = 5
 """How many drafts a note or hint names by command before it counts the rest.
 
 Shared by `ingest`'s new-generation note, `show`'s drift hint and `forget`'s
-description, which name drafts from the same records: enough to cover a working project, few enough
-that the line stays a line."""
+description, which name drafts from the same records: enough to cover a working
+project, few enough that the line stays a line."""
 
 
 def handful(named: Sequence[str]) -> list[str]:
@@ -674,7 +674,7 @@ def render_documents(registry: Registry, *, session_flag: str | None = None) -> 
     # below a column of their own on the rows that carry one.
     count_column = max(len(count) for count in counts)
 
-    lines = [_plural(len(documents), "document"), ""]
+    lines = [plural(len(documents), "document"), ""]
     lines += [
         "  ".join(
             (
@@ -1461,7 +1461,7 @@ def render_session(
         slug_width = max(len(slug) for slug, _ in rows)
         count_width = max(len(str(count)) for _, count in rows)
         lines.append(
-            f"{_plural(total, 'anchor')} shown across {_plural(len(rows), 'document')}"
+            f"{plural(total, 'anchor')} shown across {plural(len(rows), 'document')}"
         )
         lines.append("")
         marks = {slug: _withdrawn_mark(registry, slug) for slug, _ in rows}
@@ -1537,7 +1537,7 @@ def render_coverage(
     lines = [
         f"session {session_id}  (from {source})",
         "",
-        f"{slug}  {_plural(len(shown), 'anchor')} shown of the current extraction",
+        f"{slug}  {plural(len(shown), 'anchor')} shown of the current extraction",
         "",
         *rows,
     ]
@@ -1589,7 +1589,7 @@ def _sheet_coverage(
     cells = [a for a in anchors if isinstance(a.locator, CellLocator)]
     count = sum(1 for a in cells if a.id in shown)
     status = "page shown" if whole else "page not shown"
-    row = f"{name}{status}  {count} of {_plural(len(cells), 'cell')} shown"
+    row = f"{name}{status}  {count} of {plural(len(cells), 'cell')} shown"
     return row, None if whole else f"p{page.number}"
 
 
@@ -1729,7 +1729,8 @@ def unit(pages: Sequence[Page]) -> str:
     return word if len(pages) == 1 else f"{word}s"
 
 
-def _plural(count: int, word: str) -> str:
+def plural(count: int, word: str) -> str:
+    """`1 word` or `N words`: one owner for the count-and-noun every report prints."""
     return f"{count} {word}" if count == 1 else f"{count} {word}s"
 
 

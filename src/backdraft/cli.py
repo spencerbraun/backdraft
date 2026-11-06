@@ -64,6 +64,7 @@ from .gate import (
     extracted_chars,
     handful,
     locate_command,
+    plural,
     session_argument,
     thin_mark,
     unit,
@@ -601,8 +602,9 @@ def ingest(
         typer.Option(
             "--json",
             help=(
-                "Print one object instead of the report: each source's fields, "
-                "the failures and the notes. Same exit codes."
+                "Print one object in place of the report, format "
+                f"{INGEST_FORMAT}: each source's fields, the failures and the "
+                "notes. Same exit codes; a failed source still prints it."
             ),
         ),
     ] = False,
@@ -630,9 +632,9 @@ def ingest(
     a no-op, or `new generation` when the bytes moved, which is when citations
     into the previous snapshot can start reporting `drifted` — and a note then
     names each draft in the project whose last bind cited it, with the
-    `backdraft locate` to run for it. A source almost no
-    text came out of gets a note naming the likely cause, at exit 0: a thin
-    snapshot is still a real one.
+    `backdraft locate` to run for it. A source almost no text came out of gets
+    a note naming the likely cause, at exit 0: a thin snapshot is still a real
+    one.
 
     `--slug` names a new document and nothing else. A source already in the
     registry keeps the slug it was given, because every token written against
@@ -648,9 +650,9 @@ def ingest(
     numbered slug it would land on instead. Each line ends `would extract with
     <extractor>`, chosen exactly as the ingest would choose it — so a PDF says
     before the batch whether it goes to `vlm`, a vision-model call per page, or
-    to `pdf-text`, which is free. An unknown
-    `--extractor`, or a `--config` key the chosen one never reads, fails the dry
-    run with the reason the ingest would give.
+    to `pdf-text`, which is free. An unknown `--extractor`, or a `--config` key
+    the chosen one never reads, fails the dry run with the reason the ingest
+    would give.
 
     `--config` keys are checked against the extractor that was chosen, which for
     `auto` is per file. Both PDF paths (`pdf-text`, `vlm`) take `dpi`; every path
@@ -1682,19 +1684,15 @@ def _forget_citing_lines(
         return [f"as last bound, no draft in this project cites {slug}{skip}."]
     many = len(drafts) > 1
     rows = [
-        f"{as_typed(draft.path)}  {_citations(draft.citations[slug])}" for draft in drafts
+        f"{as_typed(draft.path)}  {plural(draft.citations[slug], 'citation')}"
+        for draft in drafts
     ]
     return [
-        f"as last bound, {len(drafts)} draft{'s' if many else ''} "
+        f"as last bound, {plural(len(drafts), 'draft')} "
         f"{'cite' if many else 'cites'} {slug}, and forgetting it turns these "
         f"citations `unresolved`{skip}:",
         *(f"  {row}" for row in handful(rows)),
     ]
-
-
-def _citations(count: int) -> str:
-    """`1 citation` or `N citations`."""
-    return f"{count} citation{'s' if count != 1 else ''}"
 
 
 def _interactive() -> bool:

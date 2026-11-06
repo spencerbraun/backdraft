@@ -9,6 +9,7 @@ a registry on disk, because the record's location is the whole mapping.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -102,6 +103,22 @@ def test_a_new_generation_names_the_draft_citing_it_and_not_the_other(project: P
         "to see which of its citations drifted and where their words stand now."
     ]
     assert "staff.md" not in result.output
+
+
+def test_ingest_json_carries_the_citing_note_among_its_notes(project: Path) -> None:
+    """The scan runs while the registry is open; `--json` must not lose what it found."""
+    two_memos(project)
+    write(project / "notes.md", INSERTED, NOTES)
+
+    result = invoke("ingest", "notes.md", "--json")
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["sources"][0]["outcome"] == "generation"
+    assert citing_lines("\n".join(payload["notes"])) == [
+        "note: as last bound, 1 draft cites notes — run `backdraft locate memos/q3.md` "
+        "to see which of its citations drifted and where their words stand now."
+    ]
 
 
 def test_an_unchanged_reingest_says_nothing_about_drafts(project: Path) -> None:
