@@ -571,6 +571,189 @@ byte-identical output.
 
 **Size.** One day.
 
+### 16. A link whose href is a token missing `bd:` binds as prose, and `bind` says `0 claim(s)` at exit 0
+
+**Intent.** `kernel.tokens.is_token_href` counts a link as a citation only when
+a piece starts with `bd:`, deliberately, so an ordinary URL is never judged. But
+`search` prints every hit as `[bd:notes:p1.c1:2d79]` inside brackets, and an
+agent pulling the token out of that line, or out of a `show` it ran, routinely
+drops the scheme along with the bracket: `[Income rose eleven percent](notes:p1.c1:2d79)`.
+That draft binds `bound 0 claim(s), 0 citation(s)` at exit 0, writes a record
+that judged nothing, and renders an artifact whose claims are plain links. The
+hook that gates on exit 2 passes it. Nothing in the output connects "0 claims"
+to the cause, and a memo with a mix of both forms reports a lower count that
+looks plausible. Found running the README's `forget` example during the
+2026-11-06 maintenance pass.
+
+**Shape.** Add `kernel.claims.bare_token_links(text) -> list[BareLink]` beside
+`parse_claims`, stdlib-pure: every markdown link whose href is not a token href
+but would be one with `bd:` prepended to a piece, by the strict
+`kernel.tokens.validate` (so a URL, a relative path or `mailto:` never matches),
+with its offset, line and link text. `bind/cli.py` prints one note under the
+summary line when the list is non-empty: the count, up to `gate.reader.HANDFUL`
+of them as `line N: [text](href)`, the corrected href for the first, and
+`backdraft bind <doc>` to run after fixing. The note is display only. The
+record, `parse_claims`, exit codes and `bind --json` stay as they are, because
+what counts as a claim is `spec/tokens.md`'s grammar and the record is a
+pinned format. The DESIGN row names the alternative and why it lost: parsing
+these as `malformed` citations would surface them in the record and exit 2,
+but it changes the portable grammar for a typo the report can name.
+`backdraft render` prints the same note, since it is the last command before
+the artifact leaves. Update `skills/backdraft/SKILL.md` and
+`skills/backdraft-backfill/SKILL.md`, which should both say the href is the
+whole `bd:` token.
+
+**Acceptance.** A draft with one `bd:` citation and two bare-token links binds
+`1 claim(s)` at exit 0 and prints the note naming both bare links with their
+lines and the corrected href. A draft holding `[site](https://example.com/p1.c1)`,
+`[x](./notes.md)` and `[y](notes)` prints no note. The first draft's record
+carries exactly one claim and its `summary` reads as it did before the change,
+so the note touched nothing written. `uv run backdraft bind memo.md` in `demo/`
+prints byte-identical output.
+
+**Size.** One day.
+
+### 17. `locate` is the command an agent acts on token by token, and it has no `--json`
+
+**Intent.** `locate` prints `moved`, `ambiguous` and `gone` as prose lines in
+`bind`'s shape. An agent that wants to apply only some swaps, or pick among an
+`ambiguous` citation's places, has to parse those lines: the places are cut at
+three with `and N more`, the `contained` and `span` qualifiers are clauses
+inside the sentence, and a span's proposal is two `;`-separated tokens. Every
+other command an agent acts on (`bind`, `verify`, `ingest`, `doctor`) now
+answers `--json`, so `locate` is the one where acting on a drifted citation
+still means scraping the sentences this repo rewords most weeks.
+
+**Shape.** `--json` on `cli.locate`, printing one `backdraft/locate-v1` object
+through `cli_context.print_json` and specified in SPEC § CLI beside
+`backdraft/ingest-v1`, for the same reason: it is command output, not the
+artifact. Collect the rows `_drifted` already builds, then present them twice,
+as `ingest` does (2026-11-03), so the report is byte-identical. Top level:
+`format`, `document` (as typed), `applied` (bool, whether `--apply` ran),
+`citations`, `next` (the closing commands as strings). Each citation:
+`claim` as `{start, end, text}`, `token`, `status` (`moved`, `ambiguous` or
+`gone`), `proposal` (the new token, a span's two `;`-joined, or null),
+`match` (`exact`, `contained` or `span`, from `Relocation.contained` and the
+span case; null for `gone`), `places` as every place `relocate` found, uncut,
+each a list of tokens, and `applied` (bool). Exit codes do not move, and a run
+that cannot start prints nothing on stdout. `--apply --json` reports what was
+written in the same keys. Update README, `site/llms.txt`, `site/docs.html` and
+`skills/backdraft/SKILL.md`.
+
+**Acceptance.** A test project (reusing `tests/test_locate.py`'s fixtures)
+with one each of exact `moved`, `contained`, `span`, `ambiguous` with four
+places, and `gone` prints an object whose five entries carry those statuses
+and matches, the ambiguous one listing all four places. `--apply --json` marks
+the three moved entries `applied: true` and the draft holds their proposals.
+The plain report is byte-identical against output captured before the change,
+and no ledger, session or record row is written either way.
+
+**Size.** Two days.
+
+### 18. An agent takes its tokens out of `search`'s prose, and the snippet it sees is elided
+
+**Intent.** `search` is how an agent finds what to cite, and its output is the
+`N results for "..."` header, each hit as `[bd:slug:locator:hash]  slug pN`,
+and a snippet cut to a line with `...`. The agent regexes the token out of the
+bracket (the 2026-11-06 maintenance pass kept the closing `]` doing exactly
+this), and cannot see the whole verbatim snippet it is about to cite without a
+`show` per hit. The result list is the gate's main output and the least
+parseable one.
+
+**Shape.** `--json` on the gate's `search` command (`gate/cli.py`, rendering
+in `gate/searcher.py`), one `backdraft/search-v1` object through
+`cli_context.print_json`, specified in SPEC § CLI. It shows exactly what the
+plain run shows and mints exactly the same ledger rows, because the ledger
+records what the session was shown, so the two forms must not differ in what
+counts as shown. Keys: `format`, `query`, `in` (slug or null), `session`,
+`limit`, `truncated` (bool, the run hit `--limit`), `hits` (each `token`,
+`slug`, `page`, `kind`, `snippet` as the anchor's full verbatim text, which the
+session has now been shown, and `read`, the page-read command), and `notes`
+(the report's own strings). The DESIGN row records that the full snippet in
+`--json` does not widen what the ledger means: the anchor is minted to the
+session whole either way, and the plain report elides only for width. If
+ROADMAP item 10's shown-before marks land first, they become a `shown_before`
+key here, and whichever lands second adds it.
+
+**Acceptance.** For the same query in two fresh sessions, one plain and one
+`--json`, the tokens are identical and in the same order, and `backdraft
+session show` lists identical anchors for both sessions. Each hit's `snippet`
+equals the snippet `backdraft show <token>` prints. `--limit 1` on a
+two-hit query sets `truncated: true`. An unknown `--in` slug exits 1 with
+stdout empty. The plain output is byte-identical to before.
+
+**Size.** Two days.
+
+### 19. The skills preview a withdrawal by running `forget` without `--yes` and counting on it to refuse
+
+**Intent.** `forget` now names the drafts a withdrawal would break (2026-11-04),
+and both skills tell the agent to see that list by running `backdraft forget
+<slug>` without `--yes`, "where no terminal can answer", so the command exits
+1 and withdraws nothing. That preview depends on `cli._interactive` finding no
+TTY on stdin. An agent harness that runs commands under a pty (tmux,
+`script`, several IDE terminals) gets the confirmation prompt instead, and
+either hangs or, if something answers it, withdraws the source. Where it does
+work, the preview exits 1, which an agent reasonably reads as failure. A
+preview that only works by failing is not a preview.
+
+**Shape.** `--dry-run` on `cli.forget`, the word `ingest` already uses for
+"say what would happen, write nothing". It resolves the slug through
+`_document_named` (an unknown slug still exits 1 with the existing message),
+prints `_forget_citing_lines` and then `would forget <described>` with the
+re-ingest line, never prompts, never calls `registry.forget`, and exits 0. An
+already-withdrawn document prints today's `already withdrawn` lines at exit 0.
+`--dry-run --yes` is a usage error naming both flags, since one says "do not"
+and the other "do". Both `SKILL.md` files, the README's `forget` section,
+`site/docs.html` and `site/llms.txt` switch the preview to `--dry-run` and drop
+the "run it without `--yes`" instruction. The non-TTY refusal stays as it is.
+
+**Acceptance.** With `cli._interactive` monkeypatched to return True, `forget
+notes --dry-run` prints the citing lines and `would forget`, shows no prompt
+(the runner's input is empty and the command still exits 0), and `ls` still
+lists `notes`. `forget nope --dry-run` exits 1 naming the slugs that exist.
+`forget notes --dry-run --yes` exits 1 and withdraws nothing. The existing
+`tests/test_citing_drafts.py` forget tests pass unchanged.
+
+**Size.** One day.
+
+### 20. A `--json` run that cannot start leaves the caller one rewordable sentence on stderr
+
+**Intent.** Every `--json` promises nothing on stdout at exit 1 when the run
+cannot start: no registry, a registry stamped newer than this build, an
+unknown slug, a malformed `--config`, a draft outside its project. That keeps
+stdout clean, but the agent that asked for data is then left with `backdraft:
+<sentence>` on stderr and has to scrape it to choose between `backdraft init`,
+an upgrade, and fixing a flag. Those sentences are reworded most weeks, and
+`RegistryError` alone covers both "no registry" and "newer schema", which need
+opposite responses.
+
+**Shape.** `cli_context.guard` and `fail` take `as_json: bool = False`. When it
+is set, the error goes to stderr as one `backdraft/error-v1` object instead of
+the line: `format`, `error` (the same message, declared rewordable), and
+`code`, from a small enumerated set an agent branches on: `no_registry`,
+`schema_newer`, `outside_project`, `unknown_slug`, `bad_config`,
+`not_interactive`, and `other` for everything else. Codes are carried on the
+raising exception as an optional `code` attribute on `BackdraftError`
+(`kernel/errors.py`, stdlib-pure) and set only where those six are raised, in
+`cli_context.open_registry`, `registry.store.Registry.open`,
+`cli._document_named`, `cli._parse_config` and `cli._confirm`. Stdout keeps
+its promise, and `ingest`'s failed-source exception (2026-11-03) is untouched.
+The flag threads through `ingest`, `doctor`, `bind`, `verify`, and `locate`
+and `search` when items 17 and 18 have landed. The DESIGN row records why
+stderr and not stdout (the stdout promise), and why a code table and not
+exception class names: class names are internal and move with refactors.
+Specified in SPEC § CLI.
+
+**Acceptance.** `ingest notes.md --json` with no registry exits 1 with empty
+stdout and stderr parsing as `error-v1` with `code: no_registry`. `bind
+memo.md --json` against a registry stamped `SCHEMA_VERSION + 1` gives
+`schema_newer`, and `ingest a.md b.md --slug x --json` gives `other`. Without
+`--json`, each of these prints byte-identical stderr to before, pinned. A test
+walks every command with a `--json` option and asserts each threads the flag
+into its guard.
+
+**Size.** Two to three days.
+
 ## Parked
 
 Deliberately not queued, each with the reason, so picking one up starts from
