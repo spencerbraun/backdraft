@@ -1275,6 +1275,10 @@ class Registry:
         """True if this session was ever shown the anchor this token names."""
         return ledger_module.was_shown(self._connection, session_id, token)
 
+    def shown_at(self, session_id: str, token: str) -> str | None:
+        """When this session was first shown the anchor this token names, or None."""
+        return ledger_module.shown_at(self._connection, session_id, token)
+
     def shown_by_document(self, session_id: str) -> list[tuple[str, int]]:
         """What this session holds: `(slug, distinct anchors shown)`, per document.
 

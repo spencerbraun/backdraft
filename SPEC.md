@@ -270,7 +270,7 @@ Pipeline: parse claims (kernel/claims.py: link spans with `bd:` hrefs) → resol
 
 References carry **one numbered entry per distinct token**; claims citing the same anchor share its number and its quote appears once. This is a rendering rule only — the report and sidecar still carry every citation individually. Backfill's proposals search on a query derived from the claim's distinctive terms, not the raw sentence (which FTS5 cannot parse).
 
-Citation statuses (closed set): `resolved` | `drifted` | `not_shown` (valid anchor, absent from session ledger; frontwalk mode only) | `unresolved` | `malformed`. Backfill mode adds claim-level `unmatched` for claims it couldn't anchor. Every non-`resolved` status is a report line item; bind never edits a claim silently and never drops a citation.
+Citation statuses (closed set): `resolved` | `drifted` | `not_shown` (valid anchor, absent from session ledger; frontwalk mode only) | `unresolved` | `malformed`. Backfill mode adds claim-level `unmatched` for claims it couldn't anchor. Every non-`resolved` status is a report line item; bind never edits a claim silently and never drops a citation. A front-walk citation the draft's previous record, judged against the same session, called `not_shown` and this run resolves prints a `cleared:` line — token, claim and offset, and how long after that bind its anchor was shown (`Registry.shown_at` against the record's `bound_at`) — and the report closes with `next: cleared`. Display only: the status stays `resolved`, and the exit code, the record and `--json` do not move. A missing, unreadable or backfill previous record compares nothing and fails nothing.
 
 BindReport (kernel/model.py; serialized into sidecar and `bindings.report_json`):
 
@@ -463,6 +463,7 @@ class Registry:
         # session a record names, and a session this registry never had is reported, not started.
     def record_shown(self, session_id: str, anchor_ids: Sequence[int]) -> None: ...
     def was_shown(self, session_id: str, token: str) -> bool: ...
+    def shown_at(self, session_id: str, token: str) -> str | None: ...
     def shown_by_document(self, session_id: str) -> list[tuple[str, int]]: ...
         # What the session holds: `(slug, count)` per document it was shown anything from,
         # in `documents()` order, a document it saw nothing from absent rather than zero.

@@ -577,7 +577,9 @@ failure the report printed — here only `unresolved`, so only its line — nami
 the command that addresses it. What clears a `not_shown` (show the token) and
 what clears an `unresolved` (find the real one, or say the claim is
 unsupported) have nothing in common, and a hook's log or a person reading the
-report should not need the skill to know which. A clean bind prints no such line.
+report should not need the skill to know which. A clean bind prints no such
+line, unless it cleared a `not_shown` the last bind flagged — then a `cleared:`
+line names the claim, because it was written before its evidence was read.
 
 **Exit code 2 means unresolved citations.** Not a failed check — a citation that
 does not point at anything. It is the code a `Stop` hook or a CI job gates on.

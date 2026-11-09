@@ -33,7 +33,8 @@ all of this already, nested; this is the same fact on one line.
 The report closes with one `next:` line per kind of failure it printed, naming
 the command that addresses it — a diagnosis alone leaves the move to whoever
 knows the skill, and the reader of a hook's log may not. The wording is
-`cli_context.NEXT_MOVES`, shared with `verify`; a clean run prints none.
+`cli_context.NEXT_MOVES`, shared with `verify`; a clean run prints none, unless
+it cleared something (below).
 
 A verifier's `skip` count gets the same treatment one level up. `overlap: pass
 13, skip 4` names four citations nobody checked without saying whether that is
@@ -44,6 +45,15 @@ benign, so the reasons print under it, grouped:
 
 Grouped rather than listed per citation, per the 2026-08-13 rule: one cause
 explains the whole cluster and there is nothing per-citation to go fix.
+
+A citation the draft's previous bind flagged `not_shown` and this one resolves
+gets a line of its own, because `resolved` alone cannot tell it from a citation
+read before its claim was written:
+
+      cleared: bd:notes:p1.c1:2d79 — Income rose eleven percent @0 — shown 4 minutes after the bind that flagged it
+
+Display only: the status stays `resolved`, and the exit code, the record and
+`--json` do not move (DESIGN, 2026-11-09).
 
 `--json` is the same run for a caller that parses: the record goes to stdout —
 the bytes `kernel.artifact.dumps` writes into the sidecar, so there is no second
@@ -69,14 +79,18 @@ so the command lands as `backdraft bind`, with no group name in between.
 
 from __future__ import annotations
 
+import json
 import sys
 from collections.abc import Iterator
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from ..cli_context import (
+    CLEARED,
     DEFAULT_SESSION,
     EXIT_UNRESOLVED,
     EXIT_USAGE,
@@ -91,8 +105,8 @@ from ..cli_context import (
     open_registry,
     resolve_session,
 )
-from ..gate.reader import DEFAULT_SESSION_NOTE
-from ..kernel.artifact import bound_path, dumps, sidecar_path
+from ..gate.reader import DEFAULT_SESSION_NOTE, plural
+from ..kernel.artifact import FORMAT, bound_path, dumps, sidecar_path
 from ..kernel.model import Citation, CitationStatus, Claim, VerdictStatus
 from .binder import bind as run_bind, record_target
 
@@ -160,8 +174,10 @@ def bind(
     counts the statuses and prints each failure as `! <status>: <token> —
     <claim> @<offset>`, then one `next:` line per kind of failure it
     printed, naming the command that addresses it — `show`, `search`, or
-    `locate` for a `drifted` one. `--json` prints the record
-    instead of the report, for a caller that parses.
+    `locate` for a `drifted` one. A citation the draft's previous bind flagged
+    `not_shown` and this run resolves prints a `cleared:` line: its claim was
+    written before its evidence was read. `--json` prints the record instead
+    of the report, for a caller that parses.
 
     Exit codes: 0 every citation resolved · 1 no registry, a document that is
     missing or not UTF-8 text, or an unknown `--mode` or `--check` · 2 the run
@@ -179,10 +195,13 @@ def bind(
         registry = open_registry(doc.resolve().parent, document=doc)
         session_id = resolve_session(session, registry)
         try:
+            # Read first: this run overwrites the record that holds the answer.
+            flagged = _flagged_last_bind(record_target(doc, registry), session_id)
             report = run_bind(
                 doc, registry, mode=mode, session_id=session_id, checks=checks,
                 lean=lean, bound=bound,
             )
+            cleared = _cleared(report, flagged, registry)
         except ValueError as error:  # unknown --check name
             raise UsageError(str(error)) from error
         finally:
@@ -190,13 +209,22 @@ def bind(
     if as_json:
         sys.stdout.write(dumps(report))
     else:
-        _print_report(report, doc, bound=bound, record=record_target(doc, registry))
+        _print_report(
+            report, doc, bound=bound, record=record_target(doc, registry), cleared=cleared
+        )
     unmatched = [claim for claim in report.claims if claim.unmatched]
     if report.unresolved or unmatched:
         raise typer.Exit(EXIT_UNRESOLVED)
 
 
-def _print_report(report, doc: Path, *, bound: bool = False, record: Path | None = None) -> None:  # noqa: ANN001 - BindReport, kernel-typed
+def _print_report(
+    report,  # noqa: ANN001 - BindReport, kernel-typed
+    doc: Path,
+    *,
+    bound: bool = False,
+    record: Path | None = None,
+    cleared: tuple[str, ...] = (),
+) -> None:
     """The human-readable report: counts, every line item, then what to do about them.
 
     A front-walk header names the session `not_shown` was judged against, since
@@ -238,6 +266,9 @@ def _print_report(report, doc: Path, *, bound: bool = False, record: Path | None
         if claim.unmatched:
             present.add(UNMATCHED)
             typer.echo(f"  ! unmatched: {claim_words(claim.text)}")
+    for line in cleared:
+        present.add(CLEARED)
+        typer.echo(f"  cleared: {line}")
     if bound:
         typer.echo(f"wrote {bound_path(doc)}")
     typer.echo(f"wrote {as_typed(record or sidecar_path(doc))}")
@@ -245,6 +276,85 @@ def _print_report(report, doc: Path, *, bound: bool = False, record: Path | None
         typer.echo(line)
     if judged and report.session_id == DEFAULT_SESSION:
         typer.echo(DEFAULT_SESSION_NOTE.format(env=SESSION_ENV))
+
+
+@dataclass(frozen=True, slots=True)
+class _Flagged:
+    """What the draft's previous bind called `not_shown`, and when it said so."""
+
+    bound_at: datetime
+    citations: frozenset[tuple[str, int]]
+
+
+def _flagged_last_bind(record: Path, session_id: str) -> _Flagged | None:
+    """The `not_shown` citations of the record at `record`, or None to compare nothing.
+
+    Keyed by token and claim offset, the pair a report's line items are told
+    apart by. Only a front-walk record judged against this same session counts:
+    a backfill record never asked the ledger, and another session's `not_shown`
+    says nothing about this one's ledger. A record that is missing, unreadable,
+    or not a record's shape is silence and never a failure — it is only ever
+    being compared against, and this run is about to replace it.
+    """
+    try:
+        payload = json.loads(record.read_text(encoding="utf-8"))
+        if (
+            payload["$format"] != FORMAT
+            or payload["mode"] != "frontwalk"
+            or payload["session_id"] != session_id
+        ):
+            return None
+        bound_at = datetime.fromisoformat(payload["bound_at"])
+        citations = frozenset(
+            (citation["token"], claim["start"])
+            for claim in payload["claims"]
+            for citation in claim["citations"]
+            if citation["status"] == CitationStatus.NOT_SHOWN
+        )
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return _Flagged(bound_at, citations) if bound_at.tzinfo else None
+
+
+def _cleared(report, flagged: _Flagged | None, registry) -> tuple[str, ...]:  # noqa: ANN001
+    """One report line per citation `flagged` called `not_shown` and `report` resolves.
+
+    Once per (claim, token), as `_line_items` yields. Backfill never asks the
+    ledger, so a `resolved` from one has cleared nothing.
+    """
+    if flagged is None or report.mode != "frontwalk":
+        return ()
+    lines: list[str] = []
+    seen: set[tuple[str, int]] = set()
+    for claim in report.claims:
+        for citation in claim.citations:
+            key = (citation.token, claim.start)
+            if (
+                citation.status is CitationStatus.RESOLVED
+                and key in flagged.citations
+                and key not in seen
+            ):
+                seen.add(key)
+                shown_at = registry.shown_at(report.session_id, citation.token)
+                lines.append(
+                    f"{citation.token} — {claim_words(claim.text)} @{claim.start} — shown "
+                    f"{_elapsed(flagged.bound_at, shown_at)} after the bind that flagged it"
+                )
+    return tuple(lines)
+
+
+def _elapsed(since: datetime, shown_at: str | None) -> str:
+    """How long after `since` the ledger's `shown_at` falls, in the largest whole unit."""
+    if shown_at is None:
+        return "some time"
+    seconds = int((datetime.fromisoformat(shown_at) - since).total_seconds())
+    if seconds < 60:
+        return "under a minute"
+    if seconds < 3600:
+        return plural(seconds // 60, "minute")
+    if seconds < 86400:
+        return plural(seconds // 3600, "hour")
+    return plural(seconds // 86400, "day")
 
 
 NO_REASON = "no reason recorded"

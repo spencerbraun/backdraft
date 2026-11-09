@@ -43,6 +43,7 @@ __all__ = [
     "EXIT_USAGE",
     "EXIT_UNRESOLVED",
     "HOME_ENV",
+    "CLEARED",
     "NEXT_MOVES",
     "RECEIPT",
     "RECOUNT",
@@ -353,6 +354,9 @@ RECEIPT = "receipt"
 RECOUNT = "recount"
 """`verify`'s finding that the file's `summary` disagrees with its `claims`."""
 
+CLEARED = "cleared"
+"""`bind`'s note that a citation its last run flagged `not_shown` now resolves."""
+
 NEXT_MOVES: dict[str, str] = {
     RECEIPT: (
         "the file was edited after it was written; the sources did not move. Ask "
@@ -384,6 +388,12 @@ NEXT_MOVES: dict[str, str] = {
         "moved; where it was edited, `backdraft show <token>{session}` prints both "
         "snippets, and the claim is judged against the new one before anything is cited."
     ),
+    CLEARED: (
+        "each claim above was written before its evidence was read, and stands only "
+        "if the snippet `show` printed says what it says. `backdraft show "
+        "<token>{session}` prints it again; where it does not, cite what does or leave "
+        "the claim uncited."
+    ),
     UNMATCHED: (
         "no anchor carries the claim's value. `backdraft search \"<the fact>\"{session}` "
         "for each one, and cite a hit only where it says what the claim says; a claim "
@@ -393,7 +403,8 @@ NEXT_MOVES: dict[str, str] = {
 """What to do about each kind of failure `bind` and `verify` report — one owner.
 
 Every key is something a report prints as a `!` line item (or, for `recount`, a
-finding), and every non-`resolved` `CitationStatus` is a key: the status set is
+finding, and for `cleared`, the one line item that is not a failure and exits 0),
+and every non-`resolved` `CitationStatus` is a key: the status set is
 the artifact format's and closed, so the mapping is total and a test holds it so.
 `resolved` has no entry because it is not a failure, which is what keeps a clean
 run's report byte-identical to one printed before this table existed.

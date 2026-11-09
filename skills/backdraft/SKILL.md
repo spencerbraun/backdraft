@@ -443,7 +443,11 @@ reason attached.
   which is what clears the status on a re-bind — so read the snippet it prints
   first, and keep the citation only where it says what the claim says. Where it
   does not, cite what does or leave the claim uncited; re-binding a citation
-  you only displayed launders the one check that says you read it.
+  you only displayed launders the one check that says you read it. The re-bind
+  exits 0 and prints one `cleared:` line per citation that was flagged last time
+  and resolves now, with how long after the flagging bind it was shown. Re-judge
+  each claim those lines list against the snippet you were shown: each one was
+  written before its evidence was read, and `resolved` alone will not say so.
 - `drifted` — the source changed after you wrote. Run `backdraft locate
   <doc.md>` first. A paragraph inserted above the one you cited leaves your
   words untouched and moves their address, and `locate` finds the exact text you

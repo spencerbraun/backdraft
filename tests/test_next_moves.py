@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 
 from backdraft import cli
-from backdraft.cli_context import NEXT_MOVES, RECEIPT, RECOUNT, UNMATCHED, next_moves
+from backdraft.cli_context import CLEARED, NEXT_MOVES, RECEIPT, RECOUNT, UNMATCHED, next_moves
 from backdraft.kernel.model import CitationStatus
 
 COMMAND = re.compile(r"`backdraft ([a-z][a-z-]*)")
@@ -43,7 +43,7 @@ def test_every_failing_status_has_a_move() -> None:
 
 
 def test_the_line_items_that_are_not_statuses_have_moves_too() -> None:
-    for key in (UNMATCHED, RECEIPT, RECOUNT):
+    for key in (UNMATCHED, RECEIPT, RECOUNT, CLEARED):
         assert key in NEXT_MOVES
 
 

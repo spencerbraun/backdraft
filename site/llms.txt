@@ -308,7 +308,9 @@ cited and what stands at that locator now — after an edit above, a different
 passage, which is why locate comes first there. NEVER fix exit 2 by
 deleting the token; a kept failure is the honest outcome. The report closes with
 one `next:` line per status it printed, naming the command that addresses it.
-Show the user the bind report verbatim.
+A `cleared:` line at exit 0 is a citation the last bind flagged not_shown and
+this one resolves: its claim was written before its evidence was read, so
+re-judge it against the snippet you were shown. Show the user the bind report verbatim.
 
 `verify` shares the codes and the line shape. Its 0 means everything it checked
 passed — not that every claim is supported, and not that the sources were

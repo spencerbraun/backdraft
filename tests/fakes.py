@@ -190,6 +190,9 @@ class FakeAnchorRegistry:
     def was_shown(self, session_id: str, token: str) -> bool:
         return (session_id, token) in self._shown
 
+    def shown_at(self, session_id: str, token: str) -> str | None:
+        return "2026-07-27T00:00:00Z" if (session_id, token) in self._shown else None
+
     def save_binding(
         self, *, doc_path: str, session_id: str | None, mode: str, report_json: str
     ) -> int:

@@ -89,6 +89,20 @@ def was_shown(connection: sqlite3.Connection, session_id: str, token: str) -> bo
     return row is not None
 
 
+def shown_at(connection: sqlite3.Connection, session_id: str, token: str) -> str | None:
+    """When this session was first shown the anchor `token` names, or None if never.
+
+    Matched by token, as `was_shown` is, and the earliest row across anchors of
+    that name for the same reason `record_shown` keeps the first timestamp.
+    """
+    row = connection.execute(
+        "SELECT MIN(ledger.shown_at) FROM ledger JOIN anchors ON anchors.id = ledger.anchor_id "
+        "WHERE ledger.session_id = ? AND anchors.token = ?",
+        (session_id, token),
+    ).fetchone()
+    return row[0]
+
+
 def shown_by_document(connection: sqlite3.Connection, session_id: str) -> list[tuple[str, int]]:
     """`(slug, count)` per document this session was shown anything from.
 
