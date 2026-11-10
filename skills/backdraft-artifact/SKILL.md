@@ -69,8 +69,10 @@ document was bound*, which is a stale artifact rather than a dishonest one. A
 `! not_shown:` line names the session that was never shown the citation: the
 author cited a real passage they had not read, which is the finding to lead the
 claims part of your report with. The report closes with one `next:` line per
-kind of finding, naming the command that addresses it; relay those as the
-author's next steps rather than running them — an audit fixes nothing.
+kind of finding, written for you as the recipient: none names the author's
+session, the `not_shown` one tells you to report it rather than show it (showing
+would mint it into their ledger and erase the finding), and the fixes that are
+re-binds say they are the author's. Relay them as written.
 
 Exit 2 covers both of those, and they call for opposite conclusions, so **decide
 from `--json`, not from the lines**:

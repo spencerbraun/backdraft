@@ -316,9 +316,11 @@ re-judge it against the snippet you were shown. Show the user the bind report ve
 passed — not that every claim is supported, and not that the sources were
 looked at unless the `sources:` line says they were. A `! receipt:` line means
 the file was edited after it was written; report that first. Its closing
-`next:` lines name the move per finding, as bind's do. A tier-two line
-ending `— the record says resolved` means the source moved since the document
-was bound: re-read and confirm, do not delete. To check a file you were sent
+`next:` lines name the move per finding, addressed to the recipient: none
+names a session, the not_shown one names no `show` (that would mint it into the
+author's ledger and erase the finding), and the re-binds are the author's. A
+tier-two line ending `— the record says resolved` means the source moved since
+the document was bound: re-read and confirm, do not delete. To check a file you were sent
 against a project you have, pass `--against <project root or its .backdraft>`
 rather than copying the file into it — only when you know the file came from
 there, since verify never infers the link and the wrong registry reports honest

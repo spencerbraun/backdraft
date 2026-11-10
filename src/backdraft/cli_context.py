@@ -44,6 +44,8 @@ __all__ = [
     "EXIT_UNRESOLVED",
     "HOME_ENV",
     "CLEARED",
+    "AUDITOR",
+    "AUTHOR",
     "NEXT_MOVES",
     "RECEIPT",
     "RECOUNT",
@@ -357,57 +359,103 @@ RECOUNT = "recount"
 CLEARED = "cleared"
 """`bind`'s note that a citation its last run flagged `not_shown` now resolves."""
 
-NEXT_MOVES: dict[str, str] = {
-    RECEIPT: (
-        "the file was edited after it was written; the sources did not move. Ask "
-        "whoever sent it for the original, or rebuild it from {doc} with "
-        "`backdraft bind` then `backdraft render`."
-    ),
-    RECOUNT: (
-        "the file's summary was edited after it was written, and its claims are the "
-        "record. Rebuild it from {doc} with `backdraft bind` then `backdraft render`."
-    ),
-    CitationStatus.MALFORMED: (
-        "the href is not a token. `backdraft show <token>` names the segment that "
-        "broke; fix the syntax, then re-bind."
-    ),
-    CitationStatus.UNRESOLVED: (
-        "the token names nothing. `backdraft show <token>` says which half is wrong, "
-        "and `backdraft search \"<the fact>\"{session}` finds the real one. A claim no "
-        "source supports says so in its text; a withdrawn source is replaced by one "
-        "still ingested, not re-ingested. Never clear one by deleting the token."
-    ),
-    CitationStatus.NOT_SHOWN: (
-        "the anchor is real and this session never read it. `backdraft show "
-        "<token>{session}` prints it and puts it in the ledger; keep the citation only "
-        "where that snippet says what the claim says, then re-bind."
-    ),
-    CitationStatus.DRIFTED: (
-        "the source changed under the citation. `backdraft locate {doc}{session}` finds "
-        "where each one's text stands now and names the new token where it only "
-        "moved; where it was edited, `backdraft show <token>{session}` prints both "
-        "snippets, and the claim is judged against the new one before anything is cited."
-    ),
-    CLEARED: (
-        "each claim above was written before its evidence was read, and stands only "
-        "if the snippet `show` printed says what it says. `backdraft show "
-        "<token>{session}` prints it again; where it does not, cite what does or leave "
-        "the claim uncited."
-    ),
-    UNMATCHED: (
-        "no anchor carries the claim's value. `backdraft search \"<the fact>\"{session}` "
-        "for each one, and cite a hit only where it says what the claim says; a claim "
-        "nothing supports stays uncited and is reported as open."
-    ),
+AUTHOR = "author"
+"""`bind`'s reader: whoever wrote the document, and can re-read and re-bind it."""
+
+AUDITOR = "auditor"
+"""`verify`'s reader: whoever received the record, and fixes nothing in it."""
+
+NEXT_MOVES: dict[str, dict[str, str]] = {
+    AUTHOR: {
+        CitationStatus.MALFORMED: (
+            "the href is not a token. `backdraft show <token>` names the segment that "
+            "broke; fix the syntax, then re-bind."
+        ),
+        CitationStatus.UNRESOLVED: (
+            "the token names nothing. `backdraft show <token>` says which half is wrong, "
+            "and `backdraft search \"<the fact>\"{session}` finds the real one. A claim no "
+            "source supports says so in its text; a withdrawn source is replaced by one "
+            "still ingested, not re-ingested. Never clear one by deleting the token."
+        ),
+        CitationStatus.NOT_SHOWN: (
+            "the anchor is real and this session never read it. `backdraft show "
+            "<token>{session}` prints it and puts it in the ledger; keep the citation only "
+            "where that snippet says what the claim says, then re-bind."
+        ),
+        CitationStatus.DRIFTED: (
+            "the source changed under the citation. `backdraft locate {doc}{session}` finds "
+            "where each one's text stands now and names the new token where it only "
+            "moved; where it was edited, `backdraft show <token>{session}` prints both "
+            "snippets, and the claim is judged against the new one before anything is cited."
+        ),
+        CLEARED: (
+            "each claim above was written before its evidence was read, and stands only "
+            "if the snippet `show` printed says what it says. `backdraft show "
+            "<token>{session}` prints it again; where it does not, cite what does or leave "
+            "the claim uncited."
+        ),
+        UNMATCHED: (
+            "no anchor carries the claim's value. `backdraft search \"<the fact>\"{session}` "
+            "for each one, and cite a hit only where it says what the claim says; a claim "
+            "nothing supports stays uncited and is reported as open."
+        ),
+    },
+    AUDITOR: {
+        RECEIPT: (
+            "the file was edited after it was written; the sources did not move. Ask "
+            "whoever sent it for the original, or rebuild it from {doc} with "
+            "`backdraft bind` then `backdraft render`."
+        ),
+        RECOUNT: (
+            "the file's summary was edited after it was written, and its claims are the "
+            "record. Rebuild it from {doc} with `backdraft bind` then `backdraft render`."
+        ),
+        CitationStatus.MALFORMED: (
+            "the href is not a token, so the claim cites nothing. `backdraft show "
+            "<token>` names the segment that broke; fixing it is a re-bind of {doc} "
+            "by its author."
+        ),
+        CitationStatus.UNRESOLVED: (
+            "the token names nothing in this registry, so the claim is uncited as "
+            "sent. `backdraft show <token>` says which half is wrong. Report the claim "
+            "as open; finding what supports it, if anything does, is a re-bind of {doc} "
+            "by its author."
+        ),
+        CitationStatus.NOT_SHOWN: (
+            "the author cited a real passage their session was never shown. That is "
+            "the finding: it is theirs to re-read and re-bind {doc} with `backdraft "
+            "bind`. Report it as found — showing the token from here would mint it "
+            "into their ledger and clear the finding without answering it."
+        ),
+        CitationStatus.DRIFTED: (
+            "the source changed under the citation after the record was written. "
+            "`backdraft show <token>` prints what was cited and what stands at its "
+            "address now; report whether the new words still say what the claim says. "
+            "Re-citing it is a re-bind of {doc} by its author."
+        ),
+    },
 }
-"""What to do about each kind of failure `bind` and `verify` report — one owner.
+"""What to do about each kind of failure `bind` and `verify` report — one owner,
+keyed by the reader and then the kind.
+
+The reader is the first key because the two reports' readers can do different
+things. `bind`'s is the author, who holds the document and the session, and
+whose move is to read and re-bind. `verify`'s is the auditor, who holds the
+record and perhaps the registry and is checking someone else's work: told to
+`show` a `not_shown` token into the author's session, an auditor who obeyed
+would mint it into the author's ledger and the next `verify` would come back
+clean — the audit's own report saying how to erase its finding. So no auditor
+move names `--session`, the `not_shown` move names no `show` at all, and the
+fixes that are re-binds are said to be the author's.
 
 Every key is something a report prints as a `!` line item (or, for `recount`, a
 finding, and for `cleared`, the one line item that is not a failure and exits 0),
-and every non-`resolved` `CitationStatus` is a key: the status set is
-the artifact format's and closed, so the mapping is total and a test holds it so.
-`resolved` has no entry because it is not a failure, which is what keeps a clean
-run's report byte-identical to one printed before this table existed.
+and each reader's table holds every non-`resolved` `CitationStatus` plus that
+reader's own extra kinds — `unmatched` and `cleared` for the author, `receipt`
+and `recount` for the auditor: the status set is the artifact format's and
+closed, so each mapping is total and a test holds it so. `resolved` has no entry
+because it is not a failure, which is what keeps a clean run's report
+byte-identical to one printed before this table existed.
 
 Each line names the exact command that addresses its case, because the reader is
 not always an agent running the skill — a hook, a CI log, a person — and the
@@ -416,8 +464,14 @@ skill says the same at length; this is the line the report carries.
 """
 
 
-def next_moves(present: Collection[str], *, doc: str, session: str | None) -> list[str]:
+def next_moves(
+    present: Collection[str], *, reader: str, doc: str, session: str | None
+) -> list[str]:
     """The closing `next:` lines for the kinds of failure `present`, in table order.
+
+    `reader` is `AUTHOR` for `bind` and `AUDITOR` for `verify`, and picks the
+    table the moves come from; it has no default, because the wrong reader's
+    move is the one this keying exists to keep out of a report.
 
     One line per kind present and none for the rest — the shape `ingest`'s
     grouped notes use, rather than a hint on every line item, since one move
@@ -428,6 +482,6 @@ def next_moves(present: Collection[str], *, doc: str, session: str | None) -> li
     flag = f" --session {shlex.quote(session)}" if session else ""
     return [
         f"next: {key} — {move.format(doc=shlex.quote(doc), session=flag)}"
-        for key, move in NEXT_MOVES.items()
+        for key, move in NEXT_MOVES[reader].items()
         if key in present
     ]

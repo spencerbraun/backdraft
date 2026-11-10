@@ -33,8 +33,8 @@ all of this already, nested; this is the same fact on one line.
 The report closes with one `next:` line per kind of failure it printed, naming
 the command that addresses it — a diagnosis alone leaves the move to whoever
 knows the skill, and the reader of a hook's log may not. The wording is
-`cli_context.NEXT_MOVES`, shared with `verify`; a clean run prints none, unless
-it cleared something (below).
+`cli_context.NEXT_MOVES`' author table (`verify`'s reader gets the auditor's);
+a clean run prints none, unless it cleared something (below).
 
 A verifier's `skip` count gets the same treatment one level up. `overlap: pass
 13, skip 4` names four citations nobody checked without saying whether that is
@@ -90,6 +90,7 @@ from typing import Annotated
 import typer
 
 from ..cli_context import (
+    AUTHOR,
     CLEARED,
     DEFAULT_SESSION,
     EXIT_UNRESOLVED,
@@ -236,8 +237,8 @@ def _print_report(
     header names none and it gets no note.
 
     Before that note come the `next:` lines, one per kind of failure it printed,
-    naming the command that addresses it (`cli_context.NEXT_MOVES`, shared with
-    `verify`). A clean run prints none, so its report is what it always was.
+    naming the command that addresses it (`cli_context.NEXT_MOVES[AUTHOR]`). A
+    clean run prints none, so its report is what it always was.
     """
     summary = report.summary
     judged = report.mode == "frontwalk" and report.session_id is not None
@@ -272,7 +273,9 @@ def _print_report(
     if bound:
         typer.echo(f"wrote {bound_path(doc)}")
     typer.echo(f"wrote {as_typed(record or sidecar_path(doc))}")
-    for line in next_moves(present, doc=str(doc), session=report.session_id):
+    for line in next_moves(
+        present, reader=AUTHOR, doc=str(doc), session=report.session_id
+    ):
         typer.echo(line)
     if judged and report.session_id == DEFAULT_SESSION:
         typer.echo(DEFAULT_SESSION_NOTE.format(env=SESSION_ENV))

@@ -748,7 +748,7 @@ checked memo.backdraft.html [backdraft/artifact-v1]
   recorded: resolved 17, unresolved 1
   sources: re-resolved against /…/demo — resolved 17, unresolved 1
   ! unresolved: bd:t12-summary:p4.c1:1a2b — replacement reserve of $250 per unit per year @3629
-next: unresolved — the token names nothing. `backdraft show <token>` says which half is wrong, and `backdraft search "<the fact>" --session s-bridgeview` finds the real one. A claim no source supports says so in its text; a withdrawn source is replaced by one still ingested, not re-ingested. Never clear one by deleting the token.
+next: unresolved — the token names nothing in this registry, so the claim is uncited as sent. `backdraft show <token>` says which half is wrong. Report the claim as open; finding what supports it, if anything does, is a re-bind of memo.md by its author.
 exit: 2
 ```
 
@@ -761,6 +761,14 @@ from `claims`. Edit one byte of one snippet and that line reads `16 of 17`, with
 a `! receipt:` item naming the claim and both hashes. Its `next: receipt` line then
 says the file was edited and the sources did not move — the opposite finding from
 the `unresolved` above, with the opposite fix.
+
+Every `next:` line here is written for the recipient, not the author, so it is
+not the line `bind` printed for the same token: none names the author's
+session, and the fixes that are re-binds say whose they are. That matters most
+for `not_shown`, the finding that the author cited a passage they never read —
+`bind` tells its author to `show` the token, and a recipient who did the same
+would mint it into the author's ledger and the next `verify` would come back
+clean. `verify`'s line says to report it instead.
 
 **Against the sources** is the fourth line, and it happens here only because
 this directory has a registry. Copy the artifact somewhere else — which is what

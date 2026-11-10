@@ -1165,8 +1165,9 @@ def test_reading_the_ledger_mints_nothing(project) -> None:
 
 # ---- the closing `next:` block -----------------------------------------------
 #
-# `bind`'s table, one line per kind of finding. An edited file is told apart from
-# moved sources in words as well as in `--json`'s `kind`.
+# The auditor's table, one line per kind of finding. An edited file is told apart
+# from moved sources in words as well as in `--json`'s `kind`, and no line names a
+# session to mint into — the reader is checking the author's work, not doing it.
 
 
 def _next_lines(output: str) -> list[str]:
@@ -1202,22 +1203,52 @@ def test_a_carried_failure_is_no_finding_and_gets_no_move(record: pathlib.Path) 
     assert _next_lines(result.output) == []
 
 
-def test_a_source_finding_gets_bind_s_move(project) -> None:
+def test_a_source_finding_gets_the_auditor_s_move(project) -> None:
     registry, root, _ = project
     path = _bound(root, registry, "The file says [1.42x](bd:ghost:p1.c1:0000).\n")
     result = runner.invoke(app, ["verify", str(path)])
     (line,) = _next_lines(result.output)
     assert line.startswith("next: unresolved — ")
-    assert "`backdraft search" in line
+    assert "`backdraft show <token>`" in line
+    assert "by its author" in line
+    assert "--session" not in line
 
 
-def test_a_drifted_source_names_locate_on_the_recorded_document(project) -> None:
+def test_a_not_shown_the_ledger_confirms_is_reported_not_erased(project) -> None:
+    """The move must not be the one that clears it: `show` into the author's
+    session mints the token there, and the next verify would come back clean.
+    `bind` on the same draft — its author's report — still names the `show`."""
+    from backdraft.cli import app as full_app
+
+    registry, root, _ = project
+    unread = _token(registry, 1)
+    _shown(registry, "s-writer", 2)
+    path = _bound_under(root, registry, f"The covenant [holds]({unread}).\n", "s-writer")
+
+    result = runner.invoke(app, ["verify", str(path)])
+
+    assert result.exit_code == EXIT_UNVERIFIED, result.output
+    (line,) = _next_lines(result.output)
+    assert line.startswith("next: not_shown — the author cited a real passage")
+    assert "backdraft show" not in line
+    assert "--session" not in line
+    assert "`backdraft bind`" in line
+
+    bound = runner.invoke(full_app, ["bind", str(root / "memo.md"), "--session", "s-writer"])
+    (author_line,) = _next_lines(bound.output)
+    assert author_line.startswith("next: not_shown — ")
+    assert "`backdraft show <token> --session s-writer`" in author_line
+
+
+def test_a_drifted_source_names_the_recorded_document_s_re_bind(project) -> None:
     registry, root, source = project
     path = _bound(root, registry, f"The file says [1.42x]({_token(registry, 2)}).\n")
     source.write_text(PAGE_BREAK.join([PAGE_ONE, PAGE_TWO_EDITED]), encoding="utf-8")
     registry.ingest(source, extractor="paged")
     (line,) = _next_lines(runner.invoke(app, ["verify", str(path)]).output)
-    assert "`backdraft locate" in line and "memo.md" in line
+    assert line.startswith("next: drifted — ")
+    assert "`backdraft show <token>`" in line and "memo.md" in line
+    assert "by its author" in line
 
 
 def test_a_clean_verify_is_byte_identical(project) -> None:

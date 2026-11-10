@@ -42,6 +42,7 @@ from typing import Annotated, Any, NamedTuple
 import typer
 
 from ..cli_context import (
+    AUDITOR,
     EXIT_UNRESOLVED,
     RECEIPT,
     RECOUNT,
@@ -550,23 +551,25 @@ def _print_verification(artifact: Path, checked: _Checked) -> None:
 
 
 def _next_moves(checked: _Checked) -> list[str]:
-    """The closing `next:` lines: one per kind of finding, bind's table.
+    """The closing `next:` lines: one per kind of finding, the auditor's table.
 
     `receipt` and `recount` come first because they mean something categorically
     different — the file was edited, so what the sources say about it is moot
-    until it is rebuilt. The source tier's statuses get the moves `bind` prints
-    for them, against the document and session the record names, since the fix
-    is a re-bind of that document. A record that only *carries* a failure is not
-    a finding here (it exits 0), so it gets no line either.
+    until it is rebuilt. The source tier's statuses get the auditor's moves, not
+    `bind`'s: this report's reader is checking someone else's work, and a move
+    that names the author's session — `show` a `not_shown` token into it, above
+    all — would tell them how to erase the finding rather than report it. So no
+    session is passed, and the re-binds are named as the author's. A record that
+    only *carries* a failure is not a finding here (it exits 0), so it gets no
+    line either.
     """
     present: set[str] = {str(fresh.status) for _, _, fresh in checked.moved}
     if checked.broken:
         present.add(RECEIPT)
     if not checked.recounts:
         present.add(RECOUNT)
-    report = checked.report
-    session = report.session_id if report.mode == "frontwalk" else None
-    return next_moves(present, doc=report.doc_path, session=session)
+    doc = checked.report.doc_path
+    return next_moves(present, reader=AUDITOR, doc=doc, session=None)
 
 
 def _ledger_line(checked: _Checked) -> str | None:
