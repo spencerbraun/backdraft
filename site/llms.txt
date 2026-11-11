@@ -354,6 +354,11 @@ no_session, backfill), and each findings[] entry has a
 kind — receipt (the file was edited; check names which), recount (summary
 disagrees with claims) or source (status is today's, recorded is the record's;
 differing means the source moved). findings is empty exactly when exit is 0.
+next[] is the move per kind of finding, as {kind, move}: kind is receipt,
+recount or a status (malformed, unresolved, not_shown, drifted), edited-file
+kinds first, and move is the report's closing next: line without its prefix,
+written for the recipient. Empty when findings is. bind --json has no next;
+its moves are on the bind report.
 Relay the plain report to the user, never the JSON.
 
 ## Files

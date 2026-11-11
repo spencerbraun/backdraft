@@ -60,6 +60,8 @@ __all__ = [
     "find_root",
     "guard",
     "named_root",
+    "moves_for",
+    "next_line",
     "next_moves",
     "open_registry",
     "opened_registry",
@@ -464,24 +466,44 @@ skill says the same at length; this is the line the report carries.
 """
 
 
+def moves_for(
+    present: Collection[str], *, reader: str, doc: str, session: str | None
+) -> list[tuple[str, str]]:
+    """Each kind of failure in `present` with its move, in table order.
+
+    The one place a move is chosen, ordered and filled in. `next_moves` words
+    these as the report's closing lines and `verify --json` carries them as its
+    `next` array, so the two cannot name different moves or order them
+    differently. `reader` is `AUTHOR` for `bind` and `AUDITOR` for `verify`, and
+    picks the table the moves come from; it has no default, because the wrong
+    reader's move is the one this keying exists to keep out of a report. `doc`
+    is the authored document and `session` the one the run was judged against,
+    so the commands are the ones to type; both are shell-quoted for that reason.
+    """
+    flag = f" --session {shlex.quote(session)}" if session else ""
+    return [
+        (key, move.format(doc=shlex.quote(doc), session=flag))
+        for key, move in NEXT_MOVES[reader].items()
+        if key in present
+    ]
+
+
 def next_moves(
     present: Collection[str], *, reader: str, doc: str, session: str | None
 ) -> list[str]:
     """The closing `next:` lines for the kinds of failure `present`, in table order.
 
-    `reader` is `AUTHOR` for `bind` and `AUDITOR` for `verify`, and picks the
-    table the moves come from; it has no default, because the wrong reader's
-    move is the one this keying exists to keep out of a report.
-
     One line per kind present and none for the rest — the shape `ingest`'s
     grouped notes use, rather than a hint on every line item, since one move
-    answers every line item of its kind. `doc` is the authored document and
-    `session` the one the run was judged against, so the commands are the ones
-    to type; both are shell-quoted for that reason.
+    answers every line item of its kind. The kinds and moves are `moves_for`'s;
+    this only words them as lines.
     """
-    flag = f" --session {shlex.quote(session)}" if session else ""
     return [
-        f"next: {key} — {move.format(doc=shlex.quote(doc), session=flag)}"
-        for key, move in NEXT_MOVES[reader].items()
-        if key in present
+        next_line(kind, move)
+        for kind, move in moves_for(present, reader=reader, doc=doc, session=session)
     ]
+
+
+def next_line(kind: str, move: str) -> str:
+    """One closing `next:` line — the prefix `verify --json`'s `move` leaves off."""
+    return f"next: {kind} — {move}"

@@ -53,7 +53,8 @@ from ..cli_context import (
     find_root,
     guard,
     named_root,
-    next_moves,
+    moves_for,
+    next_line,
     print_json,
 )
 from ..kernel.artifact import (
@@ -349,7 +350,8 @@ def verify(
             "--json",
             help=(
                 "Print the check as one JSON object instead of the report: both tiers, "
-                "and every finding with its kind (receipt, recount, source). Same exit code."
+                "every finding with its kind (receipt, recount, source), and the move for "
+                "each kind of finding under next. Same exit code."
             ),
         ),
     ] = False,
@@ -387,7 +389,8 @@ def verify(
     that the sources or the ledger do not stand behind a citation today — so
     the causes of an exit 2 are told apart without reading a sentence. The
     report says the same in words: it closes with one `next:` line per kind of
-    finding, naming the command that addresses it.
+    finding, naming the command that addresses it, and the object carries those
+    lines as its `next` array, so a caller that parses is told the move too.
     """
     with guard():
         if not artifact.is_file():
@@ -546,12 +549,16 @@ def _print_verification(artifact: Path, checked: _Checked) -> None:
         typer.echo(
             "[Re-check against the sources: run this inside the project it was bound in.]"
         )
-    for line in _next_moves(checked):
-        typer.echo(line)
+    for kind, move in _moves(checked):
+        typer.echo(next_line(kind, move))
 
 
-def _next_moves(checked: _Checked) -> list[str]:
-    """The closing `next:` lines: one per kind of finding, the auditor's table.
+def _moves(checked: _Checked) -> list[tuple[str, str]]:
+    """Each kind of finding with its move, from the auditor's table, in its order.
+
+    Both presenters read this: the report words each as a closing `next:` line
+    and `--json` carries them as its `next` array, so the move a parser gets is
+    the string the report printed.
 
     `receipt` and `recount` come first because they mean something categorically
     different — the file was edited, so what the sources say about it is moot
@@ -569,7 +576,7 @@ def _next_moves(checked: _Checked) -> list[str]:
     if not checked.recounts:
         present.add(RECOUNT)
     doc = checked.report.doc_path
-    return next_moves(present, reader=AUDITOR, doc=doc, session=None)
+    return moves_for(present, reader=AUDITOR, doc=doc, session=None)
 
 
 def _ledger_line(checked: _Checked) -> str | None:
@@ -626,6 +633,13 @@ def _verification(artifact: Path, checked: _Checked) -> dict[str, Any]:
     Counts are sorted by status so the object is a pure function of the run; the
     claim is carried whole, as `claims[]` carries it, rather than cut to the
     report's line width, since a caller that parses has no line to fit.
+
+    `next` is the report's closing `next:` lines as data, one `{kind, move}` per
+    kind of finding in the auditor's table order — empty exactly when `findings`
+    is. Its `kind` is the table's (`receipt`, `recount`, or a status), not a
+    finding's `kind`, where every status is `source`. `move` is a sentence and
+    rewordable like `detail`; it is carried because what to do next is the part
+    a caller that never sees the report has no other way to learn.
     """
     report = checked.report
     summary = report.summary
@@ -683,6 +697,7 @@ def _verification(artifact: Path, checked: _Checked) -> dict[str, Any]:
             "ledger": None if checked.ledger is None else str(checked.ledger),
         },
         "findings": findings,
+        "next": [{"kind": kind, "move": move} for kind, move in _moves(checked)],
     }
 
 

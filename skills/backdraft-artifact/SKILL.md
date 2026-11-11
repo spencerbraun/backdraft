@@ -90,8 +90,14 @@ record's session was asked about `not_shown`, or says why not (`absent`,
 `recount` (`summary` disagrees with `claims`), or `source` (the citation does
 not resolve today; `status` is today's and `recorded` the record's, so the two
 differing is a source that moved). `findings` is empty exactly when the exit is
-0. Branch on `kind`, `check` and the statuses; `detail` and `error` are
-sentences, and sentences get reworded. `verify` is read-only, so running it
+0. `next` is what to do about them: one `{kind, move}` per kind of finding —
+`receipt`, `recount`, or a source finding's status (`unresolved`, `not_shown`,
+`drifted`, `malformed`) — with an edited file first. Each `move` is the plain
+report's closing `next:` line without its prefix, written for you as the
+recipient, so you do not need the report to know the move; follow it as
+written, and note that the `not_shown` one tells you to report the finding,
+not to show the token. Branch on `kind`, `check` and the statuses; `detail`,
+`error` and `move` are sentences, and sentences get reworded. `verify` is read-only, so running it
 again without `--json` costs nothing — **that plain report is what you quote to
 the user**, never the JSON.
 

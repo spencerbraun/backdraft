@@ -904,7 +904,7 @@ def test_the_artifact_spec_names_every_value_json_can_carry() -> None:
         encoding="utf-8"
     )
     section = spec.split("## Checking an artifact", 1)[1].split("\n## ", 1)[0]
-    for value in (VERIFY_FORMAT, "receipt", "recount", "source", *RECEIPT_CHECKS):
+    for value in (VERIFY_FORMAT, "receipt", "recount", "source", "next", *RECEIPT_CHECKS):
         assert f"`{value}`" in section, f"spec/artifact.md does not name {value!r}"
 
 
@@ -1266,8 +1266,86 @@ def test_a_clean_verify_is_byte_identical(project) -> None:
     )
 
 
-def test_json_carries_no_next_lines(record: pathlib.Path) -> None:
+# ---- `--json` carries the same moves as data ---------------------------------
+#
+# The report's `next:` lines are the part a parser most needs and has no other
+# way to learn. `next` is those lines keyed — same table, same order, the move
+# being the line after its `next: <kind> — ` prefix — and it is additive: every
+# other key of the object stays where the tests above pin it.
+
+
+def _both(path: pathlib.Path) -> tuple[list[str], dict]:
+    """The plain report's `next:` lines and the `--json` object, for one file."""
+    lines = _next_lines(runner.invoke(app, ["verify", str(path)]).output)
+    return lines, json.loads(runner.invoke(app, ["verify", str(path), "--json"]).stdout)
+
+
+def test_json_next_is_the_report_s_line_without_its_prefix(project) -> None:
+    registry, root, _ = project
+    path = _bound(root, registry, "The file says [1.42x](bd:ghost:p1.c1:0000).\n")
+
+    (line,), checked = _both(path)
+
+    (entry,) = checked["next"]
+    assert entry.keys() == {"kind", "move"}
+    assert entry["kind"] == "unresolved"
+    assert line == f"next: unresolved — {entry['move']}"
+
+
+def test_json_next_is_empty_on_a_clean_record(record: pathlib.Path) -> None:
+    result, checked = _checked(str(record))
+    assert result.exit_code == 0, result.output
+    assert checked["findings"] == []
+    assert checked["next"] == []
+
+
+def test_json_next_puts_an_edited_receipt_before_the_sources(project) -> None:
+    """One entry per kind of finding, in the auditor's table order: the file
+    having been edited makes what the sources say moot, so it leads."""
+    registry, root, _ = project
+    path = _bound(
+        root,
+        registry,
+        f"The file says [1.42x]({_token(registry, 2)}) and [more](bd:ghost:p1.c1:0000).\n",
+    )
+    payload = _payload(path)
+    _first_anchored(payload)["anchor"]["snippet"] += " and one sentence nobody wrote."
+    _rewrite(path, payload)
+
+    lines, checked = _both(path)
+
+    assert [entry["kind"] for entry in checked["next"]] == ["receipt", "unresolved"]
+    assert lines == [f"next: {e['kind']} — {e['move']}" for e in checked["next"]]
+
+
+def test_json_next_names_a_recount_by_the_table_s_kind(record: pathlib.Path) -> None:
     payload = _payload(record)
     payload["summary"]["citations"] += 4
     _rewrite(record, payload)
-    assert "next:" not in runner.invoke(app, ["verify", str(record), "--json"]).output
+
+    (line,), checked = _both(record)
+
+    assert [entry["kind"] for entry in checked["next"]] == ["recount"]
+    assert line == f"next: recount — {checked['next'][0]['move']}"
+
+
+def test_json_next_for_a_not_shown_names_no_show_and_no_session(project) -> None:
+    """The auditor's wording, not `bind`'s: a parser that ran the move must not
+    be the one that mints the token into the author's ledger."""
+    registry, root, _ = project
+    _shown(registry, "s-writer", 2)
+    path = _bound_under(
+        root, registry, f"The covenant [holds]({_token(registry, 1)}).\n", "s-writer"
+    )
+
+    _, checked = _both(path)
+
+    (entry,) = checked["next"]
+    assert entry["kind"] == "not_shown"
+    assert "backdraft show" not in entry["move"]
+    assert "--session" not in entry["move"] and "s-writer" not in entry["move"]
+
+
+def test_json_next_is_the_only_key_added_and_comes_last(record: pathlib.Path) -> None:
+    _, checked = _checked(str(record))
+    assert list(checked) == ["$format", "artifact", "record", "sources", "findings", "next"]

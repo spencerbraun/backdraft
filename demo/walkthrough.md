@@ -768,7 +768,9 @@ session, and the fixes that are re-binds say whose they are. That matters most
 for `not_shown`, the finding that the author cited a passage they never read —
 `bind` tells its author to `show` the token, and a recipient who did the same
 would mint it into the author's ledger and the next `verify` would come back
-clean. `verify`'s line says to report it instead.
+clean. `verify`'s line says to report it instead. `verify --json` carries the
+same lines as its `next` array, one `{kind, move}` each, for a caller that
+parses the check and never sees this report.
 
 **Against the sources** is the fourth line, and it happens here only because
 this directory has a registry. Copy the artifact somewhere else — which is what

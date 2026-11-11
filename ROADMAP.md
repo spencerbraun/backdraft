@@ -32,37 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. `verify --json` carries the finding and not the move
-
-**Intent.** `bind` and `verify` reports end with `next:` lines (2026-10-14), and
-both `--json` forms carry none of it, by design for `bind`, whose `--json` is
-the record's own bytes. `verify --json` is not the record: it is a
-`verify-v1` object an agent reads instead of the report, and that agent — the
-one running the artifact skill, or a CI step that posts an audit — gets the
-`kind` of each finding and has to rediscover what to do about it from the
-skill. The move is the part a parser most needs and the part the wording-churn
-argument for `--json` was about.
-
-**Shape.** `verify --json` gains a top-level `next` array, one object per kind of
-finding present, `{kind, move}`, in table order — the same strings the report
-prints, from the same `next_moves` call, so there is one owner and one ordering.
-Additive under `verify-v1`'s unknown-keys rule, which 2026-10-14's `ledger` key
-already relied on; the row says so. `bind --json` stays the record, and the row
-says why its caller reads the move from `verify --json` or the report instead of
-from a record field. The array carries the auditor's wording (2026-11-10), not
-`bind`'s.
-
-**Acceptance.** `verify --json` on the demo artifact carries exactly one `next`
-entry, `kind: "unresolved"`, whose `move` equals the report's `next:` line after
-its `next: unresolved — ` prefix; an artifact with an edited receipt carries a
-`receipt` entry first; a clean artifact carries `next: []`. Every other key of
-the object is byte-identical, pinned against the existing JSON tests. SPEC
-§ CLI's `verify-v1` paragraph, `spec/artifact.md` if it documents the object,
-`site/llms.txt` and the artifact skill name the key.
-
-**Size.** One day.
-
-### 2. A search hit on a long page points at the whole page
+### 1. A search hit on a long page points at the whole page
 
 **Intent.** Every search result block closes with `[Read the page: backdraft
 read <slug> p<n>]`, and `show` does the same. On a 57-chunk web page that is
@@ -96,7 +66,7 @@ hint. DESIGN row.
 
 **Size.** One day.
 
-### 3. A web page saved by hand ingests as a file and loses the address it came from
+### 2. A web page saved by hand ingests as a file and loses the address it came from
 
 **Intent.** The 2026-08-05 row made a URL provenance, not identity: a fetched
 page is identified by its snapshot and named everywhere by its URL. An agent
@@ -135,7 +105,7 @@ from the fixture are identical with and without `--origin`, diffed. SPEC
 
 **Size.** Two to three days.
 
-### 4. `show` on a drifted token prints the passage that took over its address as `now`, and never says the cited words only moved
+### 3. `show` on a drifted token prints the passage that took over its address as `now`, and never says the cited words only moved
 
 **Intent.** `backdraft show <token>` is the first command an agent reaches for
 when `bind` says `drifted`, and its block prints `cited:` then `now [<token>]:`
@@ -180,7 +150,7 @@ bullet say what the line means. DESIGN row.
 
 **Size.** One day.
 
-### 5. `bind` knows which drifted citations only moved and reports none of it
+### 4. `bind` knows which drifted citations only moved and reports none of it
 
 **Intent.** Since 2026-10-21 `citation_for` writes `moved_to` on every drifted
 citation whose words stand unchanged at one place, so the record knows, the
@@ -223,7 +193,7 @@ at`. `bind --json` on both is unchanged against the current output, and
 
 **Size.** One day.
 
-### 6. `ingest --dry-run` says a PDF would go to the vision model and not how many pages that is
+### 5. `ingest --dry-run` says a PDF would go to the vision model and not how many pages that is
 
 **Intent.** The 2026-10-19 row put the extractor on the dry run's line because
 it is the one fact there that can cost money, and the note says `vlm` is a
@@ -262,7 +232,7 @@ amending 2026-10-19.
 
 **Size.** One day.
 
-### 7. A source re-ingested from where it moved to keeps the registry's old path, and every hint that names the path names a file that is gone
+### 6. A source re-ingested from where it moved to keeps the registry's old path, and every hint that names the path names a file that is gone
 
 **Intent.** Identity is the bytes (2026-08-05), so re-ingesting an unchanged
 file from a new path is a no-op: `Registry.ingest` finds the document by
@@ -301,7 +271,7 @@ names where the file was last seen. DESIGN row.
 
 **Size.** One day.
 
-### 8. `search` and the table of contents never say which hits or chunks this session was already shown
+### 7. `search` and the table of contents never say which hits or chunks this session was already shown
 
 **Intent.** `session show --in` (2026-10-20) answers coverage per document, but
 the moment an agent actually chooses what to read next is a `search` block of
@@ -337,7 +307,7 @@ says what the mark means. DESIGN row.
 
 **Size.** One to two days.
 
-### 9. A drifted citation whose words now span two chunks has no `moved_to`, so its card diffs them against half a passage
+### 8. A drifted citation whose words now span two chunks has no `moved_to`, so its card diffs them against half a passage
 
 **Intent.** Since 2026-10-26 `locate` proposes `a;b` when a cut now runs
 through the cited words, and `--apply` writes the pair. `bind` does not record
@@ -374,7 +344,7 @@ as before — the key is not part of the receipt checks.
 
 **Size.** Two days.
 
-### 10. The drafts named after a new generation may have been edited since their bind, and the note cannot tell which
+### 9. The drafts named after a new generation may have been edited since their bind, and the note cannot tell which
 
 **Intent.** `ingest`'s new-generation note and `show`'s drift hint name the
 drafts whose records cite a source "as last bound", and the writing skill has
@@ -405,7 +375,7 @@ edited drafts is replaced by what the mark means.
 
 **Size.** One day.
 
-### 11. `bind` under a different session than the draft's last bind says nothing, and every citation turns `not_shown`
+### 10. `bind` under a different session than the draft's last bind says nothing, and every citation turns `not_shown`
 
 **Intent.** An agent that loses its context, or a fresh shell without
 `BACKDRAFT_SESSION` exported, re-binds a draft with no `--session`: the run
@@ -436,7 +406,7 @@ paragraph says to read the note before re-reading anything.
 
 **Size.** One day.
 
-### 12. A record the scan cannot read is counted, never named, so the "may be short" warning has no next step
+### 11. A record the scan cannot read is counted, never named, so the "may be short" warning has no next step
 
 **Intent.** `scan_records` skips a record that is not valid JSON or not a
 record's shape and counts it; `ingest`'s note then says "1 record under
@@ -468,7 +438,7 @@ tests pass with `skipped` unchanged.
 
 **Size.** One day.
 
-### 13. `relocate` re-reads a whole document for every drifted chunk citation it cannot find exactly
+### 12. `relocate` re-reads a whole document for every drifted chunk citation it cannot find exactly
 
 **Intent.** `current_within` (2026-10-26) is a pass over every current chunk of
 the cited document — `registry.pages` plus `anchors_for_page` per page, then a
@@ -496,7 +466,7 @@ byte-identical output.
 
 **Size.** One day.
 
-### 14. A link whose href is a token missing `bd:` binds as prose, and `bind` says `0 claim(s)` at exit 0
+### 13. A link whose href is a token missing `bd:` binds as prose, and `bind` says `0 claim(s)` at exit 0
 
 **Intent.** `kernel.tokens.is_token_href` counts a link as a citation only when
 a piece starts with `bd:`, deliberately, so an ordinary URL is never judged. But
@@ -538,7 +508,7 @@ prints byte-identical output.
 
 **Size.** One day.
 
-### 15. `locate` is the command an agent acts on token by token, and it has no `--json`
+### 14. `locate` is the command an agent acts on token by token, and it has no `--json`
 
 **Intent.** `locate` prints `moved`, `ambiguous` and `gone` as prose lines in
 `bind`'s shape. An agent that wants to apply only some swaps, or pick among an
@@ -575,7 +545,7 @@ and no ledger, session or record row is written either way.
 
 **Size.** Two days.
 
-### 16. An agent takes its tokens out of `search`'s prose, and the snippet it sees is elided
+### 15. An agent takes its tokens out of `search`'s prose, and the snippet it sees is elided
 
 **Intent.** `search` is how an agent finds what to cite, and its output is the
 `N results for "..."` header, each hit as `[bd:slug:locator:hash]  slug pN`,
@@ -597,7 +567,7 @@ session has now been shown, and `read`, the page-read command), and `notes`
 (the report's own strings). The DESIGN row records that the full snippet in
 `--json` does not widen what the ledger means: the anchor is minted to the
 session whole either way, and the plain report elides only for width. If
-ROADMAP item 8's shown-before marks land first, they become a `shown_before`
+ROADMAP item 7's shown-before marks land first, they become a `shown_before`
 key here, and whichever lands second adds it.
 
 **Acceptance.** For the same query in two fresh sessions, one plain and one
@@ -609,7 +579,7 @@ stdout empty. The plain output is byte-identical to before.
 
 **Size.** Two days.
 
-### 17. The skills preview a withdrawal by running `forget` without `--yes` and counting on it to refuse
+### 16. The skills preview a withdrawal by running `forget` without `--yes` and counting on it to refuse
 
 **Intent.** `forget` now names the drafts a withdrawal would break (2026-11-04),
 and both skills tell the agent to see that list by running `backdraft forget
@@ -641,7 +611,7 @@ lists `notes`. `forget nope --dry-run` exits 1 naming the slugs that exist.
 
 **Size.** One day.
 
-### 18. A `--json` run that cannot start leaves the caller one rewordable sentence on stderr
+### 17. A `--json` run that cannot start leaves the caller one rewordable sentence on stderr
 
 **Intent.** Every `--json` promises nothing on stdout at exit 1 when the run
 cannot start: no registry, a registry stamped newer than this build, an
@@ -664,7 +634,7 @@ raising exception as an optional `code` attribute on `BackdraftError`
 `cli._document_named`, `cli._parse_config` and `cli._confirm`. Stdout keeps
 its promise, and `ingest`'s failed-source exception (2026-11-03) is untouched.
 The flag threads through `ingest`, `doctor`, `bind`, `verify`, and `locate`
-and `search` when items 15 and 16 have landed. The DESIGN row records why
+and `search` when items 14 and 15 have landed. The DESIGN row records why
 stderr and not stdout (the stdout promise), and why a code table and not
 exception class names: class names are internal and move with refactors.
 Specified in SPEC § CLI.

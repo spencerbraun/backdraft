@@ -400,6 +400,10 @@ releases; the plain report is what to show that person.
      "status": "unresolved", "recorded": "unresolved", "error": null,
      "claim": {"text": "replacement reserve of $250 per unit per year",
                "start": 3629, "end": 3703}}
+  ],
+  "next": [
+    {"kind": "unresolved",
+     "move": "the token names nothing in this registry, so the claim is uncited as sent. `backdraft show <token>` says which half is wrong. Report the claim as open; finding what supports it, if anything does, is a re-bind of memo.md by its author."}
   ]
 }
 ```
@@ -411,6 +415,7 @@ releases; the plain report is what to show that person.
 | `record` | object | steps 1 to 4, which always run when there is an object at all |
 | `sources` | object | the outside check, which runs only where a registry was found or named |
 | `findings` | array | everything that did not verify, in the order the checks run: receipts, the recount, then the sources. Empty exactly when the exit code is 0 |
+| `next` | array | what the reader of the check does about it: one `{kind, move}` per kind of finding present. Empty exactly when `findings` is |
 
 `record` carries `ran` (always `true`), `receipts` (citations carrying an
 anchor, each checked) and `receipts_held`, `summary_agrees` (step 4), and the
@@ -446,6 +451,23 @@ binding; one where they agree is the record's own kept failure, still not
 resolved today. `claim` is `{text, start, end}` as in `claims[]`. `detail` and
 `error` are sentences for a person and may be reworded between releases; `kind`,
 `check` and the statuses are the values to branch on.
+
+`next` says what to do about the findings, once per kind rather than once per
+finding, since one move answers every finding of its kind. Each entry is
+`{kind, move}`. Its `kind` is finer than a finding's: `receipt` or `recount`
+for those findings, and for `source` findings the `status` they carry
+(`malformed`, `unresolved`, `not_shown`, `drifted`), because the move differs
+per status. Entries are ordered `receipt`, `recount`, then the statuses in that
+order, so a file that was edited is said first — what the sources say about it
+is moot until it is rebuilt. `move` is a sentence addressed to whoever received
+the artifact, not to its author: it names no session, and a `not_shown` move
+does not say to show the token, which would put it in the author's ledger and
+clear the finding. In this implementation it is the plain report's closing
+`next: <kind> — <move>` line without that prefix. `move` may be reworded
+between releases like `detail`; `kind` is the value to branch on. `next` was
+added to `backdraft/verify-v1` after `findings` was, as `sources.ledger` was:
+unknown keys in a recognized payload are ignored under *Versioning*, so a
+reader written before the key existed reads the object as it always did.
 
 ## The markdown projection (informative)
 

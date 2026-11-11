@@ -24,6 +24,8 @@ from backdraft.cli_context import (
     RECEIPT,
     RECOUNT,
     UNMATCHED,
+    moves_for,
+    next_line,
     next_moves,
 )
 from backdraft.kernel.model import CitationStatus
@@ -125,3 +127,16 @@ def test_the_auditor_ignores_a_session_it_is_handed() -> None:
 def test_no_session_is_no_flag() -> None:
     (line,) = next_moves({"unmatched"}, reader=AUTHOR, doc="memo.md", session=None)
     assert "--session" not in line
+
+
+def test_the_lines_are_the_pairs_worded_and_nothing_else() -> None:
+    """`verify --json` carries `moves_for`'s pairs and the reports print
+    `next_moves`' lines; one is the other with a prefix, in the same order."""
+    asked = {"not_shown", "drifted", RECEIPT, RECOUNT}
+    pairs = moves_for(asked, reader=AUDITOR, doc="my memo.md", session=None)
+    assert [kind for kind, _ in pairs] == [RECEIPT, RECOUNT, "not_shown", "drifted"]
+    assert next_moves(asked, reader=AUDITOR, doc="my memo.md", session=None) == [
+        next_line(kind, move) for kind, move in pairs
+    ]
+    assert all("{" not in move for _, move in pairs)
+    assert "'my memo.md'" in pairs[0][1]
