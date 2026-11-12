@@ -198,6 +198,11 @@ backdraft search "24850000"                 # hits are citable directly.
                                             # Each excerpt shows the words that
                                             # matched; a leading "..." means the
                                             # chunk opens earlier than shown.
+                                            # On a page too long for one read the
+                                            # closing hint is "Read around it:
+                                            # backdraft read <slug> p1.c23-c25",
+                                            # the hit's chunk and one either side,
+                                            # in place of "Read the page".
                                             # A count line reading "2 of 56
                                             # results" means --limit cut the
                                             # rest: the best evidence may be

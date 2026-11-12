@@ -167,6 +167,11 @@ $ backdraft search "24850000"
 [Read the page: backdraft read underwriting-model p2]
 ```
 
+On a page too long for one read — the 57-chunk web page above — the closing
+line names the chunks around the hit instead of the page from its top:
+`backdraft search "renter-occupied"` ends `[Read around it: backdraft read
+franklin-county p1.c23-c25]`, the hit's chunk and one either side.
+
 Search shows twenty results by default. A run that hit the limit says so —
 `20 of 56 results` — and closes with the command that shows the rest, because
 "20 results" over an answer of 56 is how a reader concludes it has seen

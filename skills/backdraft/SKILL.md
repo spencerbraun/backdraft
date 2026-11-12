@@ -159,7 +159,13 @@ the content starts, then read from there by the locator the list printed —
 `backdraft read <slug> p1.c9` for one chunk, `p1.c9-c14` for a run of them —
 or `backdraft search` for the figures you need, rather than reading the whole
 page into context from its navigation menu. A whole-page read comes in more
-than one window.
+than one window. On a page that long, a `search` hit and a `show` close with
+`[Read around it: backdraft read <slug> p1.c23-c25]` instead of `[Read the
+page: …]`: the hit's chunk and the one either side of it. Run that line when
+you need what the sentence follows from or leads into; widen the range
+yourself (`p1.c20-c28`) when three chunks are not enough. The hint shows you
+nothing and mints nothing: the chunks beside the hit become citable when you
+run the read, not before.
 
 Two habits make a web citation last. **Ingest a fixed revision when the site
 offers one** — Wikipedia's `?oldid=` permanent link, a DOI, an archived

@@ -25,12 +25,14 @@ from .reader import (
     adjoining,
     adjoining_lines,
     excerpt,
+    read_around,
+    read_hints,
     require_document,
     session_argument,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping
+    from collections.abc import Iterable, Mapping, Sequence
 
     from ..registry.store import Registry, SearchHit
 
@@ -61,7 +63,9 @@ def search(
     """Run `query` through the registry's FTS index and render the results.
 
     Each hit is one line carrying its token, its document and page, and an
-    excerpt of its snippet; a read hint follows for every distinct page matched.
+    excerpt of its snippet; a read hint follows for every distinct page matched
+    — the page itself, or on a page too long for one read window the chunk range
+    around each hit (`reader.read_around`).
     Under a hit whose text may run on into the chunk beside it, that chunk is
     named too (`reader.adjoining`). Every hit's anchor, and every adjoining one,
     is recorded in `session` before the text is returned — a result the writer
@@ -78,7 +82,10 @@ def search(
     hits = registry.search(query, slug=slug, limit=limit)
     beside = adjoining(registry, (hit.anchor for hit in hits))
     _mint(registry, session, hits, beside)
-    return render_search(query, hits, slug=slug, session_flag=session_flag, beside=beside)
+    around = read_around(registry, (hit.anchor for hit in hits))
+    return render_search(
+        query, hits, slug=slug, session_flag=session_flag, beside=beside, around=around
+    )
 
 
 def render_search(
@@ -88,11 +95,14 @@ def render_search(
     slug: str | None = None,
     session_flag: str | None = None,
     beside: Mapping[str, Adjoining] | None = None,
+    around: Mapping[tuple[str, int], Sequence[tuple[int, int]]] | None = None,
 ) -> str:
     """Render search results. Pure: minting happens in `search`.
 
     `beside` is `reader.adjoining`'s answer for these hits, keyed by token;
     a hit it names nothing for renders exactly as it did before there was one.
+    `around` is `reader.read_around`'s, keyed by page: a page it names closes
+    with the chunk range around each hit in place of the read of the whole page.
 
     NOTE: `phrase_fallback` and `total` are read *before* `hits` is copied into
     a plain list — they ride on the result object the registry returned.
@@ -128,11 +138,7 @@ def render_search(
             lines += adjoining_lines(hit.anchor, beside[hit.anchor.token], indent="  ")
         lines.append("")
 
-    seen: list[tuple[str, int]] = []
-    for hit in hits:
-        if (hit.slug, hit.page_number) not in seen:
-            seen.append((hit.slug, hit.page_number))
-    lines += [f"[Read the page: backdraft read {s} p{n}{carried}]" for s, n in seen]
+    lines += read_hints(((hit.slug, hit.page_number) for hit in hits), around, carried)
     if total > len(hits):
         lines.append(_widen_hint(query, slug, total, carried))
     if any(hit.anchor.token in beside for hit in hits):

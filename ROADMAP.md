@@ -32,41 +32,7 @@ best evidence available for what those five should be.
 
 ## Now
 
-### 1. A search hit on a long page points at the whole page
-
-**Intent.** Every search result block closes with `[Read the page: backdraft
-read <slug> p<n>]`, and `show` does the same. On a 57-chunk web page that is
-three windows starting at the navigation menu, when the agent wanted the
-paragraph around one hit — which is exactly what the week's chunk selector
-(`p1.c9-c14`, 2026-10-14) exists for and what nothing yet points at. The
-walkthrough's own `search "renter-occupied"` hit is `p1.c24`, and the hint
-sends the reader to `p1` from the top.
-
-**Shape.** `gate/searcher.py` (the `seen` list behind the hint) and the
-matching hint in `gate/reader.py`'s `show`. On a `page`-kind page with more
-chunks than fit one default read window, the hint names the chunk range around
-each hit — the hit's ordinal plus `READ_AROUND_CHUNKS` either side, clipped to
-the page, merged where two hits' ranges touch — as `[Read around it: backdraft
-read <slug> p1.c23-c25]`, carrying `--session` as today. A page that fits one
-window keeps `[Read the page: …]` byte for byte, so every documented search on
-the PDF and the workbook is unchanged; a sheet never gets the chunk form. The
-hint is advice and mints nothing; the read it names mints what it prints, as
-any chunk read does. Name the constant's value and the "fits one window" test in
-the DESIGN row.
-
-**Acceptance.** In a copy of `demo/`'s registry, `backdraft search
-"renter-occupied"` closes with a `Read around it` hint naming a range that
-contains `p1.c24`, and running that hint prints `p1.c24` and does not print
-`p1.c1`. `backdraft search "24850000"` and every search block in
-`demo/walkthrough.md` on `t12-summary` or `underwriting-model` is byte-identical.
-`show bd:franklin-county:p1.c24:5678` names the same range. The walkthrough's
-franklin-county search blocks are regenerated in a scratch copy, not
-hand-edited, and `skills/backdraft/SKILL.md`'s long-page paragraph names the
-hint. DESIGN row.
-
-**Size.** One day.
-
-### 2. A web page saved by hand ingests as a file and loses the address it came from
+### 1. A web page saved by hand ingests as a file and loses the address it came from
 
 **Intent.** The 2026-08-05 row made a URL provenance, not identity: a fetched
 page is identified by its snapshot and named everywhere by its URL. An agent
@@ -105,7 +71,7 @@ from the fixture are identical with and without `--origin`, diffed. SPEC
 
 **Size.** Two to three days.
 
-### 3. `show` on a drifted token prints the passage that took over its address as `now`, and never says the cited words only moved
+### 2. `show` on a drifted token prints the passage that took over its address as `now`, and never says the cited words only moved
 
 **Intent.** `backdraft show <token>` is the first command an agent reaches for
 when `bind` says `drifted`, and its block prints `cited:` then `now [<token>]:`
@@ -150,7 +116,7 @@ bullet say what the line means. DESIGN row.
 
 **Size.** One day.
 
-### 4. `bind` knows which drifted citations only moved and reports none of it
+### 3. `bind` knows which drifted citations only moved and reports none of it
 
 **Intent.** Since 2026-10-21 `citation_for` writes `moved_to` on every drifted
 citation whose words stand unchanged at one place, so the record knows, the
@@ -193,7 +159,7 @@ at`. `bind --json` on both is unchanged against the current output, and
 
 **Size.** One day.
 
-### 5. `ingest --dry-run` says a PDF would go to the vision model and not how many pages that is
+### 4. `ingest --dry-run` says a PDF would go to the vision model and not how many pages that is
 
 **Intent.** The 2026-10-19 row put the extractor on the dry run's line because
 it is the one fact there that can cost money, and the note says `vlm` is a
@@ -232,7 +198,7 @@ amending 2026-10-19.
 
 **Size.** One day.
 
-### 6. A source re-ingested from where it moved to keeps the registry's old path, and every hint that names the path names a file that is gone
+### 5. A source re-ingested from where it moved to keeps the registry's old path, and every hint that names the path names a file that is gone
 
 **Intent.** Identity is the bytes (2026-08-05), so re-ingesting an unchanged
 file from a new path is a no-op: `Registry.ingest` finds the document by
@@ -271,7 +237,7 @@ names where the file was last seen. DESIGN row.
 
 **Size.** One day.
 
-### 7. `search` and the table of contents never say which hits or chunks this session was already shown
+### 6. `search` and the table of contents never say which hits or chunks this session was already shown
 
 **Intent.** `session show --in` (2026-10-20) answers coverage per document, but
 the moment an agent actually chooses what to read next is a `search` block of
@@ -307,7 +273,7 @@ says what the mark means. DESIGN row.
 
 **Size.** One to two days.
 
-### 8. A drifted citation whose words now span two chunks has no `moved_to`, so its card diffs them against half a passage
+### 7. A drifted citation whose words now span two chunks has no `moved_to`, so its card diffs them against half a passage
 
 **Intent.** Since 2026-10-26 `locate` proposes `a;b` when a cut now runs
 through the cited words, and `--apply` writes the pair. `bind` does not record
@@ -344,7 +310,7 @@ as before — the key is not part of the receipt checks.
 
 **Size.** Two days.
 
-### 9. The drafts named after a new generation may have been edited since their bind, and the note cannot tell which
+### 8. The drafts named after a new generation may have been edited since their bind, and the note cannot tell which
 
 **Intent.** `ingest`'s new-generation note and `show`'s drift hint name the
 drafts whose records cite a source "as last bound", and the writing skill has
@@ -375,7 +341,7 @@ edited drafts is replaced by what the mark means.
 
 **Size.** One day.
 
-### 10. `bind` under a different session than the draft's last bind says nothing, and every citation turns `not_shown`
+### 9. `bind` under a different session than the draft's last bind says nothing, and every citation turns `not_shown`
 
 **Intent.** An agent that loses its context, or a fresh shell without
 `BACKDRAFT_SESSION` exported, re-binds a draft with no `--session`: the run
@@ -406,7 +372,7 @@ paragraph says to read the note before re-reading anything.
 
 **Size.** One day.
 
-### 11. A record the scan cannot read is counted, never named, so the "may be short" warning has no next step
+### 10. A record the scan cannot read is counted, never named, so the "may be short" warning has no next step
 
 **Intent.** `scan_records` skips a record that is not valid JSON or not a
 record's shape and counts it; `ingest`'s note then says "1 record under
@@ -438,7 +404,7 @@ tests pass with `skipped` unchanged.
 
 **Size.** One day.
 
-### 12. `relocate` re-reads a whole document for every drifted chunk citation it cannot find exactly
+### 11. `relocate` re-reads a whole document for every drifted chunk citation it cannot find exactly
 
 **Intent.** `current_within` (2026-10-26) is a pass over every current chunk of
 the cited document — `registry.pages` plus `anchors_for_page` per page, then a
@@ -466,7 +432,7 @@ byte-identical output.
 
 **Size.** One day.
 
-### 13. A link whose href is a token missing `bd:` binds as prose, and `bind` says `0 claim(s)` at exit 0
+### 12. A link whose href is a token missing `bd:` binds as prose, and `bind` says `0 claim(s)` at exit 0
 
 **Intent.** `kernel.tokens.is_token_href` counts a link as a citation only when
 a piece starts with `bd:`, deliberately, so an ordinary URL is never judged. But
@@ -508,7 +474,7 @@ prints byte-identical output.
 
 **Size.** One day.
 
-### 14. `locate` is the command an agent acts on token by token, and it has no `--json`
+### 13. `locate` is the command an agent acts on token by token, and it has no `--json`
 
 **Intent.** `locate` prints `moved`, `ambiguous` and `gone` as prose lines in
 `bind`'s shape. An agent that wants to apply only some swaps, or pick among an
@@ -545,7 +511,7 @@ and no ledger, session or record row is written either way.
 
 **Size.** Two days.
 
-### 15. An agent takes its tokens out of `search`'s prose, and the snippet it sees is elided
+### 14. An agent takes its tokens out of `search`'s prose, and the snippet it sees is elided
 
 **Intent.** `search` is how an agent finds what to cite, and its output is the
 `N results for "..."` header, each hit as `[bd:slug:locator:hash]  slug pN`,
@@ -567,7 +533,7 @@ session has now been shown, and `read`, the page-read command), and `notes`
 (the report's own strings). The DESIGN row records that the full snippet in
 `--json` does not widen what the ledger means: the anchor is minted to the
 session whole either way, and the plain report elides only for width. If
-ROADMAP item 7's shown-before marks land first, they become a `shown_before`
+ROADMAP item 6's shown-before marks land first, they become a `shown_before`
 key here, and whichever lands second adds it.
 
 **Acceptance.** For the same query in two fresh sessions, one plain and one
@@ -579,7 +545,7 @@ stdout empty. The plain output is byte-identical to before.
 
 **Size.** Two days.
 
-### 16. The skills preview a withdrawal by running `forget` without `--yes` and counting on it to refuse
+### 15. The skills preview a withdrawal by running `forget` without `--yes` and counting on it to refuse
 
 **Intent.** `forget` now names the drafts a withdrawal would break (2026-11-04),
 and both skills tell the agent to see that list by running `backdraft forget
@@ -611,7 +577,7 @@ lists `notes`. `forget nope --dry-run` exits 1 naming the slugs that exist.
 
 **Size.** One day.
 
-### 17. A `--json` run that cannot start leaves the caller one rewordable sentence on stderr
+### 16. A `--json` run that cannot start leaves the caller one rewordable sentence on stderr
 
 **Intent.** Every `--json` promises nothing on stdout at exit 1 when the run
 cannot start: no registry, a registry stamped newer than this build, an
@@ -634,7 +600,7 @@ raising exception as an optional `code` attribute on `BackdraftError`
 `cli._document_named`, `cli._parse_config` and `cli._confirm`. Stdout keeps
 its promise, and `ingest`'s failed-source exception (2026-11-03) is untouched.
 The flag threads through `ingest`, `doctor`, `bind`, `verify`, and `locate`
-and `search` when items 14 and 15 have landed. The DESIGN row records why
+and `search` when items 13 and 14 have landed. The DESIGN row records why
 stderr and not stdout (the stdout promise), and why a code table and not
 exception class names: class names are internal and move with refactors.
 Specified in SPEC § CLI.

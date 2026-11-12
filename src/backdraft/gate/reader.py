@@ -46,7 +46,7 @@ from ..registry import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Sequence
+    from collections.abc import Callable, Iterable, Mapping, Sequence
 
     from ..kernel.model import Anchor, Document, Page
     from ..registry.store import Registry
@@ -66,6 +66,7 @@ __all__ = [
     "GRAMMAR_HINT",
     "HANDFUL",
     "LIST_HINT",
+    "READ_AROUND_CHUNKS",
     "THIN_SOURCE_CHARS",
     "TOC_PREVIEW_CHARS",
     "WITHDRAWN_HINT",
@@ -77,7 +78,10 @@ __all__ = [
     "Shown",
     "excerpt",
     "extracted_chars",
+    "fits_one_window",
     "read",
+    "read_around",
+    "read_hints",
     "render_documents",
     "render_coverage",
     "render_session",
@@ -247,6 +251,15 @@ A run that stops short closes with the total and the command that continues it,
 so the way to read a large page in one call is the `--limit` that line names.
 """
 
+READ_AROUND_CHUNKS = 1
+"""How many chunks either side of a hit a `Read around it` hint takes in.
+
+One, so the read the hint names is the hit and the paragraph before and after
+it: enough to see what the sentence follows from and leads into, and three
+chunks of context where the page hint it replaces was the whole page from its
+navigation menu. A reader who wants more widens the range it was just handed.
+"""
+
 _ELLIPSIS = "..."
 _PAGE_SELECTOR = re.compile(r"p(?P<first>[1-9][0-9]*)(?:-(?P<last>[1-9][0-9]*))?")
 _CHUNK_SELECTOR = re.compile(
@@ -408,6 +421,98 @@ def session_argument(session_flag: str | None) -> str:
     `session start --id` was handed.
     """
     return "" if session_flag is None else f" --session {shlex.quote(session_flag)}"
+
+
+def fits_one_window(chunks: Sequence[Anchor]) -> bool:
+    """Whether a default `read <slug> pN` shows every one of these chunks.
+
+    Asked of `_Window` itself rather than of a sum, so the answer is the read's
+    own: the budget is soft, and a page that is one chunk longer than the budget
+    still arrives whole. True is exactly "that read closes with no continuation
+    line".
+    """
+    window = _Window(offset=0, limit=DEFAULT_BUDGET["chars"])
+    return all(window.take(len(anchor.receipt.snippet)) for anchor in chunks)
+
+
+def read_around(
+    registry: Registry, anchors: Iterable[Anchor]
+) -> dict[tuple[str, int], tuple[tuple[int, int], ...]]:
+    """For each long page these anchors sit on, the chunk ranges around them.
+
+    Keyed by `(slug, page number)`; each value is `(first, last)` ordinal ranges
+    in page order — an anchor's own ordinal with `READ_AROUND_CHUNKS` either
+    side, clipped to the chunks the page has, and merged where two ranges
+    overlap or touch, so two hits in neighbouring paragraphs are one read. A
+    page that `fits_one_window` is absent, which is what keeps every hint on a
+    paginated document and a short page the `Read the page` it always was.
+
+    Only a chunk anchor asks: a sheet yields no chunk anchors, so a sheet is
+    never keyed here, and a page reached only through its page anchor has no
+    "it" to read around. As in `adjoining`, an anchor that is not on its page's
+    current chunks — a superseded generation's — asks nothing either: its
+    ordinal is an address in an extraction that no longer stands, and the words
+    it cited are `locate`'s to find. Each page is fetched once.
+
+    Mints nothing: a range is an address, and the read it names mints what it
+    prints.
+    """
+    asked: dict[tuple[str, int], list[Anchor]] = {}
+    for anchor in anchors:
+        if isinstance(anchor.locator, ChunkLocator):
+            asked.setdefault((anchor.slug, anchor.locator.page), []).append(anchor)
+
+    found: dict[tuple[str, int], tuple[tuple[int, int], ...]] = {}
+    for (slug, number), hits in asked.items():
+        chunks = _chunks(registry.anchors_for_page(slug, number))
+        if fits_one_window(chunks):
+            continue
+        current = {chunk.token for chunk in chunks}
+        ordinals = [chunk.locator.ordinal for chunk in chunks]  # type: ignore[union-attr]
+        low, high = ordinals[0], ordinals[-1]
+        ranges: list[tuple[int, int]] = []
+        for ordinal in sorted(
+            hit.locator.ordinal  # type: ignore[union-attr]
+            for hit in hits
+            if hit.token in current
+        ):
+            first = max(low, ordinal - READ_AROUND_CHUNKS)
+            last = min(high, ordinal + READ_AROUND_CHUNKS)
+            if ranges and first <= ranges[-1][1] + 1:
+                ranges[-1] = (ranges[-1][0], max(ranges[-1][1], last))
+            else:
+                ranges.append((first, last))
+        if ranges:
+            found[(slug, number)] = tuple(ranges)
+    return found
+
+
+def read_hints(
+    pages: Iterable[tuple[str, int]],
+    around: Mapping[tuple[str, int], Sequence[tuple[int, int]]] | None = None,
+    carried: str = "",
+) -> list[str]:
+    """The read each of these pages earns, one line per read, first seen first.
+
+    `[Read the page: backdraft read <slug> p<n>]` for a page `around` does not
+    name, byte for byte what it was before there was an `around`;
+    `[Read around it: backdraft read <slug> p<n>.c<a>-c<b>]` per range for one
+    it does (`read_around`). `carried` is the typed `--session`
+    (`session_argument`), since either read mints.
+    """
+    around = around or {}
+    hints: list[str] = []
+    for slug, number in pages:
+        ranges = around.get((slug, number))
+        if not ranges:
+            _remember(hints, f"[Read the page: backdraft read {slug} p{number}{carried}]")
+            continue
+        for first, last in ranges:
+            span = f"c{first}" if first == last else f"c{first}-c{last}"
+            _remember(
+                hints, f"[Read around it: backdraft read {slug} p{number}.{span}{carried}]"
+            )
+    return hints
 
 
 # ---------------------------------------------------------------------------
@@ -1231,7 +1336,8 @@ def show(
     """
     blocks: list[str] = []
     minted: list[int] = []
-    read_hints: list[str] = []
+    read_pages: list[tuple[str, int]] = []
+    read_anchors: list[Anchor] = []
     toc_hints: list[str] = []
     back_hints: list[str] = []
     malformed = False
@@ -1288,16 +1394,16 @@ def show(
         # Emitting is minting: every anchor whose token reached the output.
         minted += [a.id for a in shown if a is not None and a.id is not None]
         if anchor.page_number is not None:
-            _remember(
-                read_hints,
-                f"[Read the page: backdraft read {anchor.slug} p{anchor.page_number}"
-                f"{session_argument(session_flag)}]",
-            )
+            read_pages.append((anchor.slug, anchor.page_number))
+            read_anchors.append(anchor)
 
     _mint(registry, session, minted)
 
     lines = "\n\n".join(blocks).split("\n") if blocks else ["(no tokens)"]
-    hints = [*read_hints, *toc_hints, *(f"[{hint}]" for hint in back_hints)]
+    page_hints = read_hints(
+        read_pages, read_around(registry, read_anchors), session_argument(session_flag)
+    )
+    hints = [*page_hints, *toc_hints, *(f"[{hint}]" for hint in back_hints)]
     if drifted:
         drafts = citing(frozenset(drifted)) if citing is not None else ()
         commands = drift_commands(drafts, session_argument(session_flag))

@@ -425,6 +425,19 @@ market figures come the same way: `backdraft search "most populous county"` and
 `bd:franklin-county:p1.c24:5678`. A web page is a source like any other here —
 searched, minted and cited with no special case.
 
+One line of those two results is different. A hit on `t12-summary` or the
+workbook closes with `[Read the page: …]`, as above; the article is one page
+of 57 chunks, more than one read shows, so its hits close with the chunks
+around them instead:
+
+```
+[Read around it: backdraft read franklin-county p1.c23-c25]
+```
+
+That is the `renter-occupied` hit, `p1.c24`, with the chunk either side of it —
+the read to run when the sentence needs its context, rather than `p1` from the
+navigation menu down. The hint mints nothing; the read it names does.
+
 Search shows twenty results by default, and a run that hits the limit says so
 rather than reporting the size of the page as if it were the size of the answer:
 
